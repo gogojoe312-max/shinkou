@@ -57,6 +57,12 @@ button{cursor:pointer;background:none;border:none;padding:0}
 .spacer{flex:1}
 #saveDot{font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--dim2);white-space:nowrap}
 #saveDot.busy{color:var(--warn)}
+#syncDot{font-family:var(--mono);font-size:9px;letter-spacing:.1em;white-space:nowrap;display:none;
+  border:1px solid var(--line);border-radius:9px;padding:2px 7px;color:var(--dim2)}
+#syncDot.busy,#syncDot.wait{color:var(--warn);border-color:#4A3A22}
+#syncDot.ok{color:var(--ok);border-color:rgba(47,192,138,.4)}
+#syncDot.err{color:var(--late);border-color:#4A2E33}
+#syncDot.offline{color:var(--dim2)}
 .iconbtn{width:34px;height:34px;border:1px solid var(--line);border-radius:var(--r);display:grid;place-items:center;color:var(--dim);font-size:15px;flex-shrink:0}
 .iconbtn:hover{border-color:var(--line2);color:var(--ink)}
 
@@ -314,6 +320,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
     <div class="brand">進行<small>PRODUCTION TRACKER</small></div>
     <div class="spacer"></div>
     <span id="saveDot"></span>
+    <span id="syncDot"></span>
     <button class="iconbtn" id="btnSort" title="曲の並び替え">⇅</button>
     <button class="iconbtn" id="btnSet" title="設定">⚙</button>
   </div>
@@ -536,7 +543,12 @@ async function encUnpack(rec,pin){
   CK=key;CKsalt=rec.salt;return JSON.parse(new TextDecoder().decode(pt))}
 
 let sT=null,dirty=false,chg=0;
-function mark(){dirty=true;chg++;dot("busy");clearTimeout(sT);sT=setTimeout(flush,400)}
+let curProj=null;
+function mark(){dirty=true;chg++;dot("busy");clearTimeout(sT);sT=setTimeout(flush,400);
+  /* 開いている曲・案件に更新時刻を刻む */
+  if(cur&&document.getElementById("sheet").classList.contains("on"))cur.mtime=Date.now();
+  if(curProj&&document.getElementById("sheet2").classList.contains("on"))curProj.mtime=Date.now();
+  if(typeof syQueue==="function")syQueue()}
 function dot(m){const e=document.getElementById("saveDot");
   if(m==="busy"){e.textContent="保存中";e.className="busy"}
   else{e.textContent=mem?"未保存(一時)":"保存済";e.className=""}}
@@ -566,7 +578,7 @@ window.addEventListener("beforeunload",e=>{if(dirty){flush();e.preventDefault();
 /* ===================== model ===================== */
 function newSong(o){const t=(S.templates.find(x=>x.id===((o||{}).templateId||"tpl_single"))||S.templates[0]);
   return Object.assign({id:uid(),title:"",work:"",artist:"",projectId:"",director:"",
-    single:t.id!=="tpl_live",ord:Date.now(),
+    single:t.id!=="tpl_live",ord:Date.now(),mtime:Date.now(),
     templateId:t.id,stageList:JSON.parse(JSON.stringify(t.stages)),
     tplDates:t.dates.slice(),tplMastering:t.mastering?Object.assign({},t.mastering):null,
     dates:{release:"",meeting:"",lesson:"",mv:"",live:"",mastering:""},
@@ -845,7 +857,7 @@ function rowHTML(s){
 function songDrag(box){
   dragList(box,".srow","[data-sg]",()=>{
     [...box.querySelectorAll(".srow")].forEach((r,i)=>{
-      const s=S.songs.find(z=>z.id===r.dataset.sid);if(s)s.ord=(i+1)*10});
+      const s=S.songs.find(z=>z.id===r.dataset.sid);if(s){s.ord=(i+1)*10;stamp(s)}});
     mark();render();toast("並び順を保存しました")})}
 function bind(m){
   m.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song));
@@ -1496,8 +1508,9 @@ function nextNum(artist,kind){
 function editProject(id,after){
   /* 入力したそばから保存する。新規もこの時点で作ってしまう */
   let p=id?projOf(id):null,isNew=false;
-  if(!p){p={id:uid(),artist:"",kind:"シングル",num:1,custom:"",release:"",director:"",note:""};
+  if(!p){p={id:uid(),artist:"",kind:"シングル",num:1,custom:"",release:"",director:"",note:"",mtime:Date.now()};
     S.projects.push(p);isNew=true;mark()}
+  curProj=p;
   const draw=()=>{
     document.getElementById("s2Title").textContent=projTitle(p);
     document.getElementById("s2Body").innerHTML=
@@ -1654,6 +1667,107 @@ function masterSheet(){
       mAdd(e.dataset.ak,e.value);e.value="";draw();syncLists()})};
   s2("MASTERS","スタッフ・マスタ","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);draw()}
 
+
+/* ===================== 端末間の同期（GitHub のプライベートリポジトリ） ===================== */
+let SY={st:"off",msg:"",busy:false,timer:null,poll:null,last:0};
+const syCfg=()=>{if(!S.settings.sync)S.settings.sync={owner:"",repo:"",path:"data.json",branch:"main",token:"",on:false};
+  return S.settings.sync};
+function syOk(){const c=syCfg();return c.on&&c.owner&&c.repo&&c.path&&c.token}
+function syDot(st,msg){SY.st=st;SY.msg=msg||"";
+  const e=document.getElementById("syncDot");if(!e)return;
+  const t={off:"",wait:"同期待ち",busy:"同期中",ok:"同期済",err:"同期エラー",offline:"オフライン"}[st]||"";
+  e.textContent=t;e.className=st;e.title=msg||"";
+  e.style.display=st==="off"?"none":""}
+/* 変更したものに時刻を刻む。どちらの端末の版が新しいか判定するのに使う */
+function stamp(o){if(o)o.mtime=Date.now()}
+/* 前回同期時の内容。保存領域が使えない環境ではメモリに持つ */
+let sbMem=null;
+async function sbGet(){try{const v=await kvGet("syncbase");if(v)return v}catch(e){}return sbMem}
+async function sbPut(v){sbMem=v;try{await kvPut("syncbase",v)}catch(e){}}
+const b64enc=s=>btoa(unescape(encodeURIComponent(s)));
+const b64dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,""))));
+
+async function ghRead(c){
+  const u="https://api.github.com/repos/"+c.owner+"/"+c.repo+"/contents/"+c.path+"?ref="+encodeURIComponent(c.branch||"main");
+  const r=await fetch(u,{headers:{Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json"},cache:"no-store"});
+  if(r.status===404)return{json:null,sha:null};
+  if(!r.ok)throw new Error("読み込み "+r.status);
+  const j=await r.json();
+  return{json:JSON.parse(b64dec(j.content||"")),sha:j.sha}}
+async function ghWrite(c,obj,sha){
+  const u="https://api.github.com/repos/"+c.owner+"/"+c.repo+"/contents/"+c.path;
+  const body={message:"進行データ "+new Date().toISOString(),branch:c.branch||"main",
+    content:b64enc(JSON.stringify(obj))};
+  if(sha)body.sha=sha;
+  const r=await fetch(u,{method:"PUT",headers:{Authorization:"Bearer "+c.token,
+    Accept:"application/vnd.github+json","Content-Type":"application/json"},body:JSON.stringify(body)});
+  if(r.status===409)return"conflict";
+  if(!r.ok)throw new Error("書き込み "+r.status+" "+(await r.text()).slice(0,90));
+  return"ok"}
+
+/* 3方向マージ。前回同期時の内容を基準に、両端末の変更を突き合わせる */
+function mergeList(base,local,remote){
+  const B={},L={},R={};
+  (base||[]).forEach(x=>B[x.id]=x);(local||[]).forEach(x=>L[x.id]=x);(remote||[]).forEach(x=>R[x.id]=x);
+  const ids={};Object.keys(L).forEach(k=>ids[k]=1);Object.keys(R).forEach(k=>ids[k]=1);
+  const out=[];
+  Object.keys(ids).forEach(id=>{
+    const l=L[id],r=R[id];
+    if(l&&r){out.push((l.mtime||0)>=(r.mtime||0)?l:r)}
+    else if(l){if(!B[id])out.push(l)}          /* 相手に無い：新規なら残す、基準にあれば相手が削除 */
+    else if(r){if(!B[id])out.push(r)}});
+  return out}
+function mergeState(base,local,remote){
+  const out=JSON.parse(JSON.stringify(local));
+  out.songs=mergeList(base&&base.songs,local.songs,remote.songs);
+  out.projects=mergeList(base&&base.projects,local.projects,remote.projects);
+  out.templates=mergeList(base&&base.templates,local.templates,remote.templates);
+  if(!out.templates.length)out.templates=local.templates;
+  const tr={};(local.trash||[]).concat(remote.trash||[]).forEach(t=>{if(!tr[t.id])tr[t.id]=t});
+  out.trash=Object.keys(tr).map(k=>tr[k]);
+  out.masters=JSON.parse(JSON.stringify(local.masters||{}));
+  Object.keys(remote.masters||{}).forEach(k=>{
+    const a=out.masters[k]||[],b=remote.masters[k]||[];
+    out.masters[k]=[...new Set(a.concat(b))].sort((x,y)=>String(x).localeCompare(String(y),"ja"))});
+  out.settings=local.settings;   /* トークンなどは端末ごと */
+  return out}
+const syncable=st=>({v:st.v,songs:st.songs,projects:st.projects,templates:st.templates,
+  masters:st.masters,trash:st.trash,at:Date.now()});
+
+async function syncNow(reason){
+  if(RO||SY.busy||!syOk())return;
+  if(!navigator.onLine){syDot("offline");return}
+  SY.busy=true;syDot("busy");
+  try{
+    const c=syCfg();
+    try{await flush()}catch(e){}
+    const base=await sbGet();
+    const got=await ghRead(c);
+    let merged;
+    if(!got.json){merged=S}
+    else{merged=mergeState(base,S,got.json);}
+    const changed=JSON.stringify(syncable(merged))!==JSON.stringify(syncable(S));
+    if(changed){S=migrate(merged);dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
+    const payload=syncable(S);
+    const same=got.json&&JSON.stringify(syncable(got.json))===JSON.stringify(payload);
+    if(!same){
+      const res=await ghWrite(c,payload,got.sha);
+      if(res==="conflict"){SY.busy=false;return syncNow("retry")}}
+    await sbPut(JSON.parse(JSON.stringify(payload)));
+    SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
+  }catch(e){syDot("err",String(e.message||e))}
+  SY.busy=false}
+function syQueue(){if(!syOk())return;syDot("wait");
+  clearTimeout(SY.timer);SY.timer=setTimeout(()=>syncNow("change"),4000)}
+function syStart(){
+  clearInterval(SY.poll);
+  if(!syOk()){syDot("off");return}
+  syncNow("start");
+  SY.poll=setInterval(()=>{if(!document.hidden)syncNow("poll")},60000)}
+window.addEventListener("online",()=>{if(syOk())syncNow("online")});
+window.addEventListener("focus",()=>{if(syOk()&&Date.now()-SY.last>15000)syncNow("focus")});
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&syOk()&&Date.now()-SY.last>15000)syncNow("visible")});
+
 /* ===================== ゴミ箱（30日保持） ===================== */
 const TRASH_DAYS=30;
 function toTrash(type,data,label){
@@ -1678,7 +1792,7 @@ function trashSheet(){
     const B=document.getElementById("s2Body");
     B.querySelectorAll("[data-tr]").forEach(b=>b.onclick=()=>{
       const t=S.trash.find(x=>x.id===b.dataset.tr);if(!t)return;
-      if(t.type==="song")S.songs.unshift(t.data);else S.projects.push(t.data);
+      stamp(t.data);if(t.type==="song")S.songs.unshift(t.data);else S.projects.push(t.data);
       S.trash=S.trash.filter(x=>x.id!==t.id);mark();draw();render();toast("戻しました")});
     B.querySelectorAll("[data-td]").forEach(b=>b.onclick=()=>{
       if(!confirm("完全に削除します。元に戻せません。"))return;
@@ -1753,14 +1867,28 @@ function openSettings(){
    '<div class="sec">セキュリティ</div>'+
    '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
    '<p class="hint">端末に保存されるデータをAES-GCMで暗号化し、起動時にパスコードを求めます。忘れると復号できません。</p>'+
-   '<div class="sec">社内共有（GitHub 公開）</div>'+
-   '<div class="warnbox redbox">publicリポジトリに置くとURLを知る全員が閲覧できます。社外に出せないデータでは使わず、CSVやWordの書き出しで渡してください。</div>'+
+   '<div class="sec">端末間の同期</div>'+
+   '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
+     'データ専用の<b>プライベート</b>リポジトリを1つ作って、そこを指定してください。'+
+     'アプリ本体を置いた公開リポジトリとは別にします。</p>'+
+   '<div class="fg"><div class="seg2" id="syOn">'+
+     '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
+     '<button data-sy="1" aria-pressed="'+(!!syCfg().on)+'">同期する</button></div></div>'+
+   '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="sO" value="'+esc(syCfg().owner)+'" placeholder="gogojoe312-max"></div>'+
+   '<div><span class="lbl">Repo</span><input class="inp" id="sR" value="'+esc(syCfg().repo)+'" placeholder="shinkou-data"></div></div>'+
+   '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="sP" value="'+esc(syCfg().path)+'"></div>'+
+   '<div><span class="lbl">Branch</span><input class="inp" id="sB" value="'+esc(syCfg().branch||"main")+'"></div></div>'+
+   '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'" placeholder="github_pat_..."></div>'+
+   '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
+     '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'+
+   '<p class="hint" id="syInfo">'+(syOk()?"設定済み。変更するたびに自動で同期します。":"Owner・Repo・Path・Token を入れて「同期する」にしてください。")+'</p>'+
+   '<div class="sec">閲覧専用リンク（読み取り専用の共有）</div>'+
+   '<div class="warnbox">こちらは別機能です。公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
    '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
    '<div><span class="lbl">Repo</span><input class="inp" id="gR" value="'+esc(g.repo)+'"></div></div>'+
    '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="gP" value="'+esc(g.path)+'"></div>'+
    '<div><span class="lbl">Branch</span><input class="inp" id="gB" value="'+esc(g.branch)+'"></div></div>'+
    '<div class="fg"><span class="lbl">Token</span><input class="inp" id="gT" type="password" value="'+esc(g.token)+'"></div>'+
-   '<label class="pill"><input type="checkbox" id="gK" '+(S.settings.keepToken?"checked":"")+'> Tokenを保存する</label>'+
    '<div class="fg" style="margin-top:10px"><button class="btn pri w" id="pub">共有版を公開</button></div><div id="pubOut"></div>',
    [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
   const B=document.getElementById("s2Body");
@@ -1785,7 +1913,28 @@ function openSettings(){
       if(x[1]==="token"&&!S.settings.keepToken)return;mark()});
   B.querySelector("#gK").onchange=e=>{S.settings.keepToken=e.target.checked;
     if(!e.target.checked)S.settings.gh.token="";mark()};
-  B.querySelector("#pub").onclick=publish}
+  B.querySelector("#pub").onclick=publish;
+  [["sO","owner"],["sR","repo"],["sP","path"],["sB","branch"],["sT2","token"]].forEach(x=>
+    document.getElementById(x[0]).oninput=e=>{syCfg()[x[1]]=e.target.value.trim();mark()});
+  B.querySelector("#syOn").onclick=e=>{const x=e.target.closest("[data-sy]");if(!x)return;
+    syCfg().on=x.dataset.sy==="1";mark();
+    B.querySelectorAll("#syOn [data-sy]").forEach(b=>b.setAttribute("aria-pressed",
+      (b.dataset.sy==="1")===!!syCfg().on));
+    syStart();
+    B.querySelector("#syInfo").textContent=syOk()?"設定済み。変更するたびに自動で同期します。"
+      :"Owner・Repo・Path・Token を入れて「同期する」にしてください。"};
+  B.querySelector("#syNow").onclick=async()=>{
+    if(!syOk())return toast("先に設定を入れてください");
+    await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)};
+  B.querySelector("#syPull").onclick=async()=>{
+    if(!syOk())return toast("先に設定を入れてください");
+    if(!confirm("この端末の内容を破棄して、同期先の内容を取り込みます。"))return;
+    try{const got=await ghRead(syCfg());
+      if(!got.json)return toast("同期先にデータがありません");
+      S=migrate(got.json);dirty=true;await flush();
+      await sbPut(JSON.parse(JSON.stringify(syncable(S))));
+      render();hide("sheet2");toast("取り込みました")}
+    catch(e){toast("取り込めません："+(e.message||e))}}}
 
 function pinSheet(){
   s3("SECURITY",encOn?"パスコード":"パスコードを設定",
@@ -2099,7 +2248,7 @@ async function boot(){
   if(rec&&rec.enc){encOn=true;
     document.getElementById("lock").classList.add("on");
     const go=async()=>{try{S=migrate(await encUnpack(rec,document.getElementById("lockPin").value));
-        document.getElementById("lock").classList.remove("on");dot("");render()}
+        document.getElementById("lock").classList.remove("on");dot("");render();syStart()}
       catch(e){const m=document.getElementById("lockMsg");m.textContent="パスコードが違います。";m.style.color="var(--late)"}};
     document.getElementById("lockGo").onclick=go;
     document.getElementById("lockPin").onkeydown=e=>{if(e.key==="Enter")go()};
@@ -2107,7 +2256,7 @@ async function boot(){
   if(rec)S=migrate(rec);
   purgeTrash();
   if(!S.settings.keepToken)S.settings.gh.token="";
-  dot("");render()}
+  dot("");render();syStart()}
 boot();
 
 /* ホーム画面アプリとして使うための登録。ファイルが無くても本体はそのまま動く */
