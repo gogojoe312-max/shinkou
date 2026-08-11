@@ -607,7 +607,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-i";
+const APP_VER="2026-08-11-j";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -781,6 +781,17 @@ function slotPart(x,v){
   if(x.k==="cho")return "Chorus";
   if(x.k==="tdes")return MIXPART;
   return ""}
+/* 日程に書いた依頼先を、その工程（と対になる録り工程）の担当者にする */
+function syncSlotAssign(s){
+  const back={};Object.keys(RECMIRROR).forEach(k=>{back[RECMIRROR[k]]=k});
+  stages(s).forEach(x=>{if(!isMulti(x))return;
+    const names=[];
+    (stg(s,x.k).slots||[]).forEach(v=>{const n=(v.who||"").trim();
+      if(n&&names.indexOf(n)<0)names.push(n)});
+    if(!names.length)return;
+    const t=names.join("・");
+    stg(s,x.k).asg=t;
+    if(back[x.k])stg(s,back[x.k]).asg=t})}
 function syncSlotCredits(s){
   if(!s.credits)s.credits=[];
   let ch=false;
@@ -1170,8 +1181,8 @@ function slotHTML(s,x,v,si,d){
   return'<div class="slot'+(v.done?" on":"")+'">'+
     '<div class="sl1"><button class="chk" role="checkbox" aria-checked="'+(!!v.done)+'" data-sc="'+x.k+'|'+si+'">✓</button>'+
     dtIn("data-sl",x.k+"|"+si,v.date,d)+
-    '<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" placeholder="'+
-      (isInstRec(x)?"パート":"内容・メンバー")+'" value="'+esc(v.note||"")+'"></div>'+
+    (isInstRec(x)?'<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" '+
+      'placeholder="パート" value="'+esc(v.note||"")+'">':"")+'</div>'+
     '<div class="sl2">'+
     '<input class="inp" list="dl_'+(x.role==="engineer"?"engineer":"musician")+'" data-sp="'+x.k+'|'+si+'" '+
       'placeholder="'+(x.role==="engineer"?"担当エンジニア":"誰に頼むか")+'" value="'+esc(v.who||"")+'">'+
@@ -1462,7 +1473,7 @@ function wireSong(){
       const a=e.dataset.sp.split("|");stg(s,a[0]).slots[+a[1]].who=e.value;mark()};
     e.onblur=()=>{const a=e.dataset.sp.split("|"),x=s.stageList[s.stageList.findIndex(z=>z.k===a[0])];
       mAdd(x&&x.role==="engineer"?"engineer":"musician",e.value);
-      syncSlotCredits(s);syncLists();mark();drawSong();rf()}});
+      syncSlotAssign(s);syncSlotCredits(s);syncLists();mark();drawSong();rf()}});
   b.querySelectorAll("[data-ss]").forEach(e=>{e.oninput=()=>{
       const a=e.dataset.ss.split("|"),v=stg(s,a[0]).slots[+a[1]];
       v.studio=e.value;if(e.value)v.swait=false;mark()};
