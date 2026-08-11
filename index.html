@@ -607,7 +607,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-j";
+const APP_VER="2026-08-11-k";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -815,8 +815,8 @@ function slotsOf(s,x){return stg(s,x.k).slots.filter(v=>v.date).sort((a,b)=>a.da
 function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
   return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
     (a.who?" "+a.who:"")+
-    (a.studio?"@"+a.studio:a.swait?"@返事待ち":"")).join("・")}
-const studioWait=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.studio&&!a.done);
+    (a.swait?"@返事待ち":"")).join("・")}
+const studioWait=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
 function slotStat(s,x){const v=stg(s,x.k).slots.filter(a=>a.date||a.note);
   return{n:v.length,d:v.filter(a=>a.done).length}}
 /* 録音工程の段階：未着手 → 日程調整 → 日程確定 → 録音 → EDIT → 完了 */
@@ -916,7 +916,7 @@ function whoOf(s,x){
     return{c:"todo",t:"未依頼",st:""}}
   if(isMulti(x)){
     const r=recPhase(s,x);
-    if(r.p==="sched")return{c:"other",t:(o.asg||"スタジオ")+" 待ち · 日程調整",st:"req"};
+    if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
     if(r.p==="studio")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"録音 "+r.d+"/"+r.n,st:"me"};
@@ -1186,8 +1186,6 @@ function slotHTML(s,x,v,si,d){
     '<div class="sl2">'+
     '<input class="inp" list="dl_'+(x.role==="engineer"?"engineer":"musician")+'" data-sp="'+x.k+'|'+si+'" '+
       'placeholder="'+(x.role==="engineer"?"担当エンジニア":"誰に頼むか")+'" value="'+esc(v.who||"")+'">'+
-    '<input class="inp" list="dl_studio" data-ss="'+x.k+'|'+si+'" '+
-      'placeholder="スタジオ" value="'+esc(v.studio||"")+'">'+
     '<button class="qc'+(v.swait?" on":"")+'" data-sw="'+x.k+'|'+si+'">返事待ち</button>'+
     '<button class="xb" data-sx2="'+x.k+'|'+si+'">✕</button></div></div>'}
 function drawSong(){
@@ -1474,13 +1472,9 @@ function wireSong(){
     e.onblur=()=>{const a=e.dataset.sp.split("|"),x=s.stageList[s.stageList.findIndex(z=>z.k===a[0])];
       mAdd(x&&x.role==="engineer"?"engineer":"musician",e.value);
       syncSlotAssign(s);syncSlotCredits(s);syncLists();mark();drawSong();rf()}});
-  b.querySelectorAll("[data-ss]").forEach(e=>{e.oninput=()=>{
-      const a=e.dataset.ss.split("|"),v=stg(s,a[0]).slots[+a[1]];
-      v.studio=e.value;if(e.value)v.swait=false;mark()};
-    e.onblur=()=>{mAdd("studio",e.value);syncLists();drawSong();rf()}});
   b.querySelectorAll("[data-sw]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sw.split("|"),v=stg(s,a[0]).slots[+a[1]];
-    v.swait=!v.swait;if(v.swait)v.studio="";mark();drawSong();rf()});
+    v.swait=!v.swait;mark();drawSong();rf()});
   b.querySelectorAll("[data-sx2]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sx2.split("|");stg(s,a[0]).slots.splice(+a[1],1);mark();drawSong();rf()});
   b.querySelectorAll("[data-sa2]").forEach(e=>e.onclick=()=>{
