@@ -527,7 +527,7 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"vo",     n:"VoDBスケジュール",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"vodb",   n:"VoDB",               role:"me",       anchor:"meeting",off:8,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
-  {k:"voes",   n:"VoEDITスケジュール",  role:"engineer", anchor:"meeting",off:10,unit:"d",t:"multi",gp:"VoDB"},
+  {k:"voes",   n:"VoEDITスケジュール",  role:"engineer", anchor:"meeting",off:10,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d",gp:"VoDB"},
   {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d",gp:"VoDB"},
   {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"VoDB"},
@@ -841,11 +841,19 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
 const PRELIVE={"デモ制作":1,"アレンジ":1,"VoDB":1,"ChoDB":1,"楽器DB":1};
 function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
+  const d0=dlRaw(s,x);
+  /* 前の工程より前に来てしまう締切は、前の工程に合わせる */
+  if(AFTERREC[x.k]||RECMIRROR[x.k]){
+    const L=stages(s),i=L.findIndex(z=>z.k===x.k);
+    if(i>0&&L[i-1].gp===x.gp){const pd=dlOf(s,L[i-1]);
+      if(pd&&(!d0||d0<pd))return pd}}
+  return d0}
+function dlRaw(s,x){const o=stg(s,x.k);
   /* 録音工程は、決めた日程の最終日がそのまま締切 */
   if(isMulti(x)){const lr=lastRec(s,x);if(lr)return lr}
-  /* 実際の録り工程は、スケジュールの最終日がそのまま締切 */
+  /* 実際の録り工程は、スケジュール工程と同じ締切 */
   if(RECMIRROR[x.k]){const r=stages(s).find(z=>z.k===RECMIRROR[x.k]);
-    if(r){const lr=lastRec(s,r);if(lr)return lr}}
+    if(r)return dlOf(s,r)}
   {const rec=recBefore(s,x);
     if(rec){const lr=lastRec(s,rec);
       /* 録音が済まないと着手できないので、最終録り日から順に2日ずつ空けて並べる */
@@ -2403,13 +2411,24 @@ function seed(){
 
 /* ===================== migrate & boot ===================== */
 /* 旧バージョンの工程名 → 現行名。既存曲の stageList にも適用する */
-const RENAME={"歌録り":"VoDBスケジュール","VoDB":"VoDBスケジュール","ChoDB":"ChoDBスケジュール",
-  "ReVoDB":"ReVoDBスケジュール","楽器録り":"楽器DBスケジュール",
-  "VoEDIT 発注・日程":"VoEDITスケジュール","ChoEDIT 発注・日程":"ChoEDITスケジュール",
-  "ReVoEDIT 発注・日程":"ReVoEDITスケジュール","ミックス 発注・日程":"ミックススケジュール","エディット":"VoEDIT","アレンジ確定（尺・間奏）":"アレンジ尺確定",
+const RENAME={"エディット":"VoEDIT","アレンジ確定（尺・間奏）":"アレンジ尺確定",
   "アレンジ確定":"アレンジ尺確定","アレンジ作り込み":"アレンジFIX","収録用アレンジ仕上げ":"アレンジFIX（収録用）",
   "TD（トラックダウン）":"ミックス","TD":"ミックス",
   "会議用デモ完成":"デモ完成","会議で決定":"曲確認"};
+/* 工程キーごとの正式名。下の旧称のときだけ書き換える（自分で変えた名前は残す） */
+const NAMEFIX={
+  vo:["VoDBスケジュール",["歌録り","VoDB"]],
+  vodb:["VoDB",["VoDBスケジュール"]],
+  cho:["ChoDBスケジュール",["ChoDB"]],
+  chodb:["ChoDB",["ChoDBスケジュール"]],
+  revo:["ReVoDBスケジュール",["ReVoDB"]],
+  revodb:["ReVoDB",["ReVoDBスケジュール"]],
+  instrec:["楽器DBスケジュール",["楽器録り","楽器DB"]],
+  voes:["VoEDITスケジュール",["VoEDIT 発注・日程"]],
+  choes:["ChoEDITスケジュール",["ChoEDIT 発注・日程"]],
+  revoes:["ReVoEDITスケジュール",["ReVoEDIT 発注・日程"]],
+  tdes:["ミックススケジュール",["ミックス 発注・日程"]],
+  livemix:["ライブ用ミックス",["ライブ用 仮ミックス"]]};
 const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1};
 const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1};
@@ -2434,6 +2453,7 @@ function fixStages(L,ref){
     L=L.filter(x=>x.k!=="arrfix"&&x.k!=="arrbld");
     L.splice(at,0,arr)}
   L.forEach(x=>{if(RENAME[x.n])x.n=RENAME[x.n];
+    if(NAMEFIX[x.k]){const f=NAMEFIX[x.k];if(!x.n||f[1].indexOf(x.n)>=0)x.n=f[0]}
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
     if(x.k==="vo"||x.k==="revo"||x.k==="cho"){x.e=0;delete x.elead}
@@ -2441,6 +2461,7 @@ function fixStages(L,ref){
     /* 既定の工程は、旧データで別の段階に入っていても必ず本来の段階へ戻す */
     if(GPBYK[x.k])x.gp=GPBYK[x.k];
     else if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
+    if(!x.fb&&ref){const r0=(ref.stages||[]).find(y=>y.k===x.k);if(r0&&r0.fb)x.fb=JSON.parse(JSON.stringify(r0.fb))}
     /* 子工程は親の段階に合わせる */
     if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
