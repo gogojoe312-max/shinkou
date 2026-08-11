@@ -118,11 +118,13 @@ main>.artist:first-child{margin-top:2px}
 .bar i{flex:1;height:4px;border-radius:2px;background:var(--line);font-style:normal}
 .bar i.on{background:var(--ok)}
 .bar i.cur{background:var(--me)}
+.bar i.prov{background:rgba(47,192,138,.4)}
 .gps{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px}
 .gp1{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:11px;white-space:nowrap;
   border:1px solid var(--line);background:transparent;color:var(--dim2)}
 .gp1.on{color:var(--ok);border-color:rgba(47,192,138,.4);background:rgba(47,192,138,.09)}
 .gp1.cur{color:#16171B;background:var(--ink);border-color:var(--ink);font-weight:700}
+.gp1.prov{color:var(--me);border-color:rgba(47,192,138,.4);border-style:dashed}
 .gp1 u{text-decoration:none;font-family:var(--mono);opacity:.75;margin-left:4px}
 .gp1.tot{border-style:dashed;margin-left:auto}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
@@ -165,6 +167,7 @@ main>.artist:first-child{margin-top:2px}
   border:1px solid var(--line2);border-radius:50%;width:22px;height:22px;display:grid;place-items:center}
 .usebar{display:flex;gap:6px;margin-top:8px}
 .sgl.live{color:var(--warn);border-color:rgba(232,163,61,.5)}
+.seg2 button{white-space:nowrap}
 .sgl{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--dim2);
   border:1px solid var(--line2);border-radius:3px;padding:1px 5px;flex-shrink:0}
 .chipsel{display:flex;gap:6px;margin-top:8px}
@@ -483,10 +486,15 @@ const ANCHOR_KEYS=Object.keys(ANCHORS).filter(k=>!HIDE_ANCHOR[k]);
 const LIVE_LBL={open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出",lesson:"ダンスレッスン"};
 const anchorLabel=(s,k)=>(s&&s.use==="live"&&LIVE_LBL[k])||ANCHORS[k];
 /* ライブ制作物の種類 */
-const LTYPES=["オープニングSE","ダンス曲","転換SE","インターリュードSE","エンディングSE",
-  "カラオケ","メドレー","MC BGM","影アナ","その他"];
+const LTYPES=["セトリ","オープニングSE","ダンス曲","チェイサー","カラオケ","BUVo",
+  "転換SE","インターリュードSE","エンディングSE","メドレー","MC BGM","影アナ","その他"];
 /* シングルのときだけ出す基準日 */
 const SINGLE_ONLY={meeting:1};
+/* 曲の種類。表記と、シングル専用の基準日の出し分けに使う */
+const SORTS=[["single","シングル","SINGLE"],["album","アルバム","ALBUM"],
+  ["add","アディショナル","ADDITIONAL"],["tie","タイアップ","TIE-UP"]];
+const sortOf=s=>s.sort||(s.single===false?"album":"single");
+const sortTag=s=>{const f=SORTS.find(x=>x[0]===sortOf(s));return f?f[2]:""};
 /* 数字だけで打てる日付入力。0911 / 9/11 / 260911 / 20260911 に対応 */
 function parseDate(v,ref){
   v=String(v||"").trim();if(!v)return"";
@@ -600,25 +608,17 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
 function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehearsal"],
  mastering:null,
  stages:[
-  {k:"plan",  n:"内容決定（構成・尺）", role:"me",       anchor:"open",off:-60,unit:"d",gp:"企画"},
-  {k:"ref",   n:"参考・素材集め",       role:"me",       anchor:"open",off:-50,unit:"d",gp:"企画"},
-  {k:"order", n:"制作の発注",           role:"me",       anchor:"open",off:-45,unit:"d",gp:"企画"},
-  {k:"build", n:"制作",                 role:"arranger", anchor:"open",off:-35,unit:"d",t:"arr",gp:"制作"},
-  {k:"rec2",  n:"歌・声録り",           role:"me",       anchor:"open",off:-30,unit:"d",t:"multi",gp:"制作"},
-  {k:"tmp",   n:"仮完成",               role:"arranger", anchor:"open",off:-28,unit:"d",gp:"制作"},
-  {k:"chk1",  n:"社内確認",             role:"room",     anchor:"open",off:-25,unit:"d",gp:"確認"},
-  {k:"chk2",  n:"演出・振付確認",       role:"room",     anchor:"open",off:-21,unit:"d",gp:"確認"},
-  {k:"fix",   n:"修正",                 role:"arranger", anchor:"open",off:-14,unit:"d",gp:"確認"},
-  {k:"final", n:"完パケ（尺・音量）",   role:"engineer", anchor:"open",off:-10,unit:"d",gp:"納品"},
-  {k:"deliv2",n:"音源提出",             role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"納品"},
-  {k:"reh",   n:"リハで確認",           role:"me",       anchor:"rehearsal",off:0,unit:"d",fb:{anchor:"open",off:-2,unit:"d"},gp:"納品"},
-  {k:"show",  n:"初日",                 role:"me",       anchor:"open",off:0,unit:"d",gp:"納品"}]}}
+  {k:"plan",  n:"内容決定",   role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
+  {k:"order", n:"発注",       role:"me",       anchor:"open",off:-38,unit:"d",gp:"制作"},
+  {k:"build", n:"制作",       role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
+  {k:"chk1",  n:"確認",       role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
+  {k:"deliv2",n:"音源提出",   role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}]}}
 
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive(),tplShow()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-l";
+const APP_VER="2026-08-11-m";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -735,7 +735,7 @@ function masDate(s){if(s.dates.mastering)return s.dates.mastering;
 function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],asg:""};
   const o=s.stages[k];if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";
   if(o.ret===undefined)o.ret="";if(!o.slots)o.slots=[];if(o.asg===undefined)o.asg="";
-  if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";
+  if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";if(o.prov===undefined)o.prov=false;
   if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","ReVoDB","仕上げ"];
@@ -749,8 +749,7 @@ const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kar
   instrec:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
   para:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
-  plan:"企画",ref:"企画",order:"企画",build:"制作",rec2:"制作",tmp:"制作",
-  chk1:"確認",chk2:"確認",fix:"確認",final:"納品",deliv2:"納品",reh:"納品",show:"納品"};
+  plan:"制作",order:"制作",build:"制作",chk1:"制作",deliv2:"制作"};
 const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
 /* 段階の順に工程を並べ替える。子工程は親の直後に付いていく */
 function sortByGroup(L){
@@ -893,7 +892,11 @@ function doneOf(s,L,i){if(hasKids(L,i))return kidsOf(L,i).every(x=>(s.stages[x.k
   return !!(s.stages[L[i].k]||{}).done}
 function kidStat(s,L,i){const k=kidsOf(L,i);return{n:k.length,d:k.filter(x=>(s.stages[x.k]||{}).done).length}}
 function curIdx(s){const L=stages(s);
-  for(let i=0;i<L.length;i++){if(hasKids(L,i))continue;if(!doneOf(s,L,i))return i}
+  for(let i=0;i<L.length;i++){if(hasKids(L,i))continue;
+    if(doneOf(s,L,i))continue;
+    /* ひとまずOKなら、先に進んでよい扱いにする */
+    if((s.stages[L[i].k]||{}).prov)continue;
+    return i}
   return L.length}
 const isFin=s=>curIdx(s)>=stages(s).length;
 function nameFor(s,role){
@@ -922,6 +925,7 @@ function whoOf(s,x){
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
     const nm2=o.asg||nameFor(s,x.role)||"編曲（仮）";
+    if(o.prov)return{c:"me",t:"ひとまずOK"+(o.st==="req"?" · "+awaitLabel(o.rev)+"待ち":""),st:"me"};
     if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev),st:"req"};
     if(o.st==="me")return{c:"me",t:"自分が確認中 · "+haveLabel(o.rev),st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
@@ -1029,14 +1033,15 @@ function cardHTML(s,rank){
   tops.forEach(t=>{const g=t.x.gp||"—";
     let b2=gps.length?gps[gps.length-1]:null;
     if(!b2||b2.g!==g){b2={g:g,n:0,d:0,cur:false};gps.push(b2)}
-    b2.n++;if(t.done)b2.d++;if(t.i===st.i)b2.cur=true});
+    b2.n++;if(t.done)b2.d++;if(t.i===st.i)b2.cur=true;
+    if(!t.done&&(s.stages[t.x.k]||{}).prov)b2.prov=true});
   const allN=tops.length,allD=tops.filter(t=>t.done).length;
   const bar='<div class="bar">'+gps.map(b2=>
-    '<i class="'+(b2.d>=b2.n?"on":b2.cur?"cur":"")+'" style="flex:'+b2.n+'"></i>').join("")+'</div>';
+    '<i class="'+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'" style="flex:'+b2.n+'"></i>').join("")+'</div>';
   const chips=bar+'<div class="gps">'+gps.map(b2=>
-    '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":"")+'">'+esc(b2.g)+
-      (b2.d>=b2.n?'<u>✓</u>':b2.cur?'<u>'+b2.d+"/"+b2.n+'</u>':"")+'</span>').join("")+
-    '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
+    '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'">'+esc(b2.g)+
+      (b2.d>=b2.n?'<u>✓</u>':b2.cur?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
+    (gps.length>1?'<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span>':"")+'</div>';
   const kd=[];
   const dpush=(lb,v,cls)=>{if(!v)return;const n=D.to(v),past=n<0;
     const sub=past?"済":n===0?"本日":"あと"+n+"日";
@@ -1056,8 +1061,8 @@ function cardHTML(s,rank){
   return'<button class="card '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
     '<div class="cardtop">'+(rank?'<span class="rank">'+rank+'</span>':"")+
     '<span class="ct">'+esc(songTitle(s))+'</span>'+
-    ((s.use||"master")==="live"?'<span class="sgl live">'+esc(s.ltype||"LIVE")+'</span>':"")+
-    (s.single!==false?'<span class="sgl">SINGLE</span>':"")+
+    ((s.use||"master")==="live"&&(s.ltype||"")!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype||"LIVE")+'</span>':"")+
+    ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>'
         :'<span class="ball '+bl.c+'"><i></i><span>'+esc(bl.t)+'</span></span>')+'</div>'+
     (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
@@ -1216,8 +1221,8 @@ function drawSong(){
   '<div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" data-m="director" data-f="director" value="'+esc(s.director)+'"></div></div>'+
   '<div class="row fg"><div style="flex:0 0 auto"><button class="btn sm" id="newProj">＋ '+(LV?"公演":"案件")+'を作る</button></div>'+
   (LV?"":'<div><div class="seg2" id="sglSeg">'+
-  '<button data-g="1" aria-pressed="'+(s.single!==false)+'">シングル曲</button>'+
-  '<button data-g="0" aria-pressed="'+(s.single===false)+'">シングル以外</button></div></div>')+'</div>'+
+  SORTS.map(z=>'<button data-g="'+z[0]+'" aria-pressed="'+(sortOf(s)===z[0])+'">'+z[1]+'</button>').join("")+
+  '</div></div>')+'</div>'+
   '<div class="fg"><div class="seg2" id="useSeg">'+
   '<button data-u2="master" aria-pressed="'+((s.use||"master")==="master")+'">原盤</button>'+
   '<button data-u2="live" aria-pressed="'+(s.use==="live")+'">ライブ</button></div></div>'+
@@ -1261,7 +1266,8 @@ function drawSong(){
     if(dn)sub="完了 "+(o.date?D.md(o.date):"—");
     else if(kid)sub=ks.d+"/"+ks.n+" 完了";
     else{const bits=[];
-      if(isArr(x)){bits.push(o.st==="req"?awaitLabel(o.rev)+" 依頼中"
+      if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev)+"依頼中":"")
+        :o.st==="req"?awaitLabel(o.rev)+" 依頼中"
         :o.st==="me"?haveLabel(o.rev)+" 確認中":"未依頼");
         if(o.size)bits.push(sizeLabel(o.size))}
       if(mul){const r=recPhase(s,x);
@@ -1289,14 +1295,19 @@ function drawSong(){
         'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,x.role)||ROLES[x.role]||"")+'"></div>';
     if(isArr(x)){
       h+='<div class="fg"><span class="lbl">進行</span><div class="arrbox">'+
-        '<div class="arrnow">'+(o.st==="req"?'<b class="c-other">'+esc(awaitLabel(o.rev))+' 待ち</b>'
+        '<div class="arrnow">'+(o.prov?'<b class="c-me">ひとまずOK'+(o.st==="req"?'・'+esc(awaitLabel(o.rev))+' 待ち':"")+'</b>'
+          :o.st==="req"?'<b class="c-other">'+esc(awaitLabel(o.rev))+' 待ち</b>'
           :o.st==="me"?'<b class="c-me">'+esc(haveLabel(o.rev))+' 確認中</b>'
           :'<b class="c-todo">まだ依頼していません</b>')+
-          '<span>受け取った版：'+(o.rev?o.rev+"版":"なし")+'</span></div>'+
+          '<span>受け取った版：'+(o.rev?o.rev+"版":"なし")+(o.prov?" · この先へ進めます":"")+'</span></div>'+
         '<div class="arrbtn">'+
           '<button class="btn sm" data-ao="'+x.k+'">'+(o.rev?"修正を返す":"アレンジを依頼")+'</button>'+
           '<button class="btn sm pri" data-ar="'+x.k+'">'+awaitLabel(o.rev)+'が届いた</button>'+
           (o.rev?'<button class="xb" data-au="'+x.k+'" title="1つ戻す">↩</button>':"")+
+        '</div>'+
+        '<div class="arrbtn" style="margin-top:6px">'+
+          '<button class="btn sm'+(o.prov?" pri":"")+'" data-ap="'+x.k+'">'+
+          (o.prov?"ひとまずOK を取り消す":"ひとまずOK（この先へ進む）")+'</button>'+
         '</div></div></div>'+
         '<div class="fg"><span class="lbl">尺</span><div class="seg2" id="sz_'+x.k+'">'+
           SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
@@ -1463,6 +1474,8 @@ function wireSong(){
     e.onblur=()=>{mAdd("engineer",e.value);syncLists();drawSong();rf()}});
   b.querySelectorAll("[data-ao]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ao);
     o.st="req";o.req=D.today();o.ret="";mark();drawSong();rf()});
+  b.querySelectorAll("[data-ap]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ap);
+    o.prov=!o.prov;mark();drawSong();rf()});
   b.querySelectorAll("[data-ar]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ar);
     o.rev=(o.rev||0)+1;o.st="me";mark();drawSong();rf()});
   b.querySelectorAll("[data-au]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.au);
@@ -1526,7 +1539,7 @@ function wireSong(){
       if(nu==="live")s.single=false}
     applySolo(s);mark();drawSong();rf()};
   const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
-    s.single=x.dataset.g==="1";
+    s.sort=x.dataset.g;s.single=(s.sort==="single");
     mark();drawSong();rf()};
   const dc=b.querySelector("#dateCfg");if(dc)dc.onclick=()=>dateCfg(s);
   const da=b.querySelector("#dateAdd");if(da)da.onclick=()=>dateCfg(s);
@@ -2453,8 +2466,12 @@ const NAMEFIX={
   choes:["ChoEDITスケジュール",["ChoEDIT 発注・日程"]],
   revoes:["ReVoEDITスケジュール",["ReVoEDIT 発注・日程"]],
   tdes:["ミックススケジュール",["ミックス 発注・日程"]],
-  livemix:["ライブ用ミックス",["ライブ用 仮ミックス"]]};
-const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1};
+  livemix:["ライブ用ミックス",["ライブ用 仮ミックス"]],
+  plan:["内容決定",["内容決定（構成・尺）"]],
+  order:["発注",["制作の発注"]],
+  chk1:["確認",["社内確認"]],
+  final:["完パケ",["完パケ（尺・音量）"]]};
+const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,rec2:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
 const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
@@ -2566,6 +2583,8 @@ function migrate(d){
       delete c.kind;delete c.inst;delete c.title});
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
+    if(!s.sort)s.sort=s.single!==false?"single":((s.templateId||"")==="tpl_live"?"add":"album");
+    s.single=(s.sort==="single");
     if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
     /* レッスン・MV撮影・ライブ初披露は最初から出す。公演初日・音源提出の欄は持たせない */
     if(s.use!=="live")["lesson","mv","live"].forEach(k=>{if(s.tplDates.indexOf(k)<0)s.tplDates.push(k)});
