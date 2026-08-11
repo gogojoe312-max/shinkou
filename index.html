@@ -546,8 +546,8 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
   {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
-  {k:"livemix",n:"ライブ用ミックス",    role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"tdes",   n:"ミックススケジュール", role:"engineer", anchor:"mastering",off:-5,unit:"d",t:"multi",gp:"仕上げ"},
+  {k:"livemix",n:"ライブ用ミックス",    role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナル",dates:["release","lesson","mv","live","mastering"],
@@ -581,8 +581,8 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
   {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
   {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
-  {k:"livemix",n:"ライブ用ミックス",             role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"tdes",   n:"ミックススケジュール",          role:"engineer", anchor:"mastering",off:-5,unit:"d",t:"multi",gp:"仕上げ"},
+  {k:"livemix",n:"ライブ用ミックス",             role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 
@@ -607,7 +607,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-h";
+const APP_VER="2026-08-11-i";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -796,7 +796,7 @@ function recStep(s,rec,x){
   const L=stages(s),ir=L.indexOf(rec);let n=0;
   for(let j=ir+1;j<L.length;j++){
     if(L[j].gp!==rec.gp)break;
-    if(RECMIRROR[L[j].k]&&L[j].k!==x.k)continue;
+    if(!AFTERREC[L[j].k]&&L[j].k!==x.k)continue;
     n++;
     if(L[j].k===x.k)return n}
   return n||1}
@@ -804,7 +804,7 @@ function slotsOf(s,x){return stg(s,x.k).slots.filter(v=>v.date).sort((a,b)=>a.da
 function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
   return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
     (a.who?" "+a.who:"")+
-    (a.studio?"@"+a.studio:a.swait?"@スタジオ待ち":"")).join("・")}
+    (a.studio?"@"+a.studio:a.swait?"@返事待ち":"")).join("・")}
 const studioWait=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.studio&&!a.done);
 function slotStat(s,x){const v=stg(s,x.k).slots.filter(a=>a.date||a.note);
   return{n:v.length,d:v.filter(a=>a.done).length}}
@@ -824,7 +824,7 @@ function edDate(s,x){const v=slotsOf(s,x);if(!v.length)return"";
 function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
   if(r.p==="done")return"完了";
   if(r.p==="edit")return (x.n.replace(/DB$/,"")||"")+"EDIT 待ち";
-  if(r.p==="studio")return"スタジオ 返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
+  if(r.p==="studio")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
   if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
   if(r.p==="sched")return"日程調整 依頼中";
@@ -907,16 +907,19 @@ function whoOf(s,x){
     const r=recPhase(s,x);
     if(r.p==="sched")return{c:"other",t:(o.asg||"スタジオ")+" 待ち · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
-    if(r.p==="studio")return{c:"other",t:"スタジオ 返事待ち",st:"req"};
+    if(r.p==="studio")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"録音 "+r.d+"/"+r.n,st:"me"};
     if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア（仮）";
       return{c:"other",t:en+" 待ち · EDIT",st:"req"}}
     if(r.p==="recdone")return{c:"me",t:"録音済",st:"me"};
     return{c:"todo",t:"未着手",st:""}}
+  if(x.role==="room"){
+    if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
+    if(o.st==="req")return{c:"room",t:"会議待ち",st:"req"};
+    return{c:"todo",t:"未依頼",st:""}}
   if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
   if(o.st==="req")return{c:"other",t:(nm||((ROLES[x.role]||"相手")+"（仮）"))+" 待ち",st:"req"};
   if(x.role==="me")return{c:"me",t:(o.asg?o.asg:"自分")+"の番",st:"me"};
-  if(x.role==="room")return{c:"room",t:"会議待ち",st:"req"};
   return{c:"todo",t:"未依頼",st:""}}
 function ballOf(s){
   const i=curIdx(s),L=stages(s);
@@ -2493,6 +2496,9 @@ function fixStages(L,ref){
   /* それでも段階が決まらない工程は、直前の工程と同じ段階に置く */
   let lastGp="";
   L.forEach(x=>{if(x.gp&&GPORDER.indexOf(x.gp)>=0){lastGp=x.gp;return}x.gp=lastGp||GPORDER[0]});
+  /* ミックススケジュールは、ライブ用ミックスより前に置く */
+  {const it=L.findIndex(x=>x.k==="tdes"),il=L.findIndex(x=>x.k==="livemix");
+   if(it>=0&&il>=0&&it>il){const t=L.splice(it,1)[0];L.splice(il,0,t)}}
   L=sortByGroup(L);
   return L}
 function migrate(d){
