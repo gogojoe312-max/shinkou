@@ -624,7 +624,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-a";
+const APP_VER="2026-08-12-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -803,6 +803,42 @@ function slotPart(x,v){
   if(x.k==="lrecS")return "Background Vocals";
   return ""}
 /* 日程に書いた依頼先を、その工程（と対になる録り工程）の担当者にする */
+/* 楽器DBスケジュールで決めた1本ごとに、楽器DBの子工程を作る。
+   パート・演奏者・日付をそのまま引き継ぎ、録り終えたらチェックが同期する */
+function slotKey(v,i){
+  const t=((v.note||"")+"|"+(v.who||"")).replace(/[^\w\u3040-\u30ff\u4e00-\u9fff]/g,"");
+  return "sl_"+(t||"x")+"_"+i}
+function syncInstKids(s){
+  const L=s.stageList||[];
+  const ip=L.findIndex(x=>x.k==="instrec"),dp=L.findIndex(x=>x.k==="instdb");
+  if(ip<0||dp<0)return false;
+  const slots=(stg(s,"instrec").slots||[]).filter(v=>v.note||v.who||v.date);
+  const par=L[dp],old=[];
+  for(let j=dp+1;j<L.length&&L[j].d===1;j++)old.push(L[j]);
+  /* 自分で足した子工程はそのまま残す */
+  const mine=old.filter(x=>!/^sl_/.test(x.k));
+  const want=slots.map((v,i)=>{
+    const k=slotKey(v,i);
+    const nm=[v.note||"パート未定",v.who||""].filter(Boolean).join(" · ");
+    const was=old.find(x=>x.k===k);
+    return Object.assign(was||{},{k:k,n:nm,role:par.role,gp:par.gp,d:1,
+      anchor:par.anchor,off:par.off,unit:par.unit,fb:par.fb,t:"",lead:par.lead==null?14:par.lead})});
+  const next=want.concat(mine);
+  let ch=false;
+  if(old.map(x=>x.k+x.n).join()!==next.map(x=>x.k+x.n).join()){
+    L.splice(dp+1,old.length,...next);
+    /* 中で1本ずつに分かれるので、親にまとめた名前は置かない */
+    if(next.length&&stg(s,par.k).asg){stg(s,par.k).asg=""}
+    /* 使わなくなった子工程の記録は捨てる */
+    old.forEach(x=>{if(!next.some(z=>z.k===x.k))delete s.stages[x.k]});
+    ch=true}
+  /* 日付・演奏者・済みを引き継ぐ */
+  slots.forEach((v,i)=>{const o=stg(s,slotKey(v,i));
+    if(o.dl!==(v.date||"")){o.dl=v.date||"";ch=true}
+    if(!!v.done!==!!o.done){o.done=!!v.done;o.date=v.done?(v.date||D.today()):"";ch=true}
+    if(o.asg!==(v.who||"")){o.asg=v.who||"";ch=true}});
+  if(next.length&&stg(s,par.k).asg){stg(s,par.k).asg="";ch=true}
+  return ch}
 function syncSlotAssign(s){
   const back={};Object.keys(RECMIRROR).forEach(k=>{back[RECMIRROR[k]]=k});
   stages(s).forEach(x=>{if(!isMulti(x))return;
@@ -812,7 +848,10 @@ function syncSlotAssign(s){
     if(!names.length)return;
     const t=names.join("・");
     stg(s,x.k).asg=t;
-    if(back[x.k])stg(s,back[x.k]).asg=t})}
+    const bk=back[x.k];
+    if(bk){const L=stages(s),i=L.findIndex(z=>z.k===bk);
+      /* 中で1本ずつに分かれている工程には、まとめた名前を入れない */
+      if(!(i>=0&&L[i+1]&&L[i+1].d===1))stg(s,bk).asg=t}})}
 function syncSlotCredits(s){
   if(!s.credits)s.credits=[];
   let ch=false;
@@ -1474,7 +1513,7 @@ function wireSong(){
     /* 自動計算どおりの日付なら上書きを持たない（基準日を変えたら追従させるため） */
     o.dl=(v&&v===(applyRule(s,x)||applyRule(s,x.fb)||""))?"":v});
   wireDt("[data-rq]",(e,v)=>{const o=stg(s,e.dataset.rq);o.req=v;if(v&&!o.st)o.st="req"});
-  wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v});
+  wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
   b.querySelectorAll("[data-td2]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.td2.split("|"),f=b.querySelector("["+a[0]+'="'+a[1]+'"]');
     if(!f)return;f.value=fmtDate(D.today());f.dispatchEvent(new Event("blur"))});
@@ -1495,26 +1534,26 @@ function wireSong(){
     const a=e.dataset.sc.split("|"),o=stg(s,a[0]),v=o.slots[+a[1]];
     v.done=!v.done;
     syncSlotDone(s,s.stageList[s.stageList.findIndex(z=>z.k===a[0])]);
-    mark();drawSong();rf()});
+    syncInstKids(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-sm]").forEach(e=>{e.oninput=()=>{
       const a=e.dataset.sm.split("|");stg(s,a[0]).slots[+a[1]].note=e.value;mark()};
     e.onblur=()=>{const a=e.dataset.sm.split("|"),o=stg(s,a[0]);
       o.slots[+a[1]].note=toEnPart(o.slots[+a[1]].note);mAdd("instrument",o.slots[+a[1]].note);
-      syncSlotCredits(s);syncLists();mark();drawSong();rf()}});
+      syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
   b.querySelectorAll("[data-sp]").forEach(e=>{e.oninput=()=>{
       const a=e.dataset.sp.split("|");stg(s,a[0]).slots[+a[1]].who=e.value;mark()};
     e.onblur=()=>{const a=e.dataset.sp.split("|"),x=s.stageList[s.stageList.findIndex(z=>z.k===a[0])];
       mAdd(x&&x.role==="engineer"?"engineer":"musician",e.value);
-      syncSlotAssign(s);syncSlotCredits(s);syncLists();mark();drawSong();rf()}});
+      syncSlotAssign(s);syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
   b.querySelectorAll("[data-sw]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sw.split("|"),v=stg(s,a[0]).slots[+a[1]];
     v.swait=!v.swait;mark();drawSong();rf()});
   b.querySelectorAll("[data-sx2]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.sx2.split("|");stg(s,a[0]).slots.splice(+a[1],1);mark();drawSong();rf()});
+    const a=e.dataset.sx2.split("|");stg(s,a[0]).slots.splice(+a[1],1);syncInstKids(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-sa2]").forEach(e=>e.onclick=()=>{
     const o=stg(s,e.dataset.sa2),xx=s.stageList[ix(e.dataset.sa2)];
     if(xx&&!isArr(xx))xx.t="multi";
-    o.slots.push({date:"",note:"",who:""});o.st="";mark();drawSong();
+    o.slots.push({date:"",note:"",who:""});o.st="";syncInstKids(s);mark();drawSong();
     setTimeout(()=>{const l=b.querySelectorAll('[data-sl^="'+e.dataset.sa2+'|"]');
       if(l.length)l[l.length-1].focus()},30)});
   b.querySelectorAll("[data-k]").forEach(e=>e.onclick=()=>{
@@ -1581,7 +1620,7 @@ function wireSong(){
     delete s.stages[s.stageList[i].k];s.stageList.splice(i,1);mark();drawSong();rf()});
   b.querySelectorAll("[data-qa]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.qa.split("|"),o=stg(s,a[0]);
-    o.slots.push({date:"",note:a[1],who:"",swait:false});o.st="";mark();drawSong();
+    o.slots.push({date:"",note:a[1],who:"",swait:false});o.st="";syncInstKids(s);mark();drawSong();
     setTimeout(()=>{const l=b.querySelectorAll('[data-sl^="'+a[0]+'|"]');
       if(l.length)l[l.length-1].focus()},30)});
   const stl=b.querySelector("#stList");if(stl)stageDrag(s,stl,rf);
@@ -2728,6 +2767,7 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   purgeTrash();
+  {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();
   dot("");render();syStart()}
 boot();
