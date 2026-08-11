@@ -1276,7 +1276,7 @@ function drawSong(){
         '<div class="fg"><span class="lbl">尺</span><div class="seg2" id="sz_'+x.k+'">'+
           SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
         '</div></div>'}
-    if(!isArr(x)){
+    if(mul){
       const r=recPhase(s,x);
       h+='<div class="fg"><span class="lbl">日程</span><div class="arrbox">'+
         '<div class="arrnow"><b class="'+(r.p==="sched"?"c-other":r.p==="none"?"c-todo":"c-me")+'">'+
