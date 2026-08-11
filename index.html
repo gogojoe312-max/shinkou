@@ -107,6 +107,7 @@ main>.artist:first-child{margin-top:2px}
 .ball{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;display:inline-flex;align-items:center;gap:5px;max-width:100%;overflow:hidden}
 .ball i{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;font-style:normal}
 .ball span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ball u{text-decoration:none;font-family:var(--mono);font-size:9px;font-weight:400;opacity:.72;white-space:nowrap;flex-shrink:0}
 .ball.me{color:var(--me);background:rgba(47,192,138,.13)}
 .ball.other{color:var(--other);background:rgba(109,139,255,.13)}
 .ball.room{color:var(--room);background:rgba(181,123,255,.13)}
@@ -632,7 +633,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-d";
+const APP_VER="2026-08-12-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -900,6 +901,7 @@ function recPhase(s,x){
   const dated=sl.filter(a=>a.date),dn=sl.filter(a=>a.done);
   if(o.done)return{p:"done"};
   if(sl.length&&dn.length===sl.length)return{p:"recdone"};
+  if(o.st==="studio")return{p:"studio",d:dn.length,n:sl.length};
   if(waitReply(s,x))return{p:"wait",d:dn.length,n:sl.length};
   if(dated.length)return{p:"rec",d:dn.length,n:sl.length};
   if(sl.length)return{p:"listed",n:sl.length};
@@ -907,6 +909,7 @@ function recPhase(s,x){
   return{p:"none"}}
 function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
   if(r.p==="done")return"完了";
+  if(r.p==="studio")return"スタジオ 連絡待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
   if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
@@ -976,7 +979,9 @@ function whoOf(s,x){
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
     const nm2=o.asg||nameFor(s,x.role)||(x.k==="arr"?"編曲（仮）":"担当（仮）");
-    if(o.prov)return{c:"me",t:"ひとまずOK"+(o.st==="req"?" · "+awaitLabel(o.rev,firstWord(x))+"待ち":""),st:"me"};
+    if(o.prov){
+      if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev,firstWord(x)),st:"req"};
+      return{c:"me",t:"ひとまずOK",st:"me"}}
     if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev,firstWord(x)),st:"req"};
     if(o.st==="me")return{c:"me",t:"自分が確認中 · "+haveLabel(o.rev,firstWord(x)),st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
@@ -984,6 +989,7 @@ function whoOf(s,x){
     const r=recPhase(s,x);
     if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
+    if(r.p==="studio")return{c:"other",t:"スタジオ 連絡待ち",st:"req"};
     if(r.p==="wait")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"済 "+r.d+"/"+r.n,st:"me"};
     if(r.p==="recdone")return{c:"me",t:"すべて済",st:"me"};
@@ -1008,8 +1014,13 @@ function ballsOf(s){
   const L=stages(s),ci=curIdx(s);
   if(ci>=L.length)return[{c:"none",t:"完了"}];
   const out=[],seen={};
+  /* 何の工程で待っているかが分かるように、工程名を添える */
+  const short=x=>{const n=x.n||"";
+    if(x.d===1)return n.split(" · ")[0]||n;
+    return n.replace(/スケジュール$/,"").replace(/DB$/,"DB")};
   const push=x=>{const w=whoOf(s,x);const key=w.c+"|"+w.t;
-    if(seen[key])return;seen[key]=1;out.push(w)};
+    if(seen[key])return;seen[key]=1;
+    out.push({c:w.c,t:w.t,g:short(x)})};
   push(L[ci]);
   /* 同じ親の中の子工程は、同時に進むので全部見る */
   const par=(function(){if(L[ci].d!==1)return ci;
@@ -1098,7 +1109,9 @@ function cardHTML(s,rank){
   if(!fin&&!par&&L[st.i].gp&&(s.use||"master")!=="live")par=L[st.i].gp;
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
-    stage+="（"+(ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中":ao.st==="me"?haveLabel(ao.rev,firstWord(L[st.i]))+"確認中":"未依頼")+
+    stage+="（"+(ao.prov?"ひとまずOK"+(ao.st==="req"?"・"+awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中":"")
+      :ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"
+      :ao.st==="me"?haveLabel(ao.rev,firstWord(L[st.i]))+"確認中":"未依頼")+
       (ao.size?"・"+sizeLabel(ao.size):"")+"）"}
   const dl=fin?"":st.dl?(st.lb+" "+D.md(st.dl)+" · "+(st.left<0?(-st.left)+"日 超過":st.left===0?"本日":"あと"+st.left+"日")):"締切 未設定";
   const dc=st.k==="late"?"late":st.k==="warn"?"warn":"";
@@ -1145,7 +1158,8 @@ function cardHTML(s,rank){
     ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>'
         :'<span class="balls">'+ballsOf(s).map(w=>
-          '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span></span>').join("")+'</span>')+'</div>'+
+          '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span>'+
+          (w.g?'<u>'+esc(w.g)+'</u>':"")+'</span>').join("")+'</span>')+'</div>'+
     (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
         :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
          '<span class="dl '+dc+'">'+esc(dl)+'</span></div>')+
@@ -1417,7 +1431,8 @@ function drawSong(){
           esc(recLabel(s,x))+'</b>'+
           '<span>'+(schedFixed(s,x)?esc(slotLine(s,x)):"日程 未定")+'</span></div>'+
         '<div class="arrbtn">'+
-          '<button class="btn sm" data-ro="'+x.k+'">'+(r.p==="sched"?"調整中…（押すと解除）":"日程調整を依頼")+'</button>'+
+          '<button class="btn sm'+(r.p==="sched"?" pri":"")+'" data-ro="'+x.k+'">'+(r.p==="sched"?"調整中…（押すと解除）":"日程調整を依頼")+'</button>'+
+          '<button class="btn sm'+(r.p==="studio"?" pri":"")+'" data-rs="'+x.k+'">'+(r.p==="studio"?"連絡待ち（押すと解除）":"スタジオ 連絡待ち")+'</button>'+
           '<button class="btn sm pri" data-sa2="'+x.k+'">＋ 日程を追加</button>'+
         '</div></div></div>'+
         (o.slots.length?'<div class="fg">'+o.slots.map((v,si)=>slotHTML(s,x,v,si,d)).join("")+
@@ -1557,6 +1572,8 @@ function wireSong(){
   b.querySelectorAll("[data-td2]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.td2.split("|"),f=b.querySelector("["+a[0]+'="'+a[1]+'"]');
     if(!f)return;f.value=fmtDate(D.today());f.dispatchEvent(new Event("blur"))});
+  b.querySelectorAll("[data-rs]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.rs);
+    o.st=o.st==="studio"?"":"studio";mark();drawSong();rf()});
   b.querySelectorAll("[data-ro]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ro);
     if(o.st==="req"){o.st=""}else{o.st="req";o.req=D.today();o.ret=""}
     mark();drawSong();rf()});
@@ -1610,7 +1627,8 @@ function wireSong(){
   b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
     const xx=s.stageList[ix(e.dataset.bt)];
     /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
-    o.st=(xx&&isMulti(xx))?(o.st==="req"?"":"req"):(o.st===""?"req":o.st==="req"?"me":"");
+    o.st=(xx&&isMulti(xx))?(o.st===""?"req":o.st==="req"?"studio":"")
+      :(o.st===""?"req":o.st==="req"?"me":"");
     if(o.st==="req"&&!o.req)o.req=D.today();
     mark();drawSong();rf()});
   const lt=b.querySelector("#ltSeg");if(lt)lt.onclick=e=>{const x=e.target.closest("[data-lt]");if(!x)return;
