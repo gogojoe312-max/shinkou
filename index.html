@@ -488,7 +488,7 @@ const LIVE_LBL={open:"公演初日",rehearsal:"リハーサル",deliver:"音源�
 const anchorLabel=(s,k)=>(s&&s.use==="live"&&LIVE_LBL[k])||ANCHORS[k];
 /* ライブ制作物の種類 */
 const LTYPES=["セトリ","オープニングSE","ダンス曲","チェイサー","カラオケ","BUVo",
-  "転換SE","インターリュードSE","エンディングSE","メドレー","MC BGM","影アナ","その他"];
+  "転換SE","インタールードSE","エンディングSE","効果音","メドレー","MC BGM","影アナ","その他"];
 /* シングルのときだけ出す基準日 */
 const SINGLE_ONLY={meeting:1};
 /* 曲の種類。表記と、シングル専用の基準日の出し分けに使う */
@@ -611,22 +611,28 @@ const SHOWSTG={
   plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
   order: {k:"order", n:"発注",     role:"me",       anchor:"open",off:-35,unit:"d",gp:"制作"},
   build: {k:"build", n:"制作・やり取り", role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
+  make:  {k:"make",  n:"作成",     role:"me",       anchor:"open",off:-20,unit:"d",gp:"制作"},
+  lrecS: {k:"lrecS", n:"BUVoスケジュール",    role:"me",       anchor:"open",off:-32,unit:"d",t:"multi",gp:"制作"},
+  lrec:  {k:"lrec",  n:"BUVo録り",           role:"me",       anchor:"open",off:-32,unit:"d",gp:"制作"},
+  lrecE: {k:"lrecE", n:"BUVoEDITスケジュール",role:"engineer", anchor:"open",off:-24,unit:"d",t:"multi",gp:"制作"},
   rec2:  {k:"rec2",  n:"録り",     role:"me",       anchor:"open",off:-18,unit:"d",t:"multi",gp:"制作"},
   chk1:  {k:"chk1",  n:"確認",     role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
   td2:   {k:"td2",   n:"ミックス", role:"engineer", anchor:"open",off:-12,unit:"d",gp:"制作"},
   deliv2:{k:"deliv2",n:"納品",     role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}};
+const SEFLOW=["order","build","td2","deliv2"];
 const SHOWFLOW={
   "セトリ":["plan"],
-  "オープニングSE":["order","build","td2","deliv2"],
-  "転換SE":["order","build","td2","deliv2"],
-  "インターリュードSE":["order","build","td2","deliv2"],
-  "エンディングSE":["order","build","td2","deliv2"],
-  "チェイサー":["order","build","td2","deliv2"],
-  "カラオケ":["order","build","td2","deliv2"],
-  "MC BGM":["order","build","td2","deliv2"],
-  "メドレー":["order","build","td2","deliv2"],
-  "ダンス曲":["order","build","rec2","td2","deliv2"],
-  "BUVo":["order","rec2","td2","deliv2"],
+  "オープニングSE":SEFLOW,
+  "転換SE":SEFLOW,
+  "インタールードSE":SEFLOW,
+  "エンディングSE":SEFLOW,
+  "効果音":SEFLOW,
+  "ダンス曲":SEFLOW,
+  "メドレー":SEFLOW,
+  "MC BGM":SEFLOW,
+  "チェイサー":["make","deliv2"],
+  "カラオケ":["make","deliv2"],
+  "BUVo":["lrecS","lrec","lrecE","td2","deliv2"],
   "影アナ":["order","rec2","td2","deliv2"],
   "その他":["plan","order","build","td2","deliv2"]};
 function showStages(ty){const ks=SHOWFLOW[ty]||SHOWFLOW["その他"];
@@ -639,7 +645,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-u";
+const APP_VER="2026-08-11-v";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -771,7 +777,8 @@ const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kar
   instrec:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
   para:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
-  plan:"制作",order:"制作",build:"制作",rec2:"制作",chk1:"制作",td2:"制作",deliv2:"制作"};
+  plan:"制作",order:"制作",build:"制作",make:"制作",rec2:"制作",chk1:"制作",td2:"制作",deliv2:"制作",
+  lrecS:"制作",lrec:"制作",lrecE:"制作"};
 const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
 /* 段階の順に工程を並べ替える。子工程は親の直後に付いていく */
 function sortByGroup(L){
@@ -795,7 +802,8 @@ const AFTERREC={warigo:["vo"],
   rhythm:["voes","vo"],tsunagi:["voes","vo"],pitch:["voes","vo"],rough:["voes","vo"],
   choR:["choes","cho"],choT:["choes","cho"],choP:["choes","cho"],
   revoR:["revoes","revo"],revoT:["revoes","revo"],revoP:["revoes","revo"],
-  td:["tdes"],voes:["vo"],choes:["cho"],revoes:["revo"]};
+  td:["tdes"],voes:["vo"],choes:["cho"],revoes:["revo"],
+  lrecE:["lrecS"],td2:["lrecE"]};
 function recBefore(s,x){
   const L=stages(s),i=L.findIndex(z=>z.k===x.k);
   if(i<0)return null;
@@ -806,7 +814,7 @@ function recBefore(s,x){
   /* 自分で足した子工程は、直前の録音工程にぶら下げる */
   if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
   return null}
-const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo"};
+const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo",lrec:"lrecS"};
 function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""}
 /* その録音のあと何番目の工程か */
 /* 日程に書いた依頼先を、ミュージシャンクレジットへ反映する */
@@ -814,6 +822,7 @@ function slotPart(x,v){
   if(isInstRec(x))return toEnPart(v.note||"");
   if(x.k==="cho")return "Chorus";
   if(x.k==="tdes")return MIXPART;
+  if(x.k==="lrecS")return "Background Vocals";
   return ""}
 /* 日程に書いた依頼先を、その工程（と対になる録り工程）の担当者にする */
 function syncSlotAssign(s){
@@ -958,10 +967,10 @@ function whoOf(s,x){
     if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
     if(r.p==="studio")return{c:"other",t:"返事待ち",st:"req"};
-    if(r.p==="rec")return{c:"me",t:"録音 "+r.d+"/"+r.n,st:"me"};
+    if(r.p==="rec")return{c:"me",t:"済 "+r.d+"/"+r.n,st:"me"};
     if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア（仮）";
       return{c:"other",t:en+" 待ち · EDIT",st:"req"}}
-    if(r.p==="recdone")return{c:"me",t:"録音済",st:"me"};
+    if(r.p==="recdone")return{c:"me",t:"すべて済",st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
   if(x.role==="room"){
     if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
@@ -2558,10 +2567,11 @@ const NAMEFIX={
   final:["完パケ",["完パケ（尺・音量）"]],
   deliv2:["納品",["音源提出"]],
   rec2:["録り",["歌・声録り"]],
-  build:["制作・やり取り",["制作"]]};
+  build:["制作・やり取り",["制作"]],
+  make:["作成",[]]};
 const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
 const EDPAIR={};
-const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1};
+const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1,rec2:1,lrecS:1,lrecE:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
 const ROLEFIX2={kario:"director",demo:"director"};
 function fixStages(L,ref){
@@ -2683,6 +2693,7 @@ function migrate(d){
       delete c.kind;delete c.inst;delete c.title});
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
+    if(s.ltype==="インターリュードSE")s.ltype="インタールードSE";
     if(!s.sort)s.sort=s.single!==false?"single":((s.templateId||"")==="tpl_live"?"add":"album");
     s.single=(s.sort==="single");
     if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
