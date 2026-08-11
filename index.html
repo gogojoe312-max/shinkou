@@ -99,11 +99,12 @@ main>.artist:first-child{margin-top:2px}
 .card.late{border-left:3px solid var(--late)}
 .card.warn{border-left:3px solid var(--warn)}
 .card.fin{opacity:.5}
-.cardtop{display:flex;align-items:center;gap:8px;margin-bottom:6px}
-.ct{font-family:var(--disp);font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
-.balls{margin-left:auto;flex-shrink:1;min-width:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:62%}
+.cardtop{display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap}
+.ct{font-family:var(--disp);font-weight:700;font-size:15.5px;line-height:1.3;
+  overflow-wrap:anywhere;flex:1 1 auto;min-width:0}
+.balls{margin-left:auto;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px}
 .balls .ball{margin-left:0;max-width:100%}
-.ball{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;display:flex;align-items:center;gap:5px;max-width:56%;overflow:hidden}
+.ball{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;display:inline-flex;align-items:center;gap:5px;max-width:100%;overflow:hidden}
 .ball i{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;font-style:normal}
 .ball span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ball.me{color:var(--me);background:rgba(47,192,138,.13)}
@@ -242,13 +243,14 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .gph:not(.on) .cv{transform:rotate(-90deg)}
 .gph.on{color:var(--ink)}
 .gph:hover{color:var(--ink)}
-.st.kid{padding-left:26px;position:relative;border-bottom-style:dotted}
-.st.kid::before{content:"";position:absolute;left:11px;top:-1px;bottom:50%;width:1px;background:var(--line2)}
-.st.kid::after{content:"";position:absolute;left:11px;top:50%;width:9px;height:1px;background:var(--line2)}
+/* 子工程は、名前のところに縦線を引いてぶら下がりを示す。掴む所とは重ねない */
+.st.kid{border-bottom-style:dotted}
+.st.kid .nm{border-left:2px solid var(--line2);padding-left:11px}
 .st.kid .nm .t{font-size:12.5px;color:var(--dim)}
+.st.kid.on .nm{border-left-color:rgba(47,192,138,.35)}
 .st.kid.on .nm .t{color:var(--ghost)}
+.st.kid.cur .nm{border-left-color:var(--ink)}
 .st.kid .nm .s{font-size:9.5px}
-.ed.kid{margin-left:20px;border-left:2px solid var(--line2)}
 .st.cur{background:linear-gradient(90deg,rgba(233,231,226,.05),transparent)}
 .dtl{border:1px solid var(--line);border-radius:var(--r);padding:10px;margin:0 0 8px 22px;background:#1B1D22}
 .dtl input.dt{width:100%;background:var(--panel);border:1px solid var(--line);border-radius:5px;
@@ -476,7 +478,7 @@ const LTYPES=["セトリ","オープニングSE","ダンス曲","チェイサー
 const SINGLE_ONLY={meeting:1};
 /* 曲の種類。表記と、シングル専用の基準日の出し分けに使う */
 const SORTS=[["single","シングル","SINGLE"],["album","アルバム","ALBUM"],
-  ["add","アディショナル","ADDITIONAL"],["tie","タイアップ","TIE-UP"]];
+  ["add","アディショナル","ADDITIONAL"],["dl","配信のみ","DIGITAL"]];
 const sortOf=s=>s.sort||(s.single===false?"album":"single");
 const sortTag=s=>{const f=SORTS.find(x=>x[0]===sortOf(s));return f?f[2]:""};
 /* 数字だけで打てる日付入力。0911 / 9/11 / 260911 / 20260911 に対応 */
@@ -630,7 +632,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-c";
+const APP_VER="2026-08-12-d";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -730,6 +732,15 @@ function applySolo(s){
   return s.stageList.length!==before}
 function ord(n){const a=["th","st","nd","rd"],v=n%100;return n+(a[(v-20)%10]||a[v]||a[0])}
 const isShow=p=>!!p&&(p.mode==="live"||p.kind==="ライブ");
+/* 案件の種類から、その曲の既定の種類を決める */
+const SORTBYKIND={"シングル":"single","タイアップ":"single","配信":"dl",
+  "アルバム":"album","ミニアルバム":"album","EP":"album","ベスト":"album"};
+function sortForProj(p){if(!p||isShow(p))return"add";return SORTBYKIND[p.kind]||"album"}
+function applySort(s){const p=projOf(s.projectId);
+  if(!p||isShow(p))return false;
+  const w=sortForProj(p);
+  if(s.sort===w)return false;
+  s.sort=w;s.single=(w==="single");return true}
 function projTitle(p){if(!p)return"案件未設定";
   if(isShow(p))return (p.custom&&p.custom.trim())||"公演名 未設定";
   if(p.custom&&p.custom.trim())return p.custom.trim();
@@ -1521,7 +1532,7 @@ function wireSong(){
   b.querySelectorAll("[data-f]").forEach(e=>{e.oninput=()=>{s[e.dataset.f]=e.value;mark();
     if(e.dataset.f==="projectId"){fillDates(s,"");
       const pr=projOf(s.projectId);if(pr&&pr.artist)s.artist=pr.artist;
-      applySolo(s);drawSong()}
+      applySort(s);applySolo(s);drawSong()}
     if(e.dataset.f==="artist"&&applySolo(s))drawSong();
     rf()};
     if(e.dataset.m)e.onblur=()=>{mAdd(e.dataset.m,e.value);syncLists()}});
@@ -1702,7 +1713,8 @@ function wireSong(){
     mark();crRedraw(s);rf()});
   const ec=b.querySelector("#expCr");if(ec)ec.onclick=()=>creditSheet(s);
   const np=b.querySelector("#newProj");if(np)np.onclick=()=>editProject(null,p=>{
-    s.projectId=p.id;if(!s.artist)s.artist=p.artist;if(!s.director)s.director=p.director;mark();drawSong();rf()});
+    s.projectId=p.id;if(!s.artist)s.artist=p.artist;if(!s.director)s.director=p.director;
+    applySort(s);mark();drawSong();rf()});
   if(RO)b.querySelectorAll("input,textarea,select,button").forEach(e=>{if(e.id!=="expCr")e.disabled=true})}
 
 function dateCfg(s){
@@ -2549,7 +2561,7 @@ document.getElementById("fab").onclick=()=>{
       s.tplMastering=last.tplMastering?Object.assign({},last.tplMastering):null}
     else{const pr=projOf(last.projectId);if(!isShow(pr))s.projectId=""}}
   s.director=V.dir!=="__all"?V.dir:(last?last.director:"");
-  applySolo(s);S.songs.unshift(s);mark();render();openSong(s.id);
+  applySort(s);applySolo(s);S.songs.unshift(s);mark();render();openSong(s.id);
   setTimeout(()=>{const i=document.querySelector('#shBody [data-f="title"]');if(i)i.focus()},320)};
 
 function seed(){
@@ -2718,7 +2730,10 @@ function migrate(d){
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
     if(s.ltype==="インターリュードSE")s.ltype="インタールードSE";
-    if(!s.sort)s.sort=s.single!==false?"single":((s.templateId||"")==="tpl_live"?"add":"album");
+    if(s.sort==="tie")s.sort="single";
+    if(!s.sort){const p0=(d.projects||[]).find(z=>z.id===s.projectId);
+      s.sort=(p0&&!isShow(p0)&&(s.templateId||"")!=="tpl_live")?(SORTBYKIND[p0.kind]||"album")
+        :(s.single!==false?"single":((s.templateId||"")==="tpl_live"?"add":"album"))}
     s.single=(s.sort==="single");
     if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
     /* レッスン・MV撮影・ライブ初披露は最初から出す。公演初日・音源提出の欄は持たせない */
