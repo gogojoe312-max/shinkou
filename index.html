@@ -619,7 +619,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-o";
+const APP_VER="2026-08-11-p";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -700,6 +700,7 @@ function fillDates(s,oldRel){
   const prevMas=masRule(s,oldRel||"");
   if(!s.dates.release||(oldRel&&s.dates.release===oldRel))s.dates.release=p.release;
   if(isShow(p)&&(!s.dates.open||(oldRel&&s.dates.open===oldRel)))s.dates.open=p.release;
+  if(isShow(p)&&p.rehearsal&&!s.dates.rehearsal)s.dates.rehearsal=p.rehearsal;
   const nextMas=masRule(s,s.dates.release);
   if(nextMas&&(!s.dates.mastering||(prevMas&&s.dates.mastering===prevMas)))s.dates.mastering=nextMas}
 const projOf=id=>S.projects.find(p=>p.id===id);
@@ -1055,6 +1056,7 @@ function cardHTML(s,rank){
   dpush("MV撮影",s.dates.mv,"k2");
   dpush("ライブ",s.dates.live,"k3");
   dpush("マスタリング",masDate(s),"k4");
+  if((s.use||"master")==="live"){dpush("リハ",s.dates.rehearsal,"k3");dpush("初日",s.dates.open,"k4")}
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!isMulti(x)||doneOf(s,L,i))continue;
     const sl=slotLine(s,x);if(!sl)continue;
@@ -1832,6 +1834,10 @@ function staffSheet(p){
 function nextNum(artist,kind){
   let m=0;S.projects.forEach(p=>{if(p.artist===artist&&p.kind===kind&&+p.num>m)m=+p.num});
   return m+1}
+/* 制作物の進み具合をひとことで */
+function showStat(s){const L=stages(s);
+  const n=L.filter(x=>x.d!==1).length,d=L.filter((x,i)=>x.d!==1&&doneOf(s,L,i)).length;
+  return d>=n?"✓":d+"/"+n}
 function editProject(id,after){
   /* 入力したそばから保存する。新規もこの時点で作ってしまう */
   let p=id?projOf(id):null,isNew=false;
@@ -1850,9 +1856,18 @@ function editProject(id,after){
        '<div class="row fg"><div><span class="lbl">初日</span>'+
          '<input class="inp dt" id="pR" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0911" value="'+esc(fmtDate(p.release))+'"></div>'+
        '<div><span class="lbl">会場</span><input class="inp" id="pV" value="'+esc(p.venue||"")+'" placeholder="例：中野サンプラザ"></div></div>'+
-       '<div class="row fg"><div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div>'+
+       '<div class="row fg"><div><span class="lbl">リハ</span>'+
+         '<input class="inp dt" id="pRh" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0910" value="'+esc(fmtDate(p.rehearsal||""))+'"></div>'+
        '<div><span class="lbl">公演数</span><input class="inp" id="pDays" inputmode="numeric" value="'+esc(p.days||"")+'" placeholder="例 12"></div></div>'+
-       '<p class="hint">初日から逆算して締切が入ります。</p>'
+       '<div class="fg"><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div>'+
+       '<p class="hint">初日から逆算して締切が入ります。</p>'+
+       '<div class="sec">制作するもの</div>'+
+       '<div class="qadd" id="pItems">'+LTYPES.map(t=>{
+         const hv=S.songs.find(z=>z.projectId===p.id&&(z.use||"")==="live"&&z.ltype===t);
+         const st=hv?showStat(hv):null;
+         return '<button class="qc'+(hv?" on":"")+'" data-plt="'+esc(t)+'">'+esc(t)+
+           (st?'<u style="text-decoration:none;font-family:var(--mono);opacity:.7;margin-left:5px">'+st+'</u>':"")+'</button>'}).join("")+'</div>'+
+       '<p class="hint">押すとその制作物が公演の中に作られます。もう一度押すと外れます。</p>'
      :'<div class="fg"><div class="seg2" id="pS">'+
        '<button data-so="0" aria-pressed="'+(!isSolo(p.artist))+'">グループ</button>'+
        '<button data-so="1" aria-pressed="'+isSolo(p.artist)+'">ソロ</button></div>'+
@@ -1880,6 +1895,29 @@ function editProject(id,after){
       if(p.mode==="master"&&p.kind==="ライブ")p.kind="シングル";
       mark();draw();render()};
     const pv=q("pV");if(pv)pv.oninput=()=>{p.venue=pv.value;mark()};
+    const rh=q("pRh");
+    if(rh){rh.onfocus=()=>{try{rh.select()}catch(_){}};
+      rh.onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();rh.blur()}};
+      rh.onblur=()=>{const iso=parseDate(rh.value,p.release||"");
+        if(iso===null){rh.classList.add("bad");return}
+        rh.classList.remove("bad");p.rehearsal=iso;rh.value=fmtDate(iso);
+        S.songs.forEach(x=>{if(x.projectId===p.id&&(x.use||"")==="live"&&!x.dates.rehearsal)x.dates.rehearsal=iso});
+        mark();render()}}
+    const pit=q("pItems");
+    if(pit)pit.onclick=ev=>{const x=ev.target.closest("[data-plt]");if(!x)return;
+      const ty=x.dataset.plt;
+      const hv=S.songs.find(z=>z.projectId===p.id&&(z.use||"")==="live"&&z.ltype===ty);
+      if(hv){
+        if(!confirm("「"+ty+"」を公演から外します。ゴミ箱へ移ります。"))return;
+        toTrash("song",hv,songTitle(hv));
+        S.songs=S.songs.filter(z=>z.id!==hv.id)}
+      else{
+        const ns=newSong({templateId:"tpl_show"});
+        ns.title=ty;ns.ltype=ty;ns.artist=p.artist;ns.projectId=p.id;ns.director=p.director;
+        ns.use="live";ns.single=false;ns.sort="add";
+        ns.ord=(S.songs.filter(z=>z.projectId===p.id).length+1)*10;
+        S.songs.push(ns);fillDates(ns,"")}
+      mark();draw();render()};
     const pd=q("pDays");if(pd)pd.oninput=()=>{p.days=pd.value.replace(/[^0-9]/g,"");mark()};
     const touch=()=>{mark();render();
       document.getElementById("s2Title").textContent=projTitle(p);
