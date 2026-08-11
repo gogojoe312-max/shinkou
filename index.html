@@ -607,6 +607,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
+const APP_VER="2026-08-11-h";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2209,7 +2210,10 @@ function openSettings(){
       '<p class="hint" style="margin:0">Safari で開いて、共有ボタン → 「ホーム画面に追加」。'+
       'アプリとして起動でき、電波がなくても開けます。'+
       ((window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone?
-        '<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':'')+'</p>'}];
+        '<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':'')+'</p>'},
+    {id:"ver",t:"版",h:()=>'<p class="hint" style="margin:0">いま動いている版：<b>'+APP_VER+'</b>'+
+      '<br>古いままなら、アプリを閉じて開き直すか、下のボタンで読み込み直してください。</p>'+
+      '<div class="fg"><button class="btn w" id="reld">最新を読み込み直す</button></div>'}];
   const draw=()=>{
     const w=mem?'<div class="warnbox">保存先が使えない環境です。この画面ではデータが残りません。</div>':"";
     document.getElementById("s2Body").innerHTML=w+secs.map(x=>
@@ -2229,6 +2233,12 @@ function wireSettings(B){
   on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+    on("#reld",async()=>{
+      try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();
+        await Promise.all(rs.map(r=>r.unregister()))}
+        if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}
+      }catch(e){}
+      location.replace(location.pathname+"?v="+Date.now())});
   on("#exJ",exportJSON);on("#imJ",importJSON);on("#exC",exportCSV);on("#rest",restoreSheet);
   on("#pinBtn",pinSheet);on("#pub",publish);
   [["gO","owner"],["gR","repo"],["gP","path"],["gB","branch"],["gT","token"]].forEach(x=>{
