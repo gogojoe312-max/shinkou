@@ -93,9 +93,6 @@ main>.artist:first-child{margin-top:2px}
 .caret{color:var(--dim2);font-size:9px;transition:transform .18s}
 .proj[aria-expanded="false"] .caret{transform:rotate(-90deg)}
 
-.crow{display:flex;gap:6px;align-items:flex-start}
-.crow .card{flex:1;min-width:0}
-.crow .grip{margin-top:9px;height:34px;flex:0 0 28px;font-size:15px}
 .card{display:block;width:100%;text-align:left;border:1px solid var(--line);border-radius:var(--r);
   background:var(--panel);padding:11px 12px;margin-bottom:8px;transition:border-color .15s,background .15s}
 .card:hover{border-color:var(--line2);background:var(--panel2)}
@@ -648,7 +645,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-x";
+const APP_VER="2026-08-11-y";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1165,10 +1162,7 @@ function render(){
           return t?'<span class="rel '+(near&&!(pkd&&open)?"near":"")+'">'+esc(t)+'</span>':""})()+'</div>'+
         (open&&pkd?'<div class="kd" style="margin:9px 0 11px">'+pkd+'</div>':"")+
         (open?'<div class="slist" data-pl="'+esc(e[0])+'">'+
-          e[1].sort(byOrd).map(s=>V.reorder?rowHTML(s)
-            :((s.use||"master")==="live"
-              ?'<div class="crow" data-sid="'+s.id+'"><button class="grip" data-sg="'+s.id+'" title="ドラッグで並べ替え">⠿</button>'+cardHTML(s)+'</div>'
-              :cardHTML(s))).join("")+'</div>':"")}).join("");
+          e[1].sort(byOrd).map(s=>V.reorder?rowHTML(s):cardHTML(s)).join("")+'</div>':"")}).join("");
     const unit=songs.every(z=>(z.use||"master")==="master")?"曲":"件";
     return'<div class="artist">'+esc(a)+'<span class="n">'+songs.length+unit+'</span></div><div class="artline"></div>'+blocks
   }).join("");
@@ -1180,9 +1174,8 @@ function rowHTML(s){
     '<span class="nm"><span class="t">'+esc(songTitle(s))+'</span>'+
     '<span class="s">'+(st.k==="fin"?"完了":esc(L[st.i].n))+'</span></span></div>'}
 function songDrag(box){
-  const sel=box.querySelector(".crow")?".crow":".srow";
-  dragList(box,sel,"[data-sg]",()=>{
-    [...box.querySelectorAll(sel)].forEach((r,i)=>{
+  dragList(box,".srow","[data-sg]",()=>{
+    [...box.querySelectorAll(".srow")].forEach((r,i)=>{
       const s=S.songs.find(z=>z.id===r.dataset.sid);if(s){s.ord=(i+1)*10;stamp(s)}});
     mark();render();toast("並び順を保存しました")})}
 function bind(m){
