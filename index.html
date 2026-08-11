@@ -606,20 +606,40 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 
+/* ライブ制作物の工程は、作るものによって変える */
+const SHOWSTG={
+  plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
+  order: {k:"order", n:"発注",     role:"me",       anchor:"open",off:-35,unit:"d",gp:"制作"},
+  build: {k:"build", n:"制作",     role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
+  rec2:  {k:"rec2",  n:"録り",     role:"me",       anchor:"open",off:-18,unit:"d",t:"multi",gp:"制作"},
+  chk1:  {k:"chk1",  n:"確認",     role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
+  td2:   {k:"td2",   n:"ミックス", role:"engineer", anchor:"open",off:-12,unit:"d",gp:"制作"},
+  deliv2:{k:"deliv2",n:"納品",     role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}};
+const SHOWFLOW={
+  "セトリ":["plan"],
+  "オープニングSE":["order","td2","deliv2"],
+  "転換SE":["order","td2","deliv2"],
+  "インターリュードSE":["order","td2","deliv2"],
+  "エンディングSE":["order","td2","deliv2"],
+  "チェイサー":["order","td2","deliv2"],
+  "カラオケ":["order","td2","deliv2"],
+  "MC BGM":["order","td2","deliv2"],
+  "ダンス曲":["order","build","rec2","td2","deliv2"],
+  "メドレー":["order","build","td2","deliv2"],
+  "BUVo":["order","rec2","td2","deliv2"],
+  "影アナ":["order","rec2","td2","deliv2"],
+  "その他":["plan","order","build","td2","deliv2"]};
+function showStages(ty){const ks=SHOWFLOW[ty]||SHOWFLOW["その他"];
+  return ks.map(k=>JSON.parse(JSON.stringify(SHOWSTG[k])))}
 function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehearsal"],
  mastering:null,
- stages:[
-  {k:"plan",  n:"内容決定",   role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
-  {k:"order", n:"発注",       role:"me",       anchor:"open",off:-38,unit:"d",gp:"制作"},
-  {k:"build", n:"制作",       role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
-  {k:"chk1",  n:"確認",       role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
-  {k:"deliv2",n:"音源提出",   role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}]}}
+ stages:showStages("その他")}}
 
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive(),tplShow()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-q";
+const APP_VER="2026-08-11-r";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -751,7 +771,7 @@ const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kar
   instrec:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
   para:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
-  plan:"制作",order:"制作",build:"制作",chk1:"制作",deliv2:"制作"};
+  plan:"制作",order:"制作",build:"制作",rec2:"制作",chk1:"制作",td2:"制作",deliv2:"制作"};
 const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
 /* 段階の順に工程を並べ替える。子工程は親の直後に付いていく */
 function sortByGroup(L){
@@ -1535,6 +1555,8 @@ function wireSong(){
   const lt=b.querySelector("#ltSeg");if(lt)lt.onclick=e=>{const x=e.target.closest("[data-lt]");if(!x)return;
     s.ltype=s.ltype===x.dataset.lt?"":x.dataset.lt;
     if(s.ltype&&!s.title)s.title=s.ltype;
+    if(s.ltype&&!Object.keys(s.stages||{}).some(k=>(s.stages[k]||{}).done))
+      s.stageList=showStages(s.ltype);
     mark();drawSong();rf()};
   const ug=b.querySelector("#useSeg");if(ug)ug.onclick=e=>{const x=e.target.closest("[data-u2]");if(!x)return;
     const nu=x.dataset.u2;if(nu===(s.use||"master"))return;
@@ -1914,6 +1936,7 @@ function editProject(id,after){
         S.songs=S.songs.filter(z=>z.id!==hv.id)}
       else{
         const ns=newSong({templateId:"tpl_show"});
+        ns.stageList=showStages(ty);
         ns.title=ty;ns.ltype=ty;ns.artist=p.artist;ns.projectId=p.id;ns.director=p.director;
         ns.use="live";ns.single=false;ns.sort="add";
         ns.ord=(S.songs.filter(z=>z.projectId===p.id).length+1)*10;
@@ -2243,13 +2266,19 @@ let setOpen="";
 function openSettings(){
   const g=S.settings.gh;
   const secs=[
-    {id:"basic",t:"案件とメンバー",h:()=>
-      '<div class="fg"><button class="btn w" id="addP">＋ 案件を追加</button></div>'+
-      (S.projects.map(p=>'<div class="st"><span class="nm"><span class="t">'+esc(projTitle(p))+'</span>'+
-        '<span class="s">'+esc(p.artist||"—")+(p.release?" · "+esc(p.release):"")+'</span></span>'+
-        '<button class="btn sm" data-ep="'+p.id+'">編集</button></div>').join("")||'<p class="hint">まだ案件がありません。</p>')+
+    {id:"basic",t:"案件とメンバー",h:()=>{
+      const row=p=>'<div class="st"><span class="nm"><span class="t">'+esc(projTitle(p))+'</span>'+
+        '<span class="s">'+esc(p.artist||"—")+(p.release?" · "+(isShow(p)?"初日 ":"発売 ")+esc(p.release):"")+
+        ' · '+S.songs.filter(z=>z.projectId===p.id).length+(isShow(p)?"件":"曲")+'</span></span>'+
+        '<button class="btn sm" data-ep="'+p.id+'">編集</button></div>';
+      const ms=S.projects.filter(p=>!isShow(p)),lv=S.projects.filter(p=>isShow(p));
+      return '<div class="fg"><button class="btn w" id="addP">＋ 案件を追加</button></div>'+
+      '<p class="hint" style="margin:2px 0 6px">原盤</p>'+
+      (ms.map(row).join("")||'<p class="hint">まだありません。</p>')+
+      '<p class="hint" style="margin:14px 0 6px">ライブ公演</p>'+
+      (lv.map(row).join("")||'<p class="hint">まだありません。</p>')+
       '<div class="fg" style="margin-top:12px"><button class="btn w" id="mMaster">メンバー管理</button></div>'+
-      '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'},
+      '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'}},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領状況</button></div>'},
     {id:"sync",t:"端末間の同期",h:()=>
       '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
@@ -2515,8 +2544,10 @@ const NAMEFIX={
   plan:["内容決定",["内容決定（構成・尺）"]],
   order:["発注",["制作の発注"]],
   chk1:["確認",["社内確認"]],
-  final:["完パケ",["完パケ（尺・音量）"]]};
-const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,rec2:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
+  final:["完パケ",["完パケ（尺・音量）"]],
+  deliv2:["納品",["音源提出"]],
+  rec2:["録り",["歌・声録り"]]};
+const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
 const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
@@ -2607,11 +2638,12 @@ function migrate(d){
       const showKeys={};sh.stages.forEach(x=>showKeys[x.k]=1);
       const hit=(s.stageList||[]).filter(x=>showKeys[x.k]).length;
       if(hit<3){s.templateId="tpl_show";s.use="live";s.single=false;
-        s.stageList=JSON.parse(JSON.stringify(sh.stages));
+        s.stageList=showStages(s.ltype);
         s.tplDates=sh.dates.slice();s.tplMastering=null}}
     const t=b.templates.find(x=>x.id===(s.templateId||"tpl_single"))||b.templates[0];
-    if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(t.stages));
-    s.stageList=fixStages(s.stageList,t);
+    const LVS=(s.use==="live"||s.templateId==="tpl_show");
+    if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(LVS?showStages(s.ltype):t.stages));
+    s.stageList=fixStages(s.stageList,LVS?null:t);
     if(!s.tplDates)s.tplDates=t.dates.slice();
     if(s.tplMastering===undefined)s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
     if(!s.dates)s.dates={};
