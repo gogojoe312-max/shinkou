@@ -288,6 +288,14 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
   background:var(--ink);color:#16171B;padding:9px 17px;border-radius:20px;font-size:12.5px;font-weight:700;z-index:99;opacity:0;pointer-events:none;transition:.2s}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
+.acc{border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.acch{width:100%;display:flex;align-items:center;gap:10px;padding:13px 14px;background:var(--panel);
+  font-family:var(--disp);font-weight:700;font-size:14px;color:var(--ink);text-align:left}
+.acch span:first-child{flex:1}
+.acch:hover{background:var(--panel2)}
+.acch[aria-expanded="true"]{background:var(--panel2)}
+.acch[aria-expanded="false"] .caret{transform:rotate(-90deg)}
+.accb{padding:12px 14px 14px;border-top:1px solid var(--line)}
 .ro{position:sticky;top:0;z-index:60;background:var(--warn);color:#16171B;font-size:11px;font-weight:700;text-align:center;padding:3px}
 .cr{border:1px solid var(--line);border-radius:var(--r);padding:9px;margin-bottom:7px;background:var(--panel)}
 .crtop{display:flex;gap:7px;margin-bottom:7px}
@@ -479,9 +487,12 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"kario",  n:"仮歌",               role:"director", anchor:"release",off:-152,unit:"d"},
   {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m"},
   {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"}},
-  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",e:1,elead:3,fb:{anchor:"release",off:-4,unit:"m"}},
+  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"}},
   {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"}},
-  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:16,unit:"d"},
+  {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d"},
+  {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d"},
+  {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d"},
+  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"}},
   {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-42,unit:"d",t:"multi",e:1,elead:3},
   {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-36,unit:"d",t:"multi",e:1,elead:3},
@@ -497,8 +508,11 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"lyric",  n:"歌詞",                         role:"lyricist", anchor:"live",off:-70,unit:"d"},
   {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d"},
   {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d"},
-  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",e:1,elead:3},
+  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi"},
   {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d"},
+  {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d"},
+  {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d"},
+  {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d"},
   {k:"rough",  n:"ラフミックス展開（レッスン用）",role:"engineer",anchor:"live",off:-35,unit:"d"},
   {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-25,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"}},
   {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d"},
@@ -626,8 +640,8 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   return o}
 const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
-const SIZES=[["","尺 未定"],["1cho","1Cho"],["2cho","2Cho"],["kanso","間奏暫定フル尺"],["full","フル尺"]];
-const sizeLabel=v=>(SIZES.find(x=>x[0]===(v||""))||SIZES[0])[1];
+const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
+const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
 const awaitLabel=r=>r?"修正"+r:"1stアレンジ";
 const haveLabel=r=>r<=1?"1stアレンジ":"修正"+(r-1);
@@ -700,7 +714,7 @@ function partnerOf(s,x){
   if(o.asg)return o.asg;
   if(x.role==="me")return"自分";
   if(x.role==="room")return"会議・社内";
-  return nameFor(s,x.role)||((ROLES[x.role]||"相手")+"（未登録）")}
+  return nameFor(s,x.role)||((ROLES[x.role]||"相手")+"（仮）")}
 /* 録音系（複数日）は 日程調整 → 日程確定 → 完了 の順で進む */
 const schedFixed=(s,x)=>slotsOf(s,x).length>0;
 function whoOf(s,x){
@@ -708,7 +722,7 @@ function whoOf(s,x){
   if(o.done)return{c:"none",t:"完了",st:"done"};
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
-    const nm2=o.asg||nameFor(s,x.role)||"編曲";
+    const nm2=o.asg||nameFor(s,x.role)||"編曲（仮）";
     if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev),st:"req"};
     if(o.st==="me")return{c:"me",t:"自分が確認中 · "+haveLabel(o.rev),st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
@@ -718,12 +732,12 @@ function whoOf(s,x){
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
     if(r.p==="studio")return{c:"other",t:"スタジオ 返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"録音 "+r.d+"/"+r.n,st:"me"};
-    if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア";
+    if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア（仮）";
       return{c:"other",t:en+" 待ち · EDIT",st:"req"}}
     if(r.p==="recdone")return{c:"me",t:"録音済",st:"me"};
     return{c:"todo",t:"未着手",st:""}}
   if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
-  if(o.st==="req")return{c:"other",t:(nm||ROLES[x.role]||"相手")+" 待ち",st:"req"};
+  if(o.st==="req")return{c:"other",t:(nm||((ROLES[x.role]||"相手")+"（仮）"))+" 待ち",st:"req"};
   if(x.role==="me")return{c:"me",t:(o.asg?o.asg:"自分")+"の番",st:"me"};
   if(x.role==="room")return{c:"room",t:"会議待ち",st:"req"};
   return{c:"todo",t:"未依頼",st:""}}
@@ -777,7 +791,7 @@ function cardHTML(s){
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
     stage+="（"+(ao.st==="req"?awaitLabel(ao.rev)+"依頼中":ao.st==="me"?haveLabel(ao.rev)+"確認中":"未依頼")+
-      "・"+sizeLabel(ao.size)+"）"}
+      (ao.size?"・"+sizeLabel(ao.size):"")+"）"}
   const dl=fin?"":st.dl?(st.lb+" "+D.md(st.dl)+" · "+(st.left<0?(-st.left)+"日 超過":st.left===0?"本日":"あと"+st.left+"日")):"締切 未設定";
   const dc=st.k==="late"?"late":st.k==="warn"?"warn":"";
   /* 親レベルの工程を、済みとこれからに分ける */
@@ -866,7 +880,7 @@ function bind(m){
     b.onclick=()=>{V.collapsed[b.dataset.c]=!V.collapsed[b.dataset.c];render()};
     b.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();b.click()}};
     b.ondblclick=e=>{e.preventDefault();if(b.dataset.p!=="__none")editProject(b.dataset.p)}})}
-/* 候補リストはデータ全体から毎回作り直す。入力欄のblur任せにしない */
+/* 保存済みのデータから候補を拾う。入力途中の文字は拾わない（確定時のみmAddで登録） */
 function harvestMasters(){
   let ch=false;
   const put=(k,v)=>{v=(v||"").trim();if(!v)return;
@@ -884,8 +898,28 @@ function harvestMasters(){
   if(ch)Object.keys(S.masters).forEach(k=>{if(Array.isArray(S.masters[k]))
     S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"))});
   return ch}
+/* 他の名前の一部でしかなく、どこにも使われていない候補を消す */
+function cleanMasters(){
+  const used={};
+  const put=v=>{v=(v||"").trim();if(v)used[v]=1};
+  S.songs.forEach(s=>{put(s.artist);put(s.director);
+    (s.credits||[]).forEach(c=>{put(c.name);(c.parts||[]).forEach(put)});
+    Object.keys(s.stages||{}).forEach(k=>put((s.stages[k]||{}).asg));
+    (s.stageList||[]).forEach(x=>{});
+    Object.keys(s.stages||{}).forEach(k=>((s.stages[k]||{}).slots||[]).forEach(v=>put(v.studio)))});
+  S.projects.forEach(p=>{put(p.artist);put(p.director);
+    (p.staff||[]).forEach(r=>String(r.value||"").split(/[、,\n]/).forEach(put))});
+  let ch=false;
+  Object.keys(S.masters).forEach(k=>{
+    if(!Array.isArray(S.masters[k]))return;
+    const arr=S.masters[k];
+    const keep=arr.filter(v=>{
+      if(used[v])return true;
+      /* 使われていない かつ 他の候補の先頭一致（打ちかけ）なら捨てる */
+      return !arr.some(o=>o!==v&&o.indexOf(v)===0)});
+    if(keep.length!==arr.length){S.masters[k]=keep;ch=true}});
+  return ch}
 function syncLists(){
-  if(harvestMasters()&&!RO)mark();
   document.getElementById("dlHost").innerHTML=MASTER_KEYS.map(k=>
     '<datalist id="dl_'+k[0]+'">'+(S.masters[k[0]]||[]).map(v=>'<option value="'+esc(v)+'"></option>').join("")+'</datalist>').join("")+
     '<datalist id="dl_part">'+PARTS.concat((S.masters.instrument||[]).filter(v=>PARTS.indexOf(v)<0))
@@ -967,7 +1001,7 @@ function drawSong(){
     else{const bits=[];
       if(isArr(x)){bits.push(o.st==="req"?awaitLabel(o.rev)+" 依頼中"
         :o.st==="me"?haveLabel(o.rev)+" 確認中":"未依頼");
-        bits.push(sizeLabel(o.size))}
+        if(o.size)bits.push(sizeLabel(o.size))}
       if(mul){const r=recPhase(s,x);
         bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x));
@@ -1184,8 +1218,8 @@ function wireSong(){
     o.rev=(o.rev||0)+1;o.st="me";mark();drawSong();rf()});
   b.querySelectorAll("[data-au]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.au);
     o.rev=Math.max(0,(o.rev||0)-1);if(!o.rev)o.st="req";mark();drawSong();rf()});
-  b.querySelectorAll("[data-sz]").forEach(e=>e.onclick=()=>{const a=e.dataset.sz.split("|");
-    stg(s,a[0]).size=a[1]||"";mark();drawSong();rf()});
+  b.querySelectorAll("[data-sz]").forEach(e=>e.onclick=()=>{const a=e.dataset.sz.split("|"),o=stg(s,a[0]);
+    o.size=(o.size===a[1])?"":a[1];mark();drawSong();rf()});
   b.querySelectorAll("[data-sc]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sc.split("|"),o=stg(s,a[0]),v=o.slots[+a[1]];
     v.done=!v.done;
@@ -1659,13 +1693,16 @@ function masterSheet(){
       ((S.masters[k[0]]||[]).map((v,i)=>'<span class="pill">'+esc(v)+
         '<button data-mk="'+k[0]+'" data-mi="'+i+'">✕</button></span>').join("")||'<p class="hint">まだ登録がありません。</p>')+
       '</div><div class="fg"><input class="inp" data-ak="'+k[0]+'" placeholder="追加して Enter"></div>').join("")+
-      '<p class="hint">曲の入力欄に名前を打つと自動でここに貯まります。手動での追加・削除もできます。</p>';
+      '<div class="fg" style="margin-top:16px"><button class="btn w" id="mClean">使っていない候補を整理する</button></div>'+
+      '<p class="hint">曲の入力欄で名前を確定すると、ここに登録されます。打ちかけの文字は登録されません。「整理」を押すと、どこにも使われていない打ちかけの候補を消します。</p>';
     const B=document.getElementById("s2Body");
     B.querySelectorAll("[data-mk]").forEach(b=>b.onclick=()=>{
       S.masters[b.dataset.mk].splice(+b.dataset.mi,1);mark();draw();syncLists()});
     B.querySelectorAll("[data-ak]").forEach(e=>e.onkeydown=ev=>{if(ev.key!=="Enter")return;
-      mAdd(e.dataset.ak,e.value);e.value="";draw();syncLists()})};
-  s2("MASTERS","スタッフ・マスタ","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);draw()}
+      mAdd(e.dataset.ak,e.value);e.value="";draw();syncLists()});
+    B.querySelector("#mClean").onclick=()=>{
+      if(cleanMasters()){mark();syncLists();draw();toast("整理しました")}else toast("整理するものはありません")}};
+  s2("MEMBERS","メンバー管理","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);draw()}
 
 
 /* ===================== 端末間の同期（GitHub のプライベートリポジトリ） ===================== */
@@ -1753,13 +1790,20 @@ async function syncNow(reason){
       else merged=mergeState(base,S,got.json);
       merged.settings=S.settings}   /* 設定は端末ごと。取り込みで消さない */
     const changed=JSON.stringify(syncable(merged))!==JSON.stringify(syncable(S));
-    if(changed){S=migrate(merged);dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
+    if(changed){S=migrate(merged);harvestMasters();dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
     const payload=syncable(S);
     const same=got.json&&JSON.stringify(syncable(got.json))===JSON.stringify(payload);
     if(!same){
       const res=await ghWrite(c,payload,got.sha);
       if(res==="conflict"){SY.busy=false;return syncNow("retry")}}
     await sbPut(JSON.parse(JSON.stringify(payload)));
+    /* 1日1回、同期先に日付つきのスナップショットを残す */
+    if(S.settings.lastSnap!==D.today()&&(payload.songs||[]).length){
+      try{const sp="snapshots/"+D.today()+".json";
+        const c2=Object.assign({},c,{path:sp});
+        const ex=await ghRead(c2);
+        await ghWrite(c2,payload,ex.sha);
+        S.settings.lastSnap=D.today();mark()}catch(e){}}
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
   }catch(e){syDot("err",String(e.message||e))}
   SY.busy=false}
@@ -1843,102 +1887,96 @@ function invSheet(){
   s2("INVOICES","請求書","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);draw()}
 
 /* ===================== settings ===================== */
+let setOpen="";
 function openSettings(){
   const g=S.settings.gh;
-  const w=mem?'<div class="warnbox">保存先が使えない環境です。この画面ではデータが残りません。GitHub Pages 等に置くと永続化します。先にJSONを書き出して控えてください。</div>':"";
-  s2("SETTINGS","設定",w+
-   '<div class="fg"><button class="btn w" id="mInv">請求書の受領状況</button></div>'+
-   '<div class="fg"><button class="btn w" id="mMaster">スタッフ・マスタを管理</button></div>'+
-   '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'+
-   '<div class="fg"><button class="btn w" id="reTpl">全曲に工程テンプレートを入れ直す</button></div>'+
-   '<p class="hint">曲ごとに編集した工程を破棄して、テンプレートの内容で作り直します。完了記録は同じ工程だけ残ります。</p>'+
-   '<div class="sec">案件</div><div class="fg"><button class="btn w" id="addP">＋ 案件を追加</button></div>'+
-   (S.projects.map(p=>'<div class="st"><span class="nm"><span class="t">'+esc(projTitle(p))+'</span>'+
-     '<span class="s">'+esc(p.artist||"—")+(p.release?" · "+esc(p.release):"")+'</span></span>'+
-     '<button class="btn sm" data-ep="'+p.id+'">編集</button></div>').join("")||'<p class="hint">まだ案件がありません。</p>')+
-   '<div class="sec">iPhone / iPad</div>'+
-   '<p class="hint" style="margin:0 0 10px">Safari で開いて、共有ボタン → 「ホーム画面に追加」。'+
-     'アプリとして起動でき、電波がなくても開けます。'+
-     (window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches?
-       '<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':
-       (navigator.standalone?'<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':""))+'</p>'+
-   '<div class="sec">保存とバックアップ</div>'+
-   (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
-     ? '<p class="hint">入力のたび自動保存し、10分ごとに世代バックアップ、1日1回の日次バックアップを取っています。最後の書き出しは '+
-       new Date(S.settings.lastExport).toLocaleDateString("ja-JP")+' です。</p>'
-     : '<div class="warnbox">端末が壊れるとブラウザ内のデータは戻せません。月に一度はJSONを書き出して、別の場所に控えてください。</div>')+
-   '<div class="row fg"><button class="btn" id="exJ">JSONを書き出す</button><button class="btn" id="imJ">JSONを読み込む</button></div>'+
-   '<div class="row fg"><button class="btn" id="exC">CSV（Excel用）</button><button class="btn" id="rest">世代バックアップから復元</button></div>'+
-   '<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'+
-   '<div class="sec">セキュリティ</div>'+
-   '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
-   '<p class="hint">端末に保存されるデータをAES-GCMで暗号化し、起動時にパスコードを求めます。忘れると復号できません。</p>'+
-   '<div class="sec">端末間の同期</div>'+
-   '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
-     'データ専用の<b>プライベート</b>リポジトリを1つ作って、そこを指定してください。'+
-     'アプリ本体を置いた公開リポジトリとは別にします。</p>'+
-   '<div class="fg"><div class="seg2" id="syOn">'+
-     '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
-     '<button data-sy="1" aria-pressed="'+(!!syCfg().on)+'">同期する</button></div></div>'+
-   '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="sO" value="'+esc(syCfg().owner)+'" placeholder="gogojoe312-max"></div>'+
-   '<div><span class="lbl">Repo</span><input class="inp" id="sR" value="'+esc(syCfg().repo)+'" placeholder="shinkou-data"></div></div>'+
-   '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="sP" value="'+esc(syCfg().path)+'"></div>'+
-   '<div><span class="lbl">Branch</span><input class="inp" id="sB" value="'+esc(syCfg().branch||"main")+'"></div></div>'+
-   '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'" placeholder="github_pat_..."></div>'+
-   '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
-     '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'+
-   '<p class="hint" id="syInfo">'+(syOk()?"設定済み。変更するたびに自動で同期します。":"Owner・Repo・Path・Token を入れて「同期する」にしてください。")+'</p>'+
-   '<div class="sec">閲覧専用リンク（読み取り専用の共有）</div>'+
-   '<div class="warnbox">こちらは別機能です。公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
-   '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
-   '<div><span class="lbl">Repo</span><input class="inp" id="gR" value="'+esc(g.repo)+'"></div></div>'+
-   '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="gP" value="'+esc(g.path)+'"></div>'+
-   '<div><span class="lbl">Branch</span><input class="inp" id="gB" value="'+esc(g.branch)+'"></div></div>'+
-   '<div class="fg"><span class="lbl">Token</span><input class="inp" id="gT" type="password" value="'+esc(g.token)+'"></div>'+
-   '<div class="fg" style="margin-top:10px"><button class="btn pri w" id="pub">共有版を公開</button></div><div id="pubOut"></div>',
-   [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
-  const B=document.getElementById("s2Body");
-  B.querySelector("#mInv").onclick=invSheet;
-  B.querySelector("#mMaster").onclick=masterSheet;
-  B.querySelector("#mTpl").onclick=tplList;
-  B.querySelector("#reTpl").onclick=()=>{
-    if(!confirm("全"+S.songs.length+"曲の工程を、それぞれのテンプレートで作り直します。"))return;
-    S.songs.forEach(s=>{const t=S.templates.find(x=>x.id===(s.templateId||"tpl_single"))||S.templates[0];
-      s.stageList=JSON.parse(JSON.stringify(t.stages));
-      s.tplDates=t.dates.slice();s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
-      applySolo(s)});
-    mark();render();toast("工程を入れ直しました")};
-  B.querySelector("#addP").onclick=()=>editProject(null);
+  const secs=[
+    {id:"basic",t:"案件とメンバー",h:()=>
+      '<div class="fg"><button class="btn w" id="addP">＋ 案件を追加</button></div>'+
+      (S.projects.map(p=>'<div class="st"><span class="nm"><span class="t">'+esc(projTitle(p))+'</span>'+
+        '<span class="s">'+esc(p.artist||"—")+(p.release?" · "+esc(p.release):"")+'</span></span>'+
+        '<button class="btn sm" data-ep="'+p.id+'">編集</button></div>').join("")||'<p class="hint">まだ案件がありません。</p>')+
+      '<div class="fg" style="margin-top:12px"><button class="btn w" id="mMaster">メンバー管理</button></div>'+
+      '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'},
+    {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領状況</button></div>'},
+    {id:"sync",t:"端末間の同期",h:()=>
+      '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
+        (syOk()?'<br><b style="color:var(--ok)">設定済み。変更するたびに自動で同期します。</b>':'')+'</p>'+
+      '<div class="fg"><div class="seg2" id="syOn">'+
+        '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
+        '<button data-sy="1" aria-pressed="'+(!!syCfg().on)+'">同期する</button></div></div>'+
+      '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="sO" value="'+esc(syCfg().owner)+'"></div>'+
+      '<div><span class="lbl">Repo</span><input class="inp" id="sR" value="'+esc(syCfg().repo)+'"></div></div>'+
+      '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="sP" value="'+esc(syCfg().path)+'"></div>'+
+      '<div><span class="lbl">Branch</span><input class="inp" id="sB" value="'+esc(syCfg().branch||"main")+'"></div></div>'+
+      '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
+      '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
+        '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
+    {id:"save",t:"保存とバックアップ",h:()=>
+      (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
+        ? '<p class="hint" style="margin:0 0 10px">入力のたび自動保存し、10分ごとの世代バックアップと1日1回の日次バックアップを取っています。'+
+          (syOk()?'同期先にも毎日スナップショットを残しています。':'')+
+          '最後の書き出しは '+new Date(S.settings.lastExport).toLocaleDateString("ja-JP")+' です。</p>'
+        : '<div class="warnbox">端末が壊れるとブラウザ内のデータは戻せません。月に一度はJSONを書き出して、別の場所に控えてください。</div>')+
+      '<div class="row fg"><button class="btn" id="exJ">JSONを書き出す</button><button class="btn" id="imJ">JSONを読み込む</button></div>'+
+      '<div class="row fg"><button class="btn" id="exC">CSV（Excel用）</button><button class="btn" id="rest">バックアップから復元</button></div>'+
+      '<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'},
+    {id:"sec",t:"セキュリティ",h:()=>
+      '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
+      '<p class="hint">端末に保存されるデータをAES-GCMで暗号化し、起動時にパスコードを求めます。忘れると復号できません。</p>'},
+    {id:"share",t:"閲覧専用リンク",h:()=>
+      '<div class="warnbox">公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
+      '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
+      '<div><span class="lbl">Repo</span><input class="inp" id="gR" value="'+esc(g.repo)+'"></div></div>'+
+      '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="gP" value="'+esc(g.path)+'"></div>'+
+      '<div><span class="lbl">Branch</span><input class="inp" id="gB" value="'+esc(g.branch)+'"></div></div>'+
+      '<div class="fg"><span class="lbl">Token</span><input class="inp" id="gT" type="password" value="'+esc(g.token)+'"></div>'+
+      '<div class="fg"><button class="btn pri w" id="pub">共有版を公開</button></div><div id="pubOut"></div>'},
+    {id:"ios",t:"iPhone / iPad",h:()=>
+      '<p class="hint" style="margin:0">Safari で開いて、共有ボタン → 「ホーム画面に追加」。'+
+      'アプリとして起動でき、電波がなくても開けます。'+
+      ((window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone?
+        '<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':'')+'</p>'}];
+  const draw=()=>{
+    const w=mem?'<div class="warnbox">保存先が使えない環境です。この画面ではデータが残りません。</div>':"";
+    document.getElementById("s2Body").innerHTML=w+secs.map(x=>
+      '<div class="acc"><button class="acch" data-ac="'+x.id+'" aria-expanded="'+(setOpen===x.id)+'">'+
+        '<span>'+esc(x.t)+'</span><span class="caret">▼</span></button>'+
+        (setOpen===x.id?'<div class="accb">'+x.h()+'</div>':"")+'</div>').join("");
+    const B=document.getElementById("s2Body");
+    B.querySelectorAll("[data-ac]").forEach(b=>b.onclick=()=>{
+      setOpen=setOpen===b.dataset.ac?"":b.dataset.ac;draw()});
+    wireSettings(B)};
+  s2("SETTINGS","設定","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
+  draw()}
+
+function wireSettings(B){
+  const q=id=>B.querySelector(id);
+  const on=(id,f)=>{const e=q(id);if(e)e.onclick=f};
+  on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
-  B.querySelector("#mTrash").onclick=trashSheet;
-  B.querySelector("#exJ").onclick=exportJSON;B.querySelector("#imJ").onclick=importJSON;
-  B.querySelector("#exC").onclick=exportCSV;B.querySelector("#rest").onclick=restoreSheet;
-  B.querySelector("#pinBtn").onclick=pinSheet;
-  [["gO","owner"],["gR","repo"],["gP","path"],["gB","branch"],["gT","token"]].forEach(x=>
-    document.getElementById(x[0]).oninput=e=>{S.settings.gh[x[1]]=e.target.value;
-      mark()});
-  B.querySelector("#pub").onclick=publish;
-  [["sO","owner"],["sR","repo"],["sP","path"],["sB","branch"],["sT2","token"]].forEach(x=>
-    document.getElementById(x[0]).oninput=e=>{syCfg()[x[1]]=e.target.value.trim();mark()});
-  B.querySelector("#syOn").onclick=e=>{const x=e.target.closest("[data-sy]");if(!x)return;
+  on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+  on("#exJ",exportJSON);on("#imJ",importJSON);on("#exC",exportCSV);on("#rest",restoreSheet);
+  on("#pinBtn",pinSheet);on("#pub",publish);
+  [["gO","owner"],["gR","repo"],["gP","path"],["gB","branch"],["gT","token"]].forEach(x=>{
+    const e=q("#"+x[0]);if(e)e.oninput=ev=>{S.settings.gh[x[1]]=ev.target.value;mark()}});
+  [["sO","owner"],["sR","repo"],["sP","path"],["sB","branch"],["sT2","token"]].forEach(x=>{
+    const e=q("#"+x[0]);if(e)e.oninput=ev=>{syCfg()[x[1]]=ev.target.value.trim();mark()}});
+  const so=q("#syOn");if(so)so.onclick=e=>{const x=e.target.closest("[data-sy]");if(!x)return;
     syCfg().on=x.dataset.sy==="1";mark();
     B.querySelectorAll("#syOn [data-sy]").forEach(b=>b.setAttribute("aria-pressed",
       (b.dataset.sy==="1")===!!syCfg().on));
-    syStart();
-    B.querySelector("#syInfo").textContent=syOk()?"設定済み。変更するたびに自動で同期します。"
-      :"Owner・Repo・Path・Token を入れて「同期する」にしてください。"};
-  B.querySelector("#syNow").onclick=async()=>{
-    if(!syOk())return toast("先に設定を入れてください");
-    await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)};
-  B.querySelector("#syPull").onclick=async()=>{
-    if(!syOk())return toast("先に設定を入れてください");
+    syStart()};
+  on("#syNow",async()=>{if(!syOk())return toast("先に設定を入れてください");
+    await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)});
+  on("#syPull",async()=>{if(!syOk())return toast("先に設定を入れてください");
     if(!confirm("この端末の内容を破棄して、同期先の内容を取り込みます。"))return;
     try{const got=await ghRead(syCfg());
       if(!got.json)return toast("同期先にデータがありません");
       const keep=S.settings;S=migrate(got.json);S.settings=keep;dirty=true;await flush();
       await sbPut(JSON.parse(JSON.stringify(syncable(S))));
       render();hide("sheet2");toast("取り込みました")}
-    catch(e){toast("取り込めません："+(e.message||e))}}}
+    catch(e){toast("取り込めません："+(e.message||e))}})}
 
 function pinSheet(){
   s3("SECURITY",encOn?"パスコード":"パスコードを設定",
@@ -2101,8 +2139,8 @@ const RENAME={"歌録り":"VoDB","エディット":"VoEDIT","アレンジ確定�
   "アレンジ確定":"アレンジ尺確定","アレンジ作り込み":"アレンジFIX","収録用アレンジ仕上げ":"アレンジFIX（収録用）",
   "TD（トラックダウン）":"ミックス","TD":"ミックス",
   "会議用デモ完成":"デモ完成","会議で決定":"曲確認"};
-const DROPK={deliv:1,vosch:1};
-const EDPAIR={edit:"vo",revoed:"revo",choed:"cho"};
+const DROPK={deliv:1,vosch:1,edit:1};
+const EDPAIR={revoed:"revo",choed:"cho"};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
 const ROLEFIX2={kario:"director",demo:"director"};
@@ -2127,6 +2165,8 @@ function fixStages(L,ref){
   L.forEach(x=>{if(RENAME[x.n])x.n=RENAME[x.n];
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
+    if(x.k==="vo"){x.e=0;delete x.elead}
+    if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
     if(ROLEFIX2[x.k]&&x.role==="composer")x.role=ROLEFIX2[x.k];
     if(x.role==="mixEng")x.role="engineer"});
@@ -2198,7 +2238,7 @@ function migrate(d){
         if(!t.ed.done)t.done=false}
       delete s.stages[ek]});
     Object.keys(s.stages).forEach(k=>{const o=s.stages[k];delete o.ball;
-      if(o.size==="tv")o.size="";
+      if(o.size==="tv"||o.size==="kanso")o.size=o.size==="kanso"?"utanaka":"";
       if(o.ed===undefined)o.ed={done:false,date:"",asg:""};
       if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";if(o.ret===undefined)o.ret="";
       (o.slots||[]).forEach(v=>{if(v.done===undefined)v.done=false;
@@ -2259,6 +2299,7 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   purgeTrash();
+  if(harvestMasters()|cleanMasters())mark();
   dot("");render();syStart()}
 boot();
 
