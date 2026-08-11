@@ -43,7 +43,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--jp);font-size:14px;
   .chk{width:24px;height:24px}
   .xb{width:32px;height:32px}
 }
-button,.grip,.chk,.pchip{-webkit-touch-callout:none}
+button,.grip,.chk{-webkit-touch-callout:none}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;background:none;border:none;padding:0}
 :focus-visible{outline:2px solid var(--warn);outline-offset:2px;border-radius:3px}
@@ -128,12 +128,6 @@ main>.artist:first-child{margin-top:2px}
 .gp1.prov{color:var(--me);border-color:rgba(47,192,138,.4);border-style:dashed}
 .gp1 u{text-decoration:none;font-family:var(--mono);opacity:.75;margin-left:4px}
 .gp1.tot{border-style:dashed;margin-left:auto}
-.chips{display:flex;flex-wrap:wrap;gap:4px}
-.pchip{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:11px;border:1px solid var(--line);
-  color:var(--ghost);background:#1A1C21;white-space:nowrap}
-.pchip.cur{color:#16171B;background:var(--ink);border-color:var(--ink);font-weight:700}
-.pchip.todo{background:transparent;border-style:dashed;color:var(--dim2)}
-.pchip.late{border-color:var(--late);border-style:solid;color:var(--late);background:transparent;font-weight:700}
 .inv{margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim2)}
 .inv.pend{color:var(--warn)}
 .kd{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 11px}
@@ -150,11 +144,6 @@ main>.artist:first-child{margin-top:2px}
 .kd .past{border-left-color:var(--line2)!important;background:transparent}
 .kd .past b{color:var(--ghost);font-weight:500}
 .kd .past em{color:var(--ghost)}
-.dn{font-size:11px;color:var(--ghost);line-height:1.6;margin-bottom:7px;
-  display:flex;gap:7px;align-items:flex-start}
-.dn .cnt{flex-shrink:0;font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;color:var(--ok);
-  border:1px solid rgba(47,192,138,.4);border-radius:9px;padding:1px 7px;line-height:1.5}
-.pchip.more{border-style:solid;color:var(--dim2)}
 .okt{color:var(--ok)}
 .now .pp{color:var(--dim2);font-weight:400}
 .ball.fin{color:var(--ok);background:rgba(47,192,138,.14)}
@@ -261,14 +250,10 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .inp.dt{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:.02em}
 .inp.dt.bad{border-color:var(--late);color:var(--late)}
 .inp.cdt{flex:0 0 122px;padding:5px 7px;font-size:11.5px}
-.mtag{font-family:var(--mono);font-size:8.5px;letter-spacing:.1em;color:var(--dim2);
-  border:1px solid var(--line2);border-radius:3px;padding:0 4px;margin-left:5px}
 .grip{flex:0 0 34px;height:40px;display:grid;place-items:center;color:var(--dim);font-size:17px;
   cursor:grab;touch-action:none;user-select:none;border:1px solid var(--line);border-radius:6px}
 .grip:active{cursor:grabbing;color:var(--ink)}
 .cr.drag{opacity:.85;border-color:var(--ink);box-shadow:0 6px 18px rgba(0,0,0,.45)}
-.mrow{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-.mrow .dt{flex:0 0 112px}
 .slot{border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:7px;background:var(--panel)}
 .sl1,.sl2{display:flex;align-items:center;gap:7px}
 .sl2{margin-top:6px;flex-wrap:wrap}
@@ -283,17 +268,12 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .st .grip:hover{color:var(--dim)}
 .st.drag{background:var(--panel2);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
 .arrbox{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:#1A1C21}
-.rp{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:#1A1C21;margin-bottom:9px}
-.rphd{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
-.rphd b{font-size:14px}
-.rphd span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
 .arrnow{display:flex;flex-direction:column;gap:2px;margin-bottom:9px}
 .arrnow b{font-size:14px}
 .arrnow span{font-family:var(--mono);font-size:10.5px;color:var(--dim2)}
 .c-other{color:var(--other)}.c-me{color:var(--me)}.c-todo{color:var(--dim2)}
 .arrbtn{display:flex;gap:6px;align-items:center}
 .arrbtn .btn{flex:1}
-.edrow{display:flex;align-items:center;gap:8px}
 .dtwrap{display:flex;gap:4px;align-items:stretch}
 .dtwrap .dt{flex:1;min-width:0}
 .tdy{flex:0 0 auto;border:1px solid var(--line2);border-radius:5px;padding:0 9px;
@@ -302,7 +282,6 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .qadd{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .qc{border:1px dashed var(--line2);border-radius:13px;padding:4px 10px;font-size:11.5px;color:var(--dim)}
 .qc:hover{border-style:solid;color:var(--ink)}
-.qc.pri2{border-style:solid;border-color:var(--dim2)}
 .stepper{display:flex;align-items:center;gap:5px}
 .stepper button{width:34px;height:34px;border:1px solid var(--line2);border-radius:6px;
   color:var(--ink);font-size:16px;flex-shrink:0}
@@ -321,7 +300,6 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .hint{font-size:11.5px;color:var(--dim2);line-height:1.75;margin:6px 0 0}
 .warnbox{border:1px solid #4A3A22;background:#241E14;border-radius:var(--r);padding:9px 11px;font-size:11.5px;color:#D6B478;margin-bottom:12px;line-height:1.7}
 .okbox{border:1px solid #24402F;background:#16241C;color:#7FCFA4}
-.redbox{border:1px solid #4A2E33;background:#241619;color:#E59AA0}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0));transform:translate(-50%,14px);
   background:var(--ink);color:#16171B;padding:9px 17px;border-radius:20px;font-size:12.5px;font-weight:700;z-index:99;opacity:0;pointer-events:none;transition:.2s}
 .toast.on{opacity:1;transform:translate(-50%,0)}
@@ -451,7 +429,6 @@ const RECPARTS=["Drums","Bass","Electric Guitar","Acoustic Guitar","Keyboards","
 /* ソロ名義のアーティストは歌割の工程を作らない */
 const SOLOSTAGES={warigo:1};
 const WROLES=[["lyricist","作詞"],["composer","作曲"],["arranger","編曲"]];
-const CKIND=WROLES.concat([["player","演奏"],["mixEng","Mix Engineer"],["masEng","Mastering Engineer"],["studio","Recording Studio"]]);
 const MASPART="Mastering Engineer",MIXPART="Mix Engineer",STUPART="Recording Studio";
 const PARTS=["Programming","Guitar","Acoustic Guitar","Electric Guitar","Bass","Drums","Percussion",
   "Keyboards","Piano","Organ","Synthesizer","Strings","Brass","Saxophone","Trumpet","Trombone","Flute",
@@ -645,7 +622,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-y";
+const APP_VER="2026-08-11-z";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -764,7 +741,6 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   const o=s.stages[k];if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";
   if(o.ret===undefined)o.ret="";if(!o.slots)o.slots=[];if(o.asg===undefined)o.asg="";
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";if(o.prov===undefined)o.prov=false;
-  if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","ReVoDB","仕上げ"];
 const GPORDER=STEPS.concat(["企画","制作","確認","納品"]);
@@ -859,26 +835,21 @@ function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
   return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
     (a.who?" "+a.who:"")+
     (a.swait?"@返事待ち":"")).join("・")}
-const studioWait=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
-function slotStat(s,x){const v=stg(s,x.k).slots.filter(a=>a.date||a.note);
-  return{n:v.length,d:v.filter(a=>a.done).length}}
-/* 録音工程の段階：未着手 → 日程調整 → 日程確定 → 録音 → EDIT → 完了 */
+const waitReply=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
+/* 日程を持つ工程の状態：未依頼 → 日程調整 → 返事待ち → 日程確定 → 完了 */
 function recPhase(s,x){
   const o=stg(s,x.k),sl=o.slots.filter(a=>a.date||a.note);
   const dated=sl.filter(a=>a.date),dn=sl.filter(a=>a.done);
   if(o.done)return{p:"done"};
-  if(sl.length&&dn.length===sl.length)return x.e?{p:"edit"}:{p:"recdone"};
-  if(studioWait(s,x))return{p:"studio",d:dn.length,n:sl.length};
+  if(sl.length&&dn.length===sl.length)return{p:"recdone"};
+  if(waitReply(s,x))return{p:"wait",d:dn.length,n:sl.length};
   if(dated.length)return{p:"rec",d:dn.length,n:sl.length};
   if(sl.length)return{p:"listed",n:sl.length};
   if(o.st==="req")return{p:"sched"};
   return{p:"none"}}
-function edDate(s,x){const v=slotsOf(s,x);if(!v.length)return"";
-  return D.addD(v[v.length-1].date,x.elead==null?3:x.elead)}
 function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
   if(r.p==="done")return"完了";
-  if(r.p==="edit")return (x.n.replace(/DB$/,"")||"")+"EDIT 待ち";
-  if(r.p==="studio")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
+  if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
   if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
   if(r.p==="sched")return"日程調整 依頼中";
@@ -887,10 +858,6 @@ function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
 function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note);
   if(!v.length)return;
   const all=v.every(a=>a.done);
-  if(x.e){ /* EDITを含む工程は、EDITが済むまで完了にしない */
-    if(!o.ed)o.ed={done:false,date:"",asg:""};
-    o.done=all&&o.ed.done;
-    if(o.done&&!o.date)o.date=o.ed.date||D.today();return}
   if(all&&!o.done){o.done=true;if(!o.date)o.date=v.map(a=>a.date).filter(Boolean).sort().pop()||D.today()}
   if(!all&&o.done){o.done=false}}
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
@@ -943,13 +910,6 @@ function nameFor(s,role){
   /* エンジニアを頼んでいなければ、担当ディレクターが自分でやる */
   if(role==="engineer"&&s.director)return s.director;
   return""}
-/* 工程の担当者。工程ごとの指名があればそれを優先する */
-function partnerOf(s,x){
-  const o=stg(s,x.k);
-  if(o.asg)return o.asg;
-  if(x.role==="me")return"自分";
-  if(x.role==="room")return"会議・社内";
-  return nameFor(s,x.role)||((ROLES[x.role]||"相手")+"（仮）")}
 /* 録音系（複数日）は 日程調整 → 日程確定 → 完了 の順で進む */
 const schedFixed=(s,x)=>slotsOf(s,x).length>0;
 function whoOf(s,x){
@@ -966,10 +926,8 @@ function whoOf(s,x){
     const r=recPhase(s,x);
     if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
-    if(r.p==="studio")return{c:"other",t:"返事待ち",st:"req"};
+    if(r.p==="wait")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"済 "+r.d+"/"+r.n,st:"me"};
-    if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア（仮）";
-      return{c:"other",t:en+" 待ち · EDIT",st:"req"}}
     if(r.p==="recdone")return{c:"me",t:"すべて済",st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
   if(x.role==="room"){
@@ -1271,7 +1229,6 @@ function drawSong(){
   const s=cur,b=document.getElementById("shBody"),bl=ballOf(s),p=projOf(s.projectId);
   const popts='<option value="">案件を選択</option>'+S.projects.map(x=>
     '<option value="'+x.id+'" '+(x.id===s.projectId?"selected":"")+'>'+esc((x.artist?x.artist+" / ":"")+projTitle(x))+'</option>').join("");
-  const topts='<option value="">—</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("");
   const LV=(s.use||"master")==="live";
   let hI='<div class="sec">基本情報</div><div class="fg"><span class="lbl">'+(LV?"名称":"曲名")+'</span><input class="inp" data-f="title" value="'+esc(s.title)+'" placeholder="'+(LV?"例：Opening SE":"")+'"></div>'+
   (LV?'<div class="fg"><span class="lbl">種類</span><div class="qadd" id="ltSeg">'+
@@ -1332,10 +1289,8 @@ function drawSong(){
         :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
         :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
         if(o.size)bits.push(sizeLabel(o.size))}
-      if(mul){const r=recPhase(s,x);
-        bits.push(recLabel(s,x));
-        if(schedFixed(s,x))bits.push(slotLine(s,x));
-        if(r.p==="edit"){const ed=edDate(s,x);if(ed)bits.push("EDIT締切 "+D.md(ed))}}
+      if(mul){bits.push(recLabel(s,x));
+        if(schedFixed(s,x))bits.push(slotLine(s,x))}
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
       if(o.st==="req"&&o.req)bits.push("発注 "+D.md(o.req));
       if(left!==null)bits.push(left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日");
@@ -1387,12 +1342,7 @@ function drawSong(){
         (o.slots.length?'<div class="fg">'+o.slots.map((v,si)=>slotHTML(s,x,v,si,d)).join("")+
           (isInstRec(x)?'<div class="qadd">'+recChips(s).map(pt=>
             '<button class="qc" data-qa="'+x.k+'|'+esc(pt)+'">＋'+esc(pt)+'</button>').join("")+'</div>':"")+
-          '</div>':"")+
-        (x.e?'<div class="fg"><span class="lbl">'+esc(x.n.replace(/DB$/,""))+'EDIT</span><div class="edrow">'+
-          '<button class="chk" role="checkbox" aria-checked="'+(!!o.ed.done)+'" data-ed="'+x.k+'">✓</button>'+
-          '<input class="inp" list="dl_engineer" data-ea="'+x.k+'" placeholder="'+esc(nameFor(s,"engineer")||"担当エンジニア")+'" value="'+esc(o.ed.asg||"")+'">'+
-          '</div><p class="hint">締切は最終録り日の'+(x.elead==null?3:x.elead)+'日後'+
-          (edDate(s,x)?"（"+esc(edDate(s,x))+"）":"")+'。EDITが済んだらチェックで工程が完了します。</p></div>':"")}
+          '</div>':"")}
     h+=(mul?"":'<div class="row fg">'+
       '<div><span class="lbl">締切</span>'+dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
       '<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div></div>')+
@@ -1529,11 +1479,6 @@ function wireSong(){
   b.querySelectorAll("[data-ro]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ro);
     if(o.st==="req"){o.st=""}else{o.st="req";o.req=D.today();o.ret=""}
     mark();drawSong();rf()});
-  b.querySelectorAll("[data-ed]").forEach(e=>e.onclick=()=>{const k=e.dataset.ed,o=stg(s,k);
-    o.ed.done=!o.ed.done;if(o.ed.done&&!o.ed.date)o.ed.date=D.today();
-    syncSlotDone(s,s.stageList[s.stageList.findIndex(z=>z.k===k)]);mark();drawSong();rf()});
-  b.querySelectorAll("[data-ea]").forEach(e=>{e.oninput=()=>{stg(s,e.dataset.ea).ed.asg=e.value;mark()};
-    e.onblur=()=>{mAdd("engineer",e.value);syncLists();drawSong();rf()}});
   b.querySelectorAll("[data-ao]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ao);
     o.st="req";o.req=D.today();o.ret="";mark();drawSong();rf()});
   b.querySelectorAll("[data-ap]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ap);
@@ -1634,7 +1579,7 @@ function wireSong(){
     delete s.stages[s.stageList[i].k];s.stageList.splice(i,1);mark();drawSong();rf()});
   b.querySelectorAll("[data-qa]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.qa.split("|"),o=stg(s,a[0]);
-    o.slots.push({date:"",note:a[1],studio:"",swait:false});o.st="";mark();drawSong();
+    o.slots.push({date:"",note:a[1],who:"",swait:false});o.st="";mark();drawSong();
     setTimeout(()=>{const l=b.querySelectorAll('[data-sl^="'+a[0]+'|"]');
       if(l.length)l[l.length-1].focus()},30)});
   const stl=b.querySelector("#stList");if(stl)stageDrag(s,stl,rf);
@@ -2451,12 +2396,12 @@ function importJSON(){const i=document.createElement("input");i.type="file";i.ac
       dirty=true;flush();hide("sheet2");render();toast("読み込みました")}catch(e){toast("読み込めないファイルです")}};
     r.readAsText(f)};i.click()}
 function exportCSV(){
-  const head=["グループ","案件","曲名","担当D","シングル","発売日","レッスン","MV撮影","ライブ初披露","マスタリング",
+  const head=["グループ","案件","曲名","担当D","種類","発売日","レッスン","MV撮影","ライブ初披露","マスタリング",
     "現在の工程","次の期限","残日数","状況","作詞","作曲","編曲","ミュージシャンクレジット","請求書 受領"];
   const rows=S.songs.map(s=>{const st=status(s),L=stages(s),b=ballOf(s),iv=invStat(s);
     const gr=k=>(s.credits||[]).filter(c=>c.g==="work"&&c.name&&(c.roles||[]).indexOf(k)>=0).map(c=>c.name).join(" / ");
-    return[s.artist,projTitle(projOf(s.projectId)),s.title,s.director,s.single===false?"":"○",relOf(s),
-      s.dates.lesson,s.single===false?"":s.dates.mv,s.dates.live,masDate(s),
+    return[s.artist,projTitle(projOf(s.projectId)),s.title,s.director,sortTag(s),relOf(s),
+      s.dates.lesson,s.dates.mv,s.dates.live,masDate(s),
       st.k==="fin"?"完了":L[st.i].n,st.dl||"",st.left==null?"":st.left,b.t,
       gr("lyricist"),gr("composer"),gr("arranger"),
       (s.credits||[]).filter(c=>c.g==="mus"&&c.name).map(c=>(rowParts(c).filter(Boolean).join("/")||"?")+":"+c.name).join(" / "),
@@ -2585,18 +2530,12 @@ const NAMEFIX={
   build:["制作・やり取り",["制作"]],
   make:["作成",[]]};
 const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
-const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1,rec2:1,lrecS:1,lrecE:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
 const ROLEFIX2={kario:"director",demo:"director"};
 function fixStages(L,ref){
   L=L.filter(x=>!DROPK[x.k]);
   /* VoEDIT等は、対応する録音工程の最終段階として取り込む */
-  Object.keys(EDPAIR).forEach(ek=>{
-    const i=L.findIndex(x=>x.k===ek);if(i<0)return;
-    const t=L.find(x=>x.k===EDPAIR[ek]);
-    if(t){t.e=1;if(t.elead==null)t.elead=3}
-    L.splice(i,1)});
   /* アレンジ尺確定・アレンジFIX は「アレンジ」1工程にまとめる */
   const iA=L.findIndex(x=>x.k==="arrfix"),iB=L.findIndex(x=>x.k==="arrbld");
   if((iA>=0||iB>=0)&&L.findIndex(x=>x.k==="arr")<0){
@@ -2611,7 +2550,6 @@ function fixStages(L,ref){
     if(NAMEFIX[x.k]){const f=NAMEFIX[x.k];if(!x.n||f[1].indexOf(x.n)>=0)x.n=f[0]}
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
-    if(x.k==="vo"||x.k==="revo"||x.k==="cho"){x.e=0;delete x.elead}
     if(GPFIX[x.gp])x.gp=GPFIX[x.gp];
     /* 既定の工程は、旧データで別の段階に入っていても必ず本来の段階へ戻す */
     if(GPBYK[x.k])x.gp=GPBYK[x.k];
@@ -2725,18 +2663,12 @@ function migrate(d){
         st:b2.done||a.done?"me":(a.st||""),req:a.req||"",ret:"",slots:[],
         asg:a.asg||b2.asg||"",rev:b2.done?2:a.done?1:0,size:a.done?"full":""};
       delete s.stages.arrfix;delete s.stages.arrbld}
-    Object.keys(EDPAIR).forEach(ek=>{const old=s.stages[ek];if(!old)return;
-      const tk=EDPAIR[ek],t=s.stages[tk];
-      if(t){if(!t.ed)t.ed={done:false,date:"",asg:""};
-        t.ed.done=!!old.done;t.ed.date=old.date||"";t.ed.asg=old.asg||"";
-        if(!t.ed.done)t.done=false}
-      delete s.stages[ek]});
     Object.keys(s.stages).forEach(k=>{const o=s.stages[k];delete o.ball;
       if(o.size==="tv"||o.size==="kanso")o.size=o.size==="kanso"?"utanaka":"";
       if(o.ed===undefined)o.ed={done:false,date:"",asg:""};
       if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";if(o.ret===undefined)o.ret="";
       (o.slots||[]).forEach(v=>{if(v.done===undefined)v.done=false;
-        if(v.studio===undefined)v.studio="";if(v.swait===undefined)v.swait=false;
+        if(v.who===undefined)v.who="";if(v.swait===undefined)v.swait=false;delete v.studio;
         if(v.note)v.note=toEnPart(v.note)})});
     return s});
   (function(){const sv=S;S=b;
