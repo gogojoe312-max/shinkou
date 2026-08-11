@@ -650,7 +650,7 @@ window.addEventListener("beforeunload",e=>{if(dirty){flush();e.preventDefault();
 /* ===================== model ===================== */
 function newSong(o){const t=(S.templates.find(x=>x.id===((o||{}).templateId||"tpl_single"))||S.templates[0]);
   return Object.assign({id:uid(),title:"",work:"",artist:"",projectId:"",director:"",
-    single:t.id!=="tpl_live",use:t.id==="tpl_live"?"live":"master",ord:Date.now(),mtime:Date.now(),
+    single:t.id==="tpl_single",use:t.id==="tpl_show"?"live":"master",ord:Date.now(),mtime:Date.now(),
     templateId:t.id,stageList:JSON.parse(JSON.stringify(t.stages)),
     tplDates:t.dates.slice(),tplMastering:t.mastering?Object.assign({},t.mastering):null,
     dates:{release:"",meeting:"",lesson:"",mv:"",live:"",mastering:"",open:"",rehearsal:"",deliver:""},
@@ -1412,7 +1412,16 @@ function wireSong(){
     if(s.ltype&&!s.title)s.title=s.ltype;
     mark();drawSong();rf()};
   const ug=b.querySelector("#useSeg");if(ug)ug.onclick=e=>{const x=e.target.closest("[data-u2]");if(!x)return;
-    s.use=x.dataset.u2;mark();drawSong();rf()};
+    const nu=x.dataset.u2;if(nu===(s.use||"master"))return;
+    const tid=nu==="live"?"tpl_show":"tpl_single";
+    const t=S.templates.find(z=>z.id===tid);
+    if(t&&!confirm(nu==="live"?"ライブ制作物に切り替えます。工程がライブ用（企画〜納品）に入れ替わります。"
+      :"原盤に切り替えます。工程が録音用に入れ替わります。"))return;
+    s.use=nu;
+    if(t){s.templateId=t.id;s.stageList=JSON.parse(JSON.stringify(t.stages));
+      s.tplDates=t.dates.slice();s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
+      if(nu==="live")s.single=false}
+    applySolo(s);mark();drawSong();rf()};
   const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
     s.single=x.dataset.g==="1";
     if(s.single&&(s.tplDates||[]).indexOf("mv")<0)s.tplDates.push("mv");
@@ -2383,16 +2392,27 @@ function fixStages(L,ref){
 function migrate(d){
   const b=BLANK();if(!d)return b;
   b.projects=d.projects||[];
-  if(!(d.templates||[]).some(t=>t.id==="tpl_show"))b.templates.push(tplShow());
   b.trash=d.trash||[];
   if(d.templates&&d.templates.length){b.templates=d.templates;
-    b.templates.forEach(t=>{const ref=t.id==="tpl_live"?tplLive():t.id==="tpl_single"?tplSingle():null;
+    b.templates.forEach(t=>{const ref=t.id==="tpl_live"?tplLive():t.id==="tpl_single"?tplSingle():
+      t.id==="tpl_show"?tplShow():null;
       t.stages=fixStages(t.stages||[],ref)})}
+  /* 既定テンプレートが欠けていたら足す（欠けるとライブ用が録音用になってしまう） */
+  [tplSingle(),tplLive(),tplShow()].forEach(t=>{
+    if(!b.templates.some(x=>x.id===t.id))b.templates.push(t)});
   if(d.masters)Object.keys(d.masters).forEach(k=>{if(d.masters[k])b.masters[k]=d.masters[k]});
   if(b.masters.mixEng){b.masters.engineer=(b.masters.engineer||[]).concat(b.masters.mixEng);delete b.masters.mixEng}
   b.masters.instrument=[...new Set((b.masters.instrument||[]).map(toEnPart).map(v=>v==="Horns"?"Brass":v))];
   if(d.settings)b.settings=Object.assign(b.settings,d.settings);
   b.songs=(d.songs||[]).map(s=>{
+    /* ライブ制作物は、録音用の工程を持っていたらライブ用に組み直す */
+    if(s.use==="live"||(s.templateId==="tpl_show"&&!s.use)){
+      const sh=b.templates.find(x=>x.id==="tpl_show")||tplShow();
+      const showKeys={};sh.stages.forEach(x=>showKeys[x.k]=1);
+      const hit=(s.stageList||[]).filter(x=>showKeys[x.k]).length;
+      if(hit<3){s.templateId="tpl_show";s.use="live";s.single=false;
+        s.stageList=JSON.parse(JSON.stringify(sh.stages));
+        s.tplDates=sh.dates.slice();s.tplMastering=null}}
     const t=b.templates.find(x=>x.id===(s.templateId||"tpl_single"))||b.templates[0];
     if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(t.stages));
     s.stageList=fixStages(s.stageList,t);
@@ -2419,7 +2439,7 @@ function migrate(d){
       delete c.kind;delete c.inst;delete c.title});
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
-    if(!s.use)s.use=(s.templateId||"")==="tpl_live"?"live":"master";
+    if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
     if(s.single&&s.tplDates.indexOf("mv")<0)s.tplDates.push("mv");
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
