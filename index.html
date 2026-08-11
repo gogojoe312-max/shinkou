@@ -1910,9 +1910,7 @@ function openSettings(){
   B.querySelector("#pinBtn").onclick=pinSheet;
   [["gO","owner"],["gR","repo"],["gP","path"],["gB","branch"],["gT","token"]].forEach(x=>
     document.getElementById(x[0]).oninput=e=>{S.settings.gh[x[1]]=e.target.value;
-      if(x[1]==="token"&&!S.settings.keepToken)return;mark()});
-  B.querySelector("#gK").onchange=e=>{S.settings.keepToken=e.target.checked;
-    if(!e.target.checked)S.settings.gh.token="";mark()};
+      mark()});
   B.querySelector("#pub").onclick=publish;
   [["sO","owner"],["sR","repo"],["sP","path"],["sB","branch"],["sT2","token"]].forEach(x=>
     document.getElementById(x[0]).oninput=e=>{syCfg()[x[1]]=e.target.value.trim();mark()});
@@ -2255,7 +2253,6 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   purgeTrash();
-  if(!S.settings.keepToken)S.settings.gh.token="";
   dot("");render();syStart()}
 boot();
 
