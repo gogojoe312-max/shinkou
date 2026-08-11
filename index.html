@@ -639,7 +639,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-t";
+const APP_VER="2026-08-11-u";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1039,6 +1039,11 @@ function renderDirs(){
   bar.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
     V.dir=(V.dir===b.dataset.d&&b.dataset.d!=="__all")?"__all":b.dataset.d;render()})}
 
+/* 大きめの日付タイル。曲のカードと公演の見出しで共用する */
+function kdTile(lb,v,cls){if(!v)return"";
+  const n=D.to(v),past=n<0,sub=past?"済":n===0?"本日":"あと"+n+"日";
+  return'<span class="'+(past?"past":cls)+'"><em>'+esc(lb)+'</em><b>'+D.md(v)+'</b>'+
+    '<u class="'+(!past&&n<=14?"soon":"")+'">'+sub+'</u></span>'}
 function cardHTML(s,rank){
   const st=status(s),bl=ballOf(s),L=stages(s);
   const fin=st.k==="fin";
@@ -1074,10 +1079,7 @@ function cardHTML(s,rank){
       (b2.d>=b2.n?'<u>✓</u>':b2.cur&&!LVC?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
     '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
   const kd=[];
-  const dpush=(lb,v,cls)=>{if(!v)return;const n=D.to(v),past=n<0;
-    const sub=past?"済":n===0?"本日":"あと"+n+"日";
-    kd.push('<span class="'+(past?"past":cls)+'"><em>'+lb+'</em><b>'+D.md(v)+'</b>'+
-      '<u class="'+(!past&&n<=14?"soon":"")+'">'+sub+'</u></span>')};
+  const dpush=(lb,v,cls)=>{const t=kdTile(lb,v,cls);if(t)kd.push(t)};
   dpush("レッスン",s.dates.lesson,"k1");
   dpush("MV撮影",s.dates.mv,"k2");
   dpush("ライブ",s.dates.live,"k3");
@@ -1126,15 +1128,15 @@ function render(){
     songs.forEach(s=>{const k=s.projectId||"__none";if(!pj.has(k))pj.set(k,[]);pj.get(k).push(s)});
     const blocks=[...pj.entries()].map(e=>{
       const p=projOf(e[0]),key=a+"|"+e[0],open=!V.collapsed[key];
-      let rel=p&&p.release?(isShow(p)?"初日 ":"発売 ")+D.md(p.release):(isShow(p)?"初日 未設定":"発売日 未設定");
-      if(p&&isShow(p)){
-        const n=p.release?D.to(p.release):null;
-        rel=(p.rehearsal?"リハ "+D.md(p.rehearsal)+" · ":"")+rel+
-          (n===null?"":" · "+(n<0?"済":n===0?"本日":"あと"+n+"日"))}
+      const rel=p&&p.release?(isShow(p)?"初日 ":"発売 ")+D.md(p.release):(isShow(p)?"初日 未設定":"発売日 未設定");
       const near=p&&p.release&&D.to(p.release)<=45;
+      const pkd=(p&&isShow(p))?(kdTile("リハ",p.rehearsal,"k3")+kdTile("初日",p.release,"k4")):"";
       return'<div class="proj" role="button" tabindex="0" data-c="'+esc(key)+'" data-p="'+esc(e[0])+'" aria-expanded="'+open+'">'+
         '<span class="caret">▼</span><h3>'+esc(projTitle(p))+'</h3>'+
-        '<span class="rel '+(near?"near":"")+'">'+esc(rel)+'</span></div>'+
+        /* 開いているライブ公演は、下に日付を大きく出すので見出しには会場だけ */
+        (function(){const t=(pkd&&open)?(p.venue||""):rel;
+          return t?'<span class="rel '+(near&&!(pkd&&open)?"near":"")+'">'+esc(t)+'</span>':""})()+'</div>'+
+        (open&&pkd?'<div class="kd" style="margin:9px 0 11px">'+pkd+'</div>':"")+
         (open?'<div class="slist" data-pl="'+esc(e[0])+'">'+
           e[1].sort(byOrd).map(s=>V.reorder?rowHTML(s):cardHTML(s)).join("")+'</div>':"")}).join("");
     const unit=songs.every(z=>(z.use||"master")==="master")?"曲":"件";
