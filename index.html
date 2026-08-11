@@ -29,7 +29,8 @@
   --disp:"Zen Kaku Gothic New","Noto Sans JP",sans-serif;
   --mono:"IBM Plex Mono",ui-monospace,monospace;
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+/* touch-action:manipulation ＝ 素早く2回触っても拡大しない。指2本の拡大とスクロールは残る */
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
 html,body{margin:0;padding:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--jp);font-size:14px;line-height:1.6;
   overscroll-behavior-y:none;-webkit-text-size-adjust:100%;
@@ -618,7 +619,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-n";
+const APP_VER="2026-08-11-o";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
