@@ -705,6 +705,17 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","追加DB","仕上げ"];
 const GPORDER=STEPS.concat(["企画","制作","確認","納品"]);
+const GPFIX={"選曲・制作":"デモ制作","歌録り":"VoDB","追加録り":"追加DB","ライブ準備":"楽器DB","収録用":"追加DB"};
+/* 工程キーから正しい段階を引く（旧データの取りこぼしを直す） */
+const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kario:"デモ制作",demo:"デモ制作",
+  meeting:"デモ制作",pick:"デモ制作",arr:"アレンジ",
+  vo:"VoDB",warigo:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
+  cho:"ChoDB",choR:"ChoDB",choT:"ChoDB",choP:"ChoDB",
+  instrec:"楽器DB",livemix:"楽器DB",live:"楽器DB",
+  revo:"追加DB",revoR:"追加DB",revoT:"追加DB",revoP:"追加DB",
+  para:"仕上げ",td:"仕上げ",mas:"仕上げ",
+  plan:"企画",ref:"企画",order:"企画",build:"制作",rec2:"制作",tmp:"制作",
+  chk1:"確認",chk2:"確認",fix:"確認",final:"納品",deliv2:"納品",reh:"納品",show:"納品"};
 const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
 /* 段階の順に工程を並べ替える。子工程は親の直後に付いていく */
 function sortByGroup(L){
@@ -2343,7 +2354,10 @@ function fixStages(L,ref){
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
     if(x.k==="vo"||x.k==="revo"||x.k==="cho"){x.e=0;delete x.elead}
+    if(GPFIX[x.gp])x.gp=GPFIX[x.gp];
     if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
+    if((!x.gp||GPORDER.indexOf(x.gp)<0)&&GPBYK[x.k])x.gp=GPBYK[x.k];
+    /* 子工程は親の段階に合わせる */
     if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
     if(ROLEFIX2[x.k]&&x.role==="composer")x.role=ROLEFIX2[x.k];
@@ -2360,6 +2374,10 @@ function fixStages(L,ref){
         delete byK[rx.k]});
       L.forEach(x=>{if(byK[x.k])out.push(x)});
       L=out}}
+  for(let i=1;i<L.length;i++)if(L[i].d===1)L[i].gp=L[i-1].gp;
+  /* それでも段階が決まらない工程は、直前の工程と同じ段階に置く */
+  let lastGp="";
+  L.forEach(x=>{if(x.gp&&GPORDER.indexOf(x.gp)>=0){lastGp=x.gp;return}x.gp=lastGp||GPORDER[0]});
   L=sortByGroup(L);
   return L}
 function migrate(d){
