@@ -619,7 +619,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-p";
+const APP_VER="2026-08-11-q";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -964,11 +964,11 @@ function status(s){const i=curIdx(s),L=stages(s);
   return{k:left===null?"open":left<0?"late":left<=7?"warn":"open",i:i,dl:dl,left:left,lb:lb}}
 function invStat(s){const c=(s.credits||[]).filter(x=>x.name&&rowInv(x));
   return{n:c.length,got:c.filter(x=>x.inv).length}}
-function mAdd(k,v){v=(v||"").trim();if(!v)return;if(!S.masters[k])S.masters[k]=[];
+function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters[k]=[];
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"artist",use:"all",fin:"hide",collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",collapsed:{},edit:false,reorder:false};
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -1003,7 +1003,7 @@ function renderUse(){
   const c={all:0,master:0,live:0};
   S.songs.forEach(s=>{if(isFin(s))return;c.all++;c[(s.use||"master")]++});
   const bar=document.getElementById("useBar");
-  bar.innerHTML=[["all","すべて"],["master","原盤"],["live","ライブ"]].map(x=>
+  bar.innerHTML=[["master","原盤"],["live","ライブ"],["all","すべて"]].map(x=>
     '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+' <b>'+c[x[0]]+'</b></button>').join("");
   bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
   document.getElementById("fab").textContent=V.use==="live"?"＋ 制作物":"＋ 楽曲"}
@@ -1108,7 +1108,8 @@ function render(){
         '<span class="rel '+(near?"near":"")+'">'+esc(rel)+'</span></div>'+
         (open?'<div class="slist" data-pl="'+esc(e[0])+'">'+
           e[1].sort(byOrd).map(s=>V.reorder?rowHTML(s):cardHTML(s)).join("")+'</div>':"")}).join("");
-    return'<div class="artist">'+esc(a)+'<span class="n">'+songs.length+'曲</span></div><div class="artline"></div>'+blocks
+    const unit=songs.every(z=>(z.use||"master")==="master")?"曲":"件";
+    return'<div class="artist">'+esc(a)+'<span class="n">'+songs.length+unit+'</span></div><div class="artline"></div>'+blocks
   }).join("");
   bind(m)}
 function rowHTML(s){
@@ -2574,8 +2575,15 @@ function fixStages(L,ref){
    if(it>=0&&il>=0&&it>il){const t=L.splice(it,1)[0];L.splice(il,0,t)}}
   L=sortByGroup(L);
   return L}
+/* 濁点の持ち方（NFC/NFD）が混ざると同じ名前が別物になる。読み込み時に揃える */
+function nfc(o){
+  if(typeof o==="string")return o.normalize?o.normalize("NFC"):o;
+  if(Array.isArray(o)){for(let i=0;i<o.length;i++)o[i]=nfc(o[i]);return o}
+  if(o&&typeof o==="object"){Object.keys(o).forEach(k=>{o[k]=nfc(o[k])});return o}
+  return o}
 function migrate(d){
   const b=BLANK();if(!d)return b;
+  d=nfc(d);
   b.projects=d.projects||[];
   b.trash=d.trash||[];
   if(d.templates&&d.templates.length){b.templates=d.templates;
