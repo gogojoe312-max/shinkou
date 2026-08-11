@@ -227,10 +227,15 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .st .who:hover{border-color:currentColor}
 .st .who.todo{color:var(--dim2);background:transparent;border:1px dashed var(--line2)}
 .st .nm{background:none;border:none;text-align:left;padding:0;cursor:pointer}
-.gph{display:flex;align-items:center;gap:8px;margin:16px 0 4px;padding-bottom:4px;
-  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--dim2)}
-.gph span{flex:1}
+.gph{width:100%;display:flex;align-items:center;gap:8px;margin:14px 0 5px;padding:6px 2px;
+  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.13em;
+  color:var(--dim2);text-align:left}
+.gph span:nth-child(2){flex:1}
 .gph b{color:var(--dim);font-weight:600}
+.gph .cv{flex:0 0 12px;font-size:8px;transition:transform .15s}
+.gph:not(.on) .cv{transform:rotate(-90deg)}
+.gph.on{color:var(--ink)}
+.gph:hover{color:var(--ink)}
 .st.kid{padding-left:22px;position:relative}
 .st.kid::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--line2)}
 .ed.kid{margin-left:20px;border-left:2px solid var(--line2)}
@@ -497,59 +502,60 @@ const NUMBERED=["シングル","アルバム","ミニアルバム","EP","ベス�
 function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release","meeting","lesson","mv","mastering"],
  mastering:{anchor:"release",off:-2,unit:"m"},
  stages:[
-  {k:"gather", n:"曲集め・作家発注",   role:"composer", anchor:"release",off:-6,unit:"m",gp:"選曲・制作"},
-  {k:"sdemo",  n:"音デモ",             role:"composer", anchor:"release",off:-160,unit:"d",gp:"選曲・制作"},
-  {k:"lyric",  n:"歌詞",               role:"lyricist", anchor:"release",off:-155,unit:"d",gp:"選曲・制作"},
-  {k:"kario",  n:"仮歌",               role:"director", anchor:"release",off:-152,unit:"d",gp:"選曲・制作"},
-  {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m",gp:"選曲・制作"},
-  {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"},gp:"選曲・制作"},
-  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"歌録り"},
-  {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"歌録り"},
-  {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d",gp:"歌録り"},
-  {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d",gp:"歌録り"},
-  {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"歌録り"},
-  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d",gp:"歌録り"},
+  {k:"gather", n:"曲集め・作家発注",   role:"composer", anchor:"release",off:-6,unit:"m",gp:"デモ制作"},
+  {k:"sdemo",  n:"音デモ",             role:"composer", anchor:"release",off:-160,unit:"d",gp:"デモ制作"},
+  {k:"lyric",  n:"歌詞",               role:"lyricist", anchor:"release",off:-155,unit:"d",gp:"デモ制作"},
+  {k:"kario",  n:"仮歌",               role:"director", anchor:"release",off:-152,unit:"d",gp:"デモ制作"},
+  {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m",gp:"デモ制作"},
+  {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"},gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
-  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-24,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-20,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"choR",   n:"Choリズムエディット",role:"engineer", anchor:"mastering",off:-19,unit:"d",gp:"追加録り"},
-  {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-18,unit:"d",gp:"追加録り"},
-  {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
-  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
-  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加録り"},
-  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
+  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
+  {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
+  {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d",gp:"VoDB"},
+  {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d",gp:"VoDB"},
+  {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"VoDB"},
+  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d",gp:"VoDB"},
+  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-20,unit:"d",t:"multi",gp:"ChoDB"},
+  {k:"choR",   n:"Choリズムエディット",role:"engineer", anchor:"mastering",off:-19,unit:"d",gp:"ChoDB"},
+  {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-18,unit:"d",gp:"ChoDB"},
+  {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"ChoDB"},
+  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-24,unit:"d",t:"multi",gp:"楽器DB"},
+  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加DB"},
+  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"追加DB"},
+  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加DB"},
+  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加DB"},
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナル",dates:["live","release","mastering"],
  mastering:null,
  stages:[
-  {k:"pick",   n:"選曲・発注（D判断）",         role:"composer", anchor:"live",off:-90,unit:"d",gp:"選曲・制作"},
-  {k:"sdemo",  n:"音デモ",                       role:"composer", anchor:"live",off:-80,unit:"d",gp:"選曲・制作"},
-  {k:"lyric",  n:"歌詞",                         role:"lyricist", anchor:"live",off:-70,unit:"d",gp:"選曲・制作"},
-  {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d",gp:"選曲・制作"},
-  {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d",gp:"選曲・制作"},
-  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",gp:"歌録り"},
-  {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d",gp:"歌録り"},
-  {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d",gp:"歌録り"},
-  {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d",gp:"歌録り"},
-  {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d",gp:"歌録り"},
+  {k:"pick",   n:"選曲・発注（D判断）",         role:"composer", anchor:"live",off:-90,unit:"d",gp:"デモ制作"},
+  {k:"sdemo",  n:"音デモ",                       role:"composer", anchor:"live",off:-80,unit:"d",gp:"デモ制作"},
+  {k:"lyric",  n:"歌詞",                         role:"lyricist", anchor:"live",off:-70,unit:"d",gp:"デモ制作"},
+  {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d",gp:"デモ制作"},
+  {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d",gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-30,unit:"d",t:"arr",gp:"アレンジ"},
-  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"live",off:-25,unit:"d",t:"multi",gp:"ライブ準備"},
-  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"live",off:-20,unit:"d",t:"multi",gp:"ライブ準備"},
-  {k:"choR",   n:"Choリズムエディット",          role:"engineer", anchor:"live",off:-18,unit:"d",gp:"ライブ準備"},
-  {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"live",off:-16,unit:"d",gp:"ライブ準備"},
-  {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"live",off:-14,unit:"d",gp:"ライブ準備"},
-  {k:"livemix",n:"ライブ用 仮ミックス",          role:"engineer", anchor:"live",off:-7,unit:"d",gp:"ライブ準備"},
-  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"ライブ準備"},
-  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"収録用"},
-  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"収録用"},
-  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"収録用"},
-  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"収録用"},
+  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",gp:"VoDB"},
+  {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d",gp:"VoDB"},
+  {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d",gp:"VoDB"},
+  {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d",gp:"VoDB"},
+  {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d",gp:"VoDB"},
+  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"live",off:-20,unit:"d",t:"multi",gp:"ChoDB"},
+  {k:"choR",   n:"Choリズムエディット",          role:"engineer", anchor:"live",off:-18,unit:"d",gp:"ChoDB"},
+  {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"live",off:-16,unit:"d",gp:"ChoDB"},
+  {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"live",off:-14,unit:"d",gp:"ChoDB"},
+  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"live",off:-25,unit:"d",t:"multi",gp:"楽器DB"},
+  {k:"livemix",n:"ライブ用 仮ミックス",          role:"engineer", anchor:"live",off:-7,unit:"d",gp:"楽器DB"},
+  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"楽器DB"},
+  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加DB"},
+  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加DB"},
+  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加DB"},
+  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加DB"},
   {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
+
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
@@ -668,7 +674,7 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";
   if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
-const STEPS=["選曲・制作","歌録り","アレンジ","追加録り","仕上げ"];
+const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","追加DB","仕上げ"];
 const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
@@ -715,7 +721,7 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
   if(all&&!o.done){o.done=true;if(!o.date)o.date=v.map(a=>a.date).filter(Boolean).sort().pop()||D.today()}
   if(!all&&o.done){o.done=false}}
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
-const PRELIVE={"選曲・制作":1,"歌録り":1,"アレンジ":1,"ライブ準備":1};
+const PRELIVE={"デモ制作":1,"アレンジ":1,"VoDB":1,"ChoDB":1,"楽器DB":1};
 function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
   let d=applyRule(s,x)||applyRule(s,x.fb)||"";
   const lv=s.dates&&s.dates.live;
@@ -1015,7 +1021,7 @@ function stageDrag(s,box,rf){
     const map={};s.stageList.forEach(x=>map[x.k]=x);
     s.stageList=order.map(k=>map[k]).filter(Boolean);
     mark();drawSong();rf()})}
-let cur=null,stOpen="",stAdv={};
+let cur=null,stOpen="",stAdv={},gpOpen={};
 function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};head();drawSong();show("sheet")}
 function head(){
   document.getElementById("shTitle").textContent=songTitle(cur);
@@ -1061,12 +1067,18 @@ function drawSong(){
     '<select class="inp sm2" id="applyTpl" style="width:auto;font-size:11.5px;padding:4px 6px">'+
     '<option value="">テンプレート読込</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+
     '</select> <button class="btn sm" id="sAdd">＋ 工程</button></span></div><div class="stlist" id="stList">';
-  const ci=curIdx(s),L=stages(s);let curGp="";
+  const ci=curIdx(s),L=stages(s);let curGp="",gpShow=true;
   L.forEach((x,i)=>{
     if(x.gp&&x.gp!==curGp){curGp=x.gp;
-      const done=L.filter(y=>y.gp===x.gp).filter((y,j)=>{const idx=L.indexOf(y);return doneOf(s,L,idx)}).length;
-      const tot=L.filter(y=>y.gp===x.gp).length;
-      h+='<div class="gph"><span>'+esc(x.gp)+'</span><b>'+done+'/'+tot+'</b></div>'}
+      const mem=L.filter(y=>y.gp===x.gp);
+      const done=mem.filter(y=>doneOf(s,L,L.indexOf(y))).length,tot=mem.length;
+      const cur=mem.some(y=>L.indexOf(y)===ci);
+      /* 手動で開閉した記録が無ければ、済んだ段階だけ畳んでおく */
+      gpShow=gpOpen[x.gp]===undefined?(cur||done<tot):gpOpen[x.gp];
+      h+='<button class="gph'+(gpShow?" on":"")+'" data-gp="'+esc(x.gp)+'">'+
+        '<span class="cv">▼</span><span>'+esc(x.gp)+'</span>'+
+        '<b>'+done+'/'+tot+'</b></button>'}
+    if(x.gp&&!gpShow)return;
     const o=stg(s,x.k),kid=hasKids(L,i),ks=kid?kidStat(s,L,i):null;
     const dn=doneOf(s,L,i),w=whoOf(s,x),open=stOpen===x.k;
     const d=dlOf(s,x),ret=retOf(s,x),mul=isMulti(x);
@@ -1154,6 +1166,7 @@ function drawSong(){
       '<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div>'+
       '<div><span class="lbl">最終締切</span>'+dtIn("data-rt",x.k,o.ret||ret,d)+'</div></div>'+
       '<div class="row"><button class="btn sm" data-ad2="'+x.k+'">'+(stAdv[x.k]?"締切の計算を閉じる":"締切の計算を変える")+'</button>'+
+      '<button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
       '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>'+
       (stAdv[x.k]?'<div class="row" style="margin-top:9px"><div><span class="lbl">基準</span><select class="inp" data-sa3="'+x.k+'">'+
         Object.keys(ANCHORS).map(a=>'<option value="'+a+'" '+(x.anchor===a?"selected":"")+'>'+esc(ANCHORS[a])+'</option>').join("")+'</select></div>'+
@@ -1328,6 +1341,8 @@ function wireSong(){
       kidsOf(L,i).forEach(x=>{const o=stg(s,x.k);o.done=!all;if(o.done&&!o.date)o.date=D.today()})}
     else{const o=stg(s,e.dataset.k);o.done=!o.done;if(o.done&&!o.date)o.date=D.today();if(o.done)o.st=""}
     mark();drawSong();rf()});
+  b.querySelectorAll("[data-gp]").forEach(e=>e.onclick=()=>{
+    const g=e.dataset.gp;gpOpen[g]=!(e.classList.contains("on"));drawSong()});
   b.querySelectorAll("[data-ex]").forEach(e=>e.onclick=()=>{
     const k=e.dataset.ex;
     stOpen=stOpen===k?"":k;stAdv={};drawSong()});
@@ -1357,6 +1372,13 @@ function wireSong(){
         (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
   b.querySelectorAll("[data-ad2]").forEach(e=>e.onclick=()=>{
     stAdv[e.dataset.ad2]=!stAdv[e.dataset.ad2];drawSong()});
+  b.querySelectorAll("[data-skid]").forEach(e=>e.onclick=()=>{
+    const i=ix(e.dataset.skid),pa=s.stageList[i];
+    let j=i+1;while(j<s.stageList.length&&s.stageList[j].d===1)j++;
+    const k="k"+Date.now().toString(36)+Math.floor(Math.random()*99);
+    s.stageList.splice(j,0,{k:k,n:"新しい工程",role:pa.role,gp:pa.gp,d:1,lead:pa.lead==null?14:pa.lead,
+      anchor:pa.anchor,off:pa.off,unit:pa.unit,fb:pa.fb,t:""});
+    stOpen=k;mark();drawSong();rf()});
   b.querySelectorAll("[data-sx]").forEach(e=>e.onclick=()=>{const i=ix(e.dataset.sx);
     if(!confirm("「"+s.stageList[i].n+"」を削除します。"))return;
     delete s.stages[s.stageList[i].k];s.stageList.splice(i,1);mark();drawSong();rf()});
