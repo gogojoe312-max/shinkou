@@ -610,22 +610,22 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
 const SHOWSTG={
   plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
   order: {k:"order", n:"発注",     role:"me",       anchor:"open",off:-35,unit:"d",gp:"制作"},
-  build: {k:"build", n:"制作",     role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
+  build: {k:"build", n:"制作・やり取り", role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
   rec2:  {k:"rec2",  n:"録り",     role:"me",       anchor:"open",off:-18,unit:"d",t:"multi",gp:"制作"},
   chk1:  {k:"chk1",  n:"確認",     role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
   td2:   {k:"td2",   n:"ミックス", role:"engineer", anchor:"open",off:-12,unit:"d",gp:"制作"},
   deliv2:{k:"deliv2",n:"納品",     role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}};
 const SHOWFLOW={
   "セトリ":["plan"],
-  "オープニングSE":["order","td2","deliv2"],
-  "転換SE":["order","td2","deliv2"],
-  "インターリュードSE":["order","td2","deliv2"],
-  "エンディングSE":["order","td2","deliv2"],
-  "チェイサー":["order","td2","deliv2"],
-  "カラオケ":["order","td2","deliv2"],
-  "MC BGM":["order","td2","deliv2"],
-  "ダンス曲":["order","build","rec2","td2","deliv2"],
+  "オープニングSE":["order","build","td2","deliv2"],
+  "転換SE":["order","build","td2","deliv2"],
+  "インターリュードSE":["order","build","td2","deliv2"],
+  "エンディングSE":["order","build","td2","deliv2"],
+  "チェイサー":["order","build","td2","deliv2"],
+  "カラオケ":["order","build","td2","deliv2"],
+  "MC BGM":["order","build","td2","deliv2"],
   "メドレー":["order","build","td2","deliv2"],
+  "ダンス曲":["order","build","rec2","td2","deliv2"],
   "BUVo":["order","rec2","td2","deliv2"],
   "影アナ":["order","rec2","td2","deliv2"],
   "その他":["plan","order","build","td2","deliv2"]};
@@ -639,7 +639,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-s";
+const APP_VER="2026-08-11-t";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -786,8 +786,10 @@ const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
 const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
-const awaitLabel=r=>r?"修正"+r:"1stアレンジ";
-const haveLabel=r=>r<=1?"1stアレンジ":"修正"+(r-1);
+/* やり取りの言い方。アレンジ工程は「1stアレンジ」、それ以外は「初稿」 */
+const firstWord=x=>(x&&x.k!=="arr")?"初稿":"1stアレンジ";
+const awaitLabel=(r,w)=>r?"修正"+r:(w||"1stアレンジ");
+const haveLabel=(r,w)=>r<=1?(w||"1stアレンジ"):"修正"+(r-1);
 /* 歌を全部録ってからでないとできない工程。締切は録音の最終日から数える */
 const AFTERREC={warigo:["vo"],
   rhythm:["voes","vo"],tsunagi:["voes","vo"],pitch:["voes","vo"],rough:["voes","vo"],
@@ -946,10 +948,10 @@ function whoOf(s,x){
   if(o.done)return{c:"none",t:"完了",st:"done"};
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
-    const nm2=o.asg||nameFor(s,x.role)||"編曲（仮）";
-    if(o.prov)return{c:"me",t:"ひとまずOK"+(o.st==="req"?" · "+awaitLabel(o.rev)+"待ち":""),st:"me"};
-    if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev),st:"req"};
-    if(o.st==="me")return{c:"me",t:"自分が確認中 · "+haveLabel(o.rev),st:"me"};
+    const nm2=o.asg||nameFor(s,x.role)||(x.k==="arr"?"編曲（仮）":"担当（仮）");
+    if(o.prov)return{c:"me",t:"ひとまずOK"+(o.st==="req"?" · "+awaitLabel(o.rev,firstWord(x))+"待ち":""),st:"me"};
+    if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev,firstWord(x)),st:"req"};
+    if(o.st==="me")return{c:"me",t:"自分が確認中 · "+haveLabel(o.rev,firstWord(x)),st:"me"};
     return{c:"todo",t:"未依頼",st:""}}
   if(isMulti(x)){
     const r=recPhase(s,x);
@@ -1044,7 +1046,7 @@ function cardHTML(s,rank){
   if(!fin&&!par&&L[st.i].gp&&(s.use||"master")!=="live")par=L[st.i].gp;
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
-    stage+="（"+(ao.st==="req"?awaitLabel(ao.rev)+"依頼中":ao.st==="me"?haveLabel(ao.rev)+"確認中":"未依頼")+
+    stage+="（"+(ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中":ao.st==="me"?haveLabel(ao.rev,firstWord(L[st.i]))+"確認中":"未依頼")+
       (ao.size?"・"+sizeLabel(ao.size):"")+"）"}
   const dl=fin?"":st.dl?(st.lb+" "+D.md(st.dl)+" · "+(st.left<0?(-st.left)+"日 超過":st.left===0?"本日":"あと"+st.left+"日")):"締切 未設定";
   const dc=st.k==="late"?"late":st.k==="warn"?"warn":"";
@@ -1300,9 +1302,9 @@ function drawSong(){
     if(dn)sub="完了 "+(o.date?D.md(o.date):"—");
     else if(kid)sub=ks.d+"/"+ks.n+" 完了";
     else{const bits=[];
-      if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev)+"依頼中":"")
-        :o.st==="req"?awaitLabel(o.rev)+" 依頼中"
-        :o.st==="me"?haveLabel(o.rev)+" 確認中":"未依頼");
+      if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev,firstWord(x))+"依頼中":"")
+        :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
+        :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
         if(o.size)bits.push(sizeLabel(o.size))}
       if(mul){const r=recPhase(s,x);
         bits.push(recLabel(s,x));
@@ -1329,14 +1331,14 @@ function drawSong(){
         'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,x.role)||ROLES[x.role]||"")+'"></div>';
     if(isArr(x)){
       h+='<div class="fg"><span class="lbl">進行</span><div class="arrbox">'+
-        '<div class="arrnow">'+(o.prov?'<b class="c-me">ひとまずOK'+(o.st==="req"?'・'+esc(awaitLabel(o.rev))+' 待ち':"")+'</b>'
-          :o.st==="req"?'<b class="c-other">'+esc(awaitLabel(o.rev))+' 待ち</b>'
-          :o.st==="me"?'<b class="c-me">'+esc(haveLabel(o.rev))+' 確認中</b>'
+        '<div class="arrnow">'+(o.prov?'<b class="c-me">ひとまずOK'+(o.st==="req"?'・'+esc(awaitLabel(o.rev,firstWord(x)))+' 待ち':"")+'</b>'
+          :o.st==="req"?'<b class="c-other">'+esc(awaitLabel(o.rev,firstWord(x)))+' 待ち</b>'
+          :o.st==="me"?'<b class="c-me">'+esc(haveLabel(o.rev,firstWord(x)))+' 確認中</b>'
           :'<b class="c-todo">まだ依頼していません</b>')+
           '<span>受け取った版：'+(o.rev?o.rev+"版":"なし")+(o.prov?" · この先へ進めます":"")+'</span></div>'+
         '<div class="arrbtn">'+
-          '<button class="btn sm" data-ao="'+x.k+'">'+(o.rev?"修正を返す":"アレンジを依頼")+'</button>'+
-          '<button class="btn sm pri" data-ar="'+x.k+'">'+awaitLabel(o.rev)+'が届いた</button>'+
+          '<button class="btn sm" data-ao="'+x.k+'">'+(o.rev?"修正を返す":(x.k==="arr"?"アレンジ":x.n)+"を依頼")+'</button>'+
+          '<button class="btn sm pri" data-ar="'+x.k+'">'+awaitLabel(o.rev,firstWord(x))+'が届いた</button>'+
           (o.rev?'<button class="xb" data-au="'+x.k+'" title="1つ戻す">↩</button>':"")+
         '</div>'+
         '<div class="arrbtn" style="margin-top:6px">'+
@@ -2553,7 +2555,8 @@ const NAMEFIX={
   chk1:["確認",["社内確認"]],
   final:["完パケ",["完パケ（尺・音量）"]],
   deliv2:["納品",["音源提出"]],
-  rec2:["録り",["歌・声録り"]]};
+  rec2:["録り",["歌・声録り"]],
+  build:["制作・やり取り",["制作"]]};
 const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1,ref:1,tmp:1,chk2:1,fix:1,final:1,reh:1,show:1};
 const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1,voes:1,choes:1,revoes:1,tdes:1};
@@ -2651,6 +2654,10 @@ function migrate(d){
     const LVS=(s.use==="live"||s.templateId==="tpl_show");
     if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(LVS?showStages(s.ltype):t.stages));
     s.stageList=fixStages(s.stageList,LVS?null:t);
+    /* 制作物は、まだ何も終わっていなければ種類に合う工程へ揃える */
+    if(LVS&&s.ltype&&!Object.keys(s.stages||{}).some(k=>(s.stages[k]||{}).done)){
+      const want=showStages(s.ltype);
+      if(want.map(x=>x.k).join()!==s.stageList.map(x=>x.k).join())s.stageList=want}
     if(!s.tplDates)s.tplDates=t.dates.slice();
     if(s.tplMastering===undefined)s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
     if(!s.dates)s.dates={};
