@@ -648,7 +648,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-w";
+const APP_VER="2026-08-11-x";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1135,10 +1135,25 @@ function render(){
   if(V.grp==="flat"){m.innerHTML=list.slice().sort(byDue).map(cardHTML).join("");bind(m);return}
   const arts=new Map();
   list.forEach(s=>{const a=s.artist||"グループ未設定";if(!arts.has(a))arts.set(a,[]);arts.get(a).push(s)});
-  m.innerHTML=[...arts.entries()].sort((a,b)=>a[0].localeCompare(b[0],"ja")).map(en=>{
+  const nearest=songs=>{let k="";
+    songs.forEach(s=>{const q=projOf(s.projectId);if(!q||!isShow(q))return;
+      const r=q.release||"9999-99-99";const v=(r>=D.today()?"0":"1")+r;
+      if(!k||v<k)k=v});
+    return k||"z"};
+  m.innerHTML=[...arts.entries()].sort((a,b)=>
+    (V.use==="live"?nearest(a[1]).localeCompare(nearest(b[1])):0)
+    ||a[0].localeCompare(b[0],"ja")).map(en=>{
     const a=en[0],songs=en[1],pj=new Map();
     songs.forEach(s=>{const k=s.projectId||"__none";if(!pj.has(k))pj.set(k,[]);pj.get(k).push(s)});
-    const blocks=[...pj.entries()].map(e=>{
+    /* 初日が近い順。終わった公演は後ろへ */
+    const pkey=id=>{const q=projOf(id);
+      if(!q||!isShow(q))return"";
+      const r=q.release||"9999-99-99";
+      return (r>=D.today()?"0":"1")+r};
+    const blocks=[...pj.entries()].sort((a,z)=>{
+      const ka=pkey(a[0]),kz=pkey(z[0]);
+      if(!ka&&!kz)return 0;
+      return ka.localeCompare(kz)}).map(e=>{
       const p=projOf(e[0]),key=a+"|"+e[0],open=!V.collapsed[key];
       const rel=p&&p.release?(isShow(p)?"初日 ":"発売 ")+D.md(p.release):(isShow(p)?"初日 未設定":"発売日 未設定");
       const near=p&&p.release&&D.to(p.release)<=45;
