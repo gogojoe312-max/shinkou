@@ -145,6 +145,15 @@ main>.artist:first-child{margin-top:2px}
 .now .pp{color:var(--dim2);font-weight:400}
 .ball.fin{color:var(--ok);background:rgba(47,192,138,.14)}
 .card.fin{opacity:.62;border-left:3px solid var(--ok)}
+.pb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--dim2);
+  margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.pb:first-child{margin-top:2px}
+.pb.late{color:var(--late);border-color:rgba(255,107,107,.35)}
+.pb.now{color:var(--warn);border-color:rgba(232,163,61,.35)}
+.rank{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--dim2);
+  border:1px solid var(--line2);border-radius:50%;width:22px;height:22px;display:grid;place-items:center}
+.usebar{display:flex;gap:6px;margin-top:8px}
+.sgl.live{color:var(--warn);border-color:rgba(232,163,61,.5)}
 .sgl{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--dim2);
   border:1px solid var(--line2);border-radius:3px;padding:1px 5px;flex-shrink:0}
 .chipsel{display:flex;gap:6px;margin-top:8px}
@@ -218,6 +227,10 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .st .who:hover{border-color:currentColor}
 .st .who.todo{color:var(--dim2);background:transparent;border:1px dashed var(--line2)}
 .st .nm{background:none;border:none;text-align:left;padding:0;cursor:pointer}
+.gph{display:flex;align-items:center;gap:8px;margin:16px 0 4px;padding-bottom:4px;
+  border-bottom:1px solid var(--line);font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;color:var(--dim2)}
+.gph span{flex:1}
+.gph b{color:var(--dim);font-weight:600}
 .st.kid{padding-left:22px;position:relative}
 .st.kid::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--line2)}
 .ed.kid{margin-left:20px;border-left:2px solid var(--line2)}
@@ -333,10 +346,12 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
     <button class="iconbtn" id="btnSet" title="設定">⚙</button>
   </div>
   <div class="dirbar" id="dirbar"></div>
+  <div class="usebar" id="useBar"></div>
   <div class="tools">
     <label class="field"><span style="color:var(--dim2);font-size:12px">⌕</span>
       <input id="q" placeholder="曲名・グループ・クレジット" autocomplete="off"></label>
     <select class="sel" id="grpSel">
+      <option value="prio">優先順</option>
       <option value="artist">グループ別</option>
       <option value="flat">期限順（全曲）</option>
     </select>
@@ -465,8 +480,9 @@ function parseDate(v,ref){
 const fmtDate=v=>v?v.replace(/-/g,"/"):"";
 /* 日付入力欄。確定は入力欄を離れたときだけ */
 function dtIn(attr,key,val,ref,cls){
-  return'<input class="inp dt '+(cls||"")+'" inputmode="numeric" autocomplete="off" '+
-    attr+'="'+esc(key)+'" data-ref="'+esc(ref||"")+'" placeholder="MM/DD" value="'+esc(fmtDate(val))+'">'}
+  return'<input class="inp dt '+(cls||"")+'" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" '+
+    'autocomplete="off" autocorrect="off" spellcheck="false" '+
+    attr+'="'+esc(key)+'" data-ref="'+esc(ref||"")+'" placeholder="例 0911" value="'+esc(fmtDate(val))+'">'}
 /* 日付欄＋「今日」ボタン */
 function dtToday(attr,key,val,ref,cls){
   return'<div class="dtwrap">'+dtIn(attr,key,val,ref,cls)+
@@ -481,47 +497,47 @@ const NUMBERED=["シングル","アルバム","ミニアルバム","EP","ベス�
 function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release","meeting","lesson","mv","mastering"],
  mastering:{anchor:"release",off:-2,unit:"m"},
  stages:[
-  {k:"gather", n:"曲集め・作家発注",   role:"composer", anchor:"release",off:-6,unit:"m"},
-  {k:"sdemo",  n:"音デモ",             role:"composer", anchor:"release",off:-160,unit:"d"},
-  {k:"lyric",  n:"歌詞",               role:"lyricist", anchor:"release",off:-155,unit:"d"},
-  {k:"kario",  n:"仮歌",               role:"director", anchor:"release",off:-152,unit:"d"},
-  {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m"},
-  {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"}},
-  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"}},
-  {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"}},
-  {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d"},
-  {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d"},
-  {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d"},
-  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d"},
-  {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"}},
-  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-42,unit:"d",t:"multi",e:1,elead:3},
-  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-36,unit:"d",t:"multi",e:1,elead:3},
-  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi"},
-  {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d"},
-  {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d"},
-  {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d"}]}}
+  {k:"gather", n:"曲集め・作家発注",   role:"composer", anchor:"release",off:-6,unit:"m",gp:"選曲・制作"},
+  {k:"sdemo",  n:"音デモ",             role:"composer", anchor:"release",off:-160,unit:"d",gp:"選曲・制作"},
+  {k:"lyric",  n:"歌詞",               role:"lyricist", anchor:"release",off:-155,unit:"d",gp:"選曲・制作"},
+  {k:"kario",  n:"仮歌",               role:"director", anchor:"release",off:-152,unit:"d",gp:"選曲・制作"},
+  {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m",gp:"選曲・制作"},
+  {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"},gp:"選曲・制作"},
+  {k:"vo",     n:"VoDB",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"歌録り"},
+  {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"歌録り"},
+  {k:"rhythm", n:"リズムエディット",   role:"engineer", anchor:"meeting",off:11,unit:"d",gp:"歌録り"},
+  {k:"tsunagi",n:"繋ぎ",               role:"engineer", anchor:"meeting",off:13,unit:"d",gp:"歌録り"},
+  {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"歌録り"},
+  {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d",gp:"歌録り"},
+  {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
+  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
+  {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナル",dates:["live","release","mastering"],
  mastering:null,
  stages:[
-  {k:"pick",   n:"選曲・発注（D判断）",         role:"composer", anchor:"live",off:-90,unit:"d"},
-  {k:"sdemo",  n:"音デモ",                       role:"composer", anchor:"live",off:-80,unit:"d"},
-  {k:"lyric",  n:"歌詞",                         role:"lyricist", anchor:"live",off:-70,unit:"d"},
-  {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d"},
-  {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d"},
-  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi"},
-  {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d"},
-  {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d"},
-  {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d"},
-  {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d"},
-  {k:"rough",  n:"ラフミックス展開（レッスン用）",role:"engineer",anchor:"live",off:-35,unit:"d"},
-  {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-25,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"}},
-  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d"},
-  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-42,unit:"d",t:"multi",e:1,elead:3},
-  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"mastering",off:-36,unit:"d",t:"multi",e:1,elead:3},
-  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi"},
-  {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d"},
-  {k:"td",     n:"ミックス",                     role:"engineer", anchor:"mastering",off:-3,unit:"d"},
-  {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d"}]}}
+  {k:"pick",   n:"選曲・発注（D判断）",         role:"composer", anchor:"live",off:-90,unit:"d",gp:"選曲・制作"},
+  {k:"sdemo",  n:"音デモ",                       role:"composer", anchor:"live",off:-80,unit:"d",gp:"選曲・制作"},
+  {k:"lyric",  n:"歌詞",                         role:"lyricist", anchor:"live",off:-70,unit:"d",gp:"選曲・制作"},
+  {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d",gp:"選曲・制作"},
+  {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d",gp:"選曲・制作"},
+  {k:"vo",     n:"VoDB",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",gp:"歌録り"},
+  {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d",gp:"歌録り"},
+  {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d",gp:"歌録り"},
+  {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d",gp:"歌録り"},
+  {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d",gp:"歌録り"},
+  {k:"rough",  n:"ラフミックス展開（レッスン用）",role:"engineer",anchor:"live",off:-35,unit:"d",gp:"歌録り"},
+  {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-25,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
+  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"アレンジ"},
+  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"td",     n:"ミックス",                     role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
+  {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
@@ -592,7 +608,7 @@ window.addEventListener("beforeunload",e=>{if(dirty){flush();e.preventDefault();
 /* ===================== model ===================== */
 function newSong(o){const t=(S.templates.find(x=>x.id===((o||{}).templateId||"tpl_single"))||S.templates[0]);
   return Object.assign({id:uid(),title:"",work:"",artist:"",projectId:"",director:"",
-    single:t.id!=="tpl_live",ord:Date.now(),mtime:Date.now(),
+    single:t.id!=="tpl_live",use:t.id==="tpl_live"?"live":"master",ord:Date.now(),mtime:Date.now(),
     templateId:t.id,stageList:JSON.parse(JSON.stringify(t.stages)),
     tplDates:t.dates.slice(),tplMastering:t.mastering?Object.assign({},t.mastering):null,
     dates:{release:"",meeting:"",lesson:"",mv:"",live:"",mastering:""},
@@ -638,6 +654,7 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";
   if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
+const STEPS=["選曲・制作","歌録り","アレンジ","追加録り","仕上げ"];
 const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
@@ -759,21 +776,44 @@ function mAdd(k,v){v=(v||"").trim();if(!v)return;if(!S.masters[k])S.masters[k]=[
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"artist",fin:"hide",collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"prio",use:"all",fin:"hide",collapsed:{},edit:false,reorder:false};
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
+    if(V.use!=="all"&&(s.use||"master")!==V.use)return false;
     if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||""))).join(" ").toLowerCase();
       if(h.indexOf(q)<0)return false}
     return true})}
 const byDue=(a,b)=>{const x=status(a).dl||"9999",y=status(b).dl||"9999";
   return x.localeCompare(y)||(a.title||"").localeCompare(b.title||"","ja")};
 const byOrd=(a,b)=>(a.ord||0)-(b.ord||0);
+/* 優先順：締切までの残りを基本に、自分にボールがあるものを前に出す */
+function prio(s){
+  const st=status(s);
+  if(st.k==="fin")return{sc:1e9,left:null,st:st};
+  const left=st.left==null?400:st.left;
+  const mine=ballOf(s).c==="me";
+  return{sc:left-(mine?2:0),left:st.left,st:st}}
+const byPrio=(a,b)=>prio(a).sc-prio(b).sc||(a.title||"").localeCompare(b.title||"","ja");
+function prioBucket(p){
+  if(p.left===null)return{k:"none",t:"締切 未設定"};
+  if(p.left<0)return{k:"late",t:"超過している"};
+  if(p.left<=3)return{k:"now",t:"3日以内"};
+  if(p.left<=7)return{k:"soon",t:"今週"};
+  if(p.left<=21)return{k:"mid",t:"3週間以内"};
+  return{k:"far",t:"それ以降"}}
 
 /* ===================== render ===================== */
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
+function renderUse(){
+  const c={all:0,master:0,live:0};
+  S.songs.forEach(s=>{if(isFin(s))return;c.all++;c[(s.use||"master")]++});
+  const bar=document.getElementById("useBar");
+  bar.innerHTML=[["all","すべて"],["master","原盤"],["live","ライブ"]].map(x=>
+    '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+' <b>'+c[x[0]]+'</b></button>').join("");
+  bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()})}
 function renderDirs(){
   const map=new Map();let all=0;
   S.songs.forEach(s=>{if(isFin(s))return;all++;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
@@ -784,10 +824,11 @@ function renderDirs(){
   bar.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
     V.dir=(V.dir===b.dataset.d&&b.dataset.d!=="__all")?"__all":b.dataset.d;render()})}
 
-function cardHTML(s){
+function cardHTML(s,rank){
   const st=status(s),bl=ballOf(s),L=stages(s);
   const fin=st.k==="fin";
-  const par=fin?"":(L[st.i].d===1?(function(){for(let j=st.i-1;j>=0;j--)if(L[j].d!==1)return L[j].n;return""})():"");
+  let par=fin?"":(L[st.i].d===1?(function(){for(let j=st.i-1;j>=0;j--)if(L[j].d!==1)return L[j].n;return""})():"");
+  if(!fin&&!par&&L[st.i].gp)par=L[st.i].gp;
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
     stage+="（"+(ao.st==="req"?awaitLabel(ao.rev)+"依頼中":ao.st==="me"?haveLabel(ao.rev)+"確認中":"未依頼")+
@@ -825,7 +866,9 @@ function cardHTML(s){
     kd.push('<span class="k5"><em>'+esc(x.n)+'</em><b>'+esc(sl)+'</b>'+
       (n===null?"":'<u class="'+(n<=14?"soon":"")+'">'+(n===0?"本日":"あと"+n+"日")+'</u>')+'</span>');break}
   return'<button class="card '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
-    '<div class="cardtop"><span class="ct">'+esc(s.title||"（無題）")+'</span>'+
+    '<div class="cardtop">'+(rank?'<span class="rank">'+rank+'</span>':"")+
+    '<span class="ct">'+esc(s.title||"（無題）")+'</span>'+
+    ((s.use||"master")==="live"?'<span class="sgl live">LIVE</span>':"")+
     (s.single!==false?'<span class="sgl">SINGLE</span>':"")+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>'
         :'<span class="ball '+bl.c+'"><i></i><span>'+esc(bl.t)+'</span></span>')+'</div>'+
@@ -836,7 +879,7 @@ function cardHTML(s){
     (fin?"":'<div class="chips">'+chips+'</div>')+'</button>'}
 
 function render(){
-  renderDirs();syncLists();
+  renderDirs();renderUse();syncLists();
   const m=document.getElementById("main"),list=pool();
   if(!S.songs.length){
     m.innerHTML='<div class="empty"><h3>まだ楽曲がありません</h3>'+
@@ -844,6 +887,12 @@ function render(){
       '<button class="btn pri" id="seed">サンプルを入れて試す</button></div>';
     m.querySelector("#seed").onclick=seed;return}
   if(!list.length){m.innerHTML='<div class="empty"><h3>該当なし</h3><p>ディレクターや検索語を変えてください。</p></div>';return}
+  if(V.grp==="prio"){
+    const a=list.slice().sort(byPrio);let cur="",h="",n=0;
+    a.forEach(s=>{const p=prio(s),b=prioBucket(p);
+      if(b.k!==cur){cur=b.k;h+='<div class="pb '+b.k+'">'+esc(b.t)+'</div>'}
+      h+=cardHTML(s,++n)});
+    m.innerHTML=h||'<div class="empty"><h3>該当なし</h3></div>';bind(m);return}
   if(V.grp==="flat"){m.innerHTML=list.slice().sort(byDue).map(cardHTML).join("");bind(m);return}
   const arts=new Map();
   list.forEach(s=>{const a=s.artist||"グループ未設定";if(!arts.has(a))arts.set(a,[]);arts.get(a).push(s)});
@@ -967,6 +1016,9 @@ function drawSong(){
   '<div><div class="seg2" id="sglSeg">'+
   '<button data-g="1" aria-pressed="'+(s.single!==false)+'">シングル曲</button>'+
   '<button data-g="0" aria-pressed="'+(s.single===false)+'">シングル以外</button></div></div></div>'+
+  '<div class="fg"><div class="seg2" id="useSeg">'+
+  '<button data-u2="master" aria-pressed="'+((s.use||"master")==="master")+'">原盤</button>'+
+  '<button data-u2="live" aria-pressed="'+(s.use==="live")+'">ライブ</button></div></div>'+
   '<p class="hint">いまの状況：<b style="color:var(--'+(bl.c==="none"?"dim":bl.c)+')">'+esc(bl.t)+'</b></p>'+
 
   '<div class="sec">基準日 — ここから全工程を逆算</div>';
@@ -988,8 +1040,12 @@ function drawSong(){
     '<select class="inp sm2" id="applyTpl" style="width:auto;font-size:11.5px;padding:4px 6px">'+
     '<option value="">テンプレート読込</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+
     '</select> <button class="btn sm" id="sAdd">＋ 工程</button></span></div><div class="stlist" id="stList">';
-  const ci=curIdx(s),L=stages(s);
+  const ci=curIdx(s),L=stages(s);let curGp="";
   L.forEach((x,i)=>{
+    if(x.gp&&x.gp!==curGp){curGp=x.gp;
+      const done=L.filter(y=>y.gp===x.gp).filter((y,j)=>{const idx=L.indexOf(y);return doneOf(s,L,idx)}).length;
+      const tot=L.filter(y=>y.gp===x.gp).length;
+      h+='<div class="gph"><span>'+esc(x.gp)+'</span><b>'+done+'/'+tot+'</b></div>'}
     const o=stg(s,x.k),kid=hasKids(L,i),ks=kid?kidStat(s,L,i):null;
     const dn=doneOf(s,L,i),w=whoOf(s,x),open=stOpen===x.k;
     const d=dlOf(s,x),ret=retOf(s,x),mul=isMulti(x);
@@ -1187,6 +1243,8 @@ function wireSong(){
     if(iso===null){e.classList.add("bad");return}
     e.classList.remove("bad");set(iso);mark();drawSong();rf()};
   const wireDt=(sel,set)=>b.querySelectorAll(sel).forEach(e=>{
+    /* 触ったら全選択。数字を打つだけで置き換わる */
+    e.onfocus=()=>{try{e.select()}catch(_){}};
     e.onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();e.blur()}};
     e.onblur=()=>commitDate(e,v=>set(e,v))});
   wireDt("[data-d]",(e,v)=>{s.dates[e.dataset.d]=v});
@@ -1256,6 +1314,8 @@ function wireSong(){
     o.st=o.st===""?"req":o.st==="req"?"me":"";
     if(o.st==="req"&&!o.req)o.req=D.today();
     mark();drawSong();rf()});
+  const ug=b.querySelector("#useSeg");if(ug)ug.onclick=e=>{const x=e.target.closest("[data-u2]");if(!x)return;
+    s.use=x.dataset.u2;mark();drawSong();rf()};
   const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
     s.single=x.dataset.g==="1";
     if(s.single&&(s.tplDates||[]).indexOf("mv")<0)s.tplDates.push("mv");
@@ -1562,7 +1622,7 @@ function editProject(id,after){
        'placeholder="'+esc((NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+p.kind)+'">'+
        '<p class="hint">空欄なら種別と通算から自動で付きます。</p></div>'+
      '<div class="row fg"><div><span class="lbl">発売日</span>'+
-       '<input class="inp dt" id="pR" inputmode="numeric" autocomplete="off" placeholder="MM/DD" value="'+esc(fmtDate(p.release))+'"></div>'+
+       '<input class="inp dt" id="pR" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0911" value="'+esc(fmtDate(p.release))+'"></div>'+
      '<div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div></div>'+
      '<p class="hint">発売日はこの案件の全曲に自動反映されます（曲側で個別に上書き可）。</p>'+
      '<div class="fg"><button class="btn w" id="pSC">スタッフクレジット</button>'+
@@ -1594,6 +1654,7 @@ function editProject(id,after){
     g("pM2").oninput=()=>{p.note=g("pM2").value;mark()};
     g("pSC").onclick=()=>staffSheet(p);
     const r=g("pR");
+    r.onfocus=()=>{try{r.select()}catch(_){}};
     r.onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();r.blur()}};
     r.onblur=()=>{const iso=parseDate(r.value,"");
       if(iso===null){r.classList.add("bad");return}
@@ -2157,7 +2218,7 @@ function fixStages(L,ref){
   if((iA>=0||iB>=0)&&L.findIndex(x=>x.k==="arr")<0){
     const at=Math.min.apply(null,[iA,iB].filter(i=>i>=0));
     const base=L[iA>=0?iA:iB];
-    const arr={k:"arr",n:"アレンジ",role:"arranger",t:"arr",d:base.d||0,
+    const arr={k:"arr",n:"アレンジ",role:"arranger",t:"arr",gp:"アレンジ",d:base.d||0,
       lead:base.lead==null?14:base.lead,anchor:base.anchor,off:base.off,unit:base.unit,
       fb:base.fb||{anchor:"mastering",off:-21,unit:"d"}};
     L=L.filter(x=>x.k!=="arrfix"&&x.k!=="arrbld");
@@ -2166,6 +2227,7 @@ function fixStages(L,ref){
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
     if(x.k==="vo"){x.e=0;delete x.elead}
+    if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
     if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
     if(ROLEFIX2[x.k]&&x.role==="composer")x.role=ROLEFIX2[x.k];
@@ -2221,6 +2283,7 @@ function migrate(d){
       delete c.kind;delete c.inst;delete c.title});
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
+    if(!s.use)s.use=(s.templateId||"")==="tpl_live"?"live":"master";
     if(s.single&&s.tplDates.indexOf("mv")<0)s.tplDates.push("mv");
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
