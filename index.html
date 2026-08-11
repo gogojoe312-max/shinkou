@@ -618,7 +618,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-m";
+const APP_VER="2026-08-11-n";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -849,7 +849,7 @@ function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
   if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
   if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
   if(r.p==="sched")return"日程調整 依頼中";
-  return"未着手"}
+  return"未依頼"}
 /* 日程がすべて済んだら工程も完了にする */
 function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note);
   if(!v.length)return;
@@ -938,14 +938,17 @@ function whoOf(s,x){
     if(r.p==="edit"){const en=o.ed.asg||nameFor(s,"engineer")||"エンジニア（仮）";
       return{c:"other",t:en+" 待ち · EDIT",st:"req"}}
     if(r.p==="recdone")return{c:"me",t:"録音済",st:"me"};
-    return{c:"todo",t:"未着手",st:""}}
+    return{c:"todo",t:"未依頼",st:""}}
   if(x.role==="room"){
     if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
     if(o.st==="req")return{c:"room",t:"会議待ち",st:"req"};
     return{c:"todo",t:"未依頼",st:""}}
+  if(x.role==="me"){
+    if(o.st==="me")return{c:"me",t:(o.asg||"自分")+"の番",st:"me"};
+    if(o.st==="req")return{c:"other",t:(o.asg||"相手")+" 待ち",st:"req"};
+    return{c:"todo",t:"未依頼",st:""}}
   if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
   if(o.st==="req")return{c:"other",t:(nm||((ROLES[x.role]||"相手")+"（仮）"))+" 待ち",st:"req"};
-  if(x.role==="me")return{c:"me",t:(o.asg?o.asg:"自分")+"の番",st:"me"};
   return{c:"todo",t:"未依頼",st:""}}
 function ballOf(s){
   const i=curIdx(s),L=stages(s);
@@ -1520,7 +1523,9 @@ function wireSong(){
     const k=e.dataset.ex;
     stOpen=stOpen===k?"":k;stAdv={};drawSong()});
   b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
-    o.st=o.st===""?"req":o.st==="req"?"me":"";
+    const xx=s.stageList[ix(e.dataset.bt)];
+    /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
+    o.st=(xx&&isMulti(xx))?(o.st==="req"?"":"req"):(o.st===""?"req":o.st==="req"?"me":"");
     if(o.st==="req"&&!o.req)o.req=D.today();
     mark();drawSong();rf()});
   const lt=b.querySelector("#ltSeg");if(lt)lt.onclick=e=>{const x=e.target.closest("[data-lt]");if(!x)return;
