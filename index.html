@@ -114,6 +114,17 @@ main>.artist:first-child{margin-top:2px}
 .now .dl{margin-left:auto;font-family:var(--mono);font-size:11.5px;flex-shrink:0}
 .now .dl.late{color:var(--late)} .now .dl.warn{color:var(--warn)}
 
+.bar{display:flex;gap:3px;margin:0 0 8px}
+.bar i{flex:1;height:4px;border-radius:2px;background:var(--line);font-style:normal}
+.bar i.on{background:var(--ok)}
+.bar i.cur{background:var(--me)}
+.gps{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px}
+.gp1{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:11px;white-space:nowrap;
+  border:1px solid var(--line);background:transparent;color:var(--dim2)}
+.gp1.on{color:var(--ok);border-color:rgba(47,192,138,.4);background:rgba(47,192,138,.09)}
+.gp1.cur{color:#16171B;background:var(--ink);border-color:var(--ink);font-weight:700}
+.gp1 u{text-decoration:none;font-family:var(--mono);opacity:.75;margin-left:4px}
+.gp1.tot{border-style:dashed;margin-left:auto}
 .chips{display:flex;flex-wrap:wrap;gap:4px}
 .pchip{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:11px;border:1px solid var(--line);
   color:var(--ghost);background:#1A1C21;white-space:nowrap}
@@ -607,7 +618,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-k";
+const APP_VER="2026-08-11-l";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1013,15 +1024,19 @@ function cardHTML(s,rank){
   L.forEach((x,i)=>{if(x.d===1)return;
     const kid=hasKids(L,i);
     tops.push({x:x,i:i,kid:kid,ks:kid?kidStat(s,L,i):null,done:doneOf(s,L,i)})});
-  const todo=tops.filter(t=>!t.done);
-  const cap=6;
-  const chips=todo.slice(0,cap).map((t,n)=>{
-    let lb=esc(t.x.n)+(t.kid?' <span style="opacity:.6">'+t.ks.d+'/'+t.ks.n+'</span>':"");
-    if(isArr(t.x)){const ao=stg(s,t.x.k);
-      if(ao.st)lb+=' <span style="opacity:.6">'+esc((ao.st==="req"?awaitLabel(ao.rev)+"依頼中":haveLabel(ao.rev)+"確認中")+
-        (ao.size?"・"+sizeLabel(ao.size):""))+'</span>'}
-    return'<span class="pchip '+(n===0?(st.k==="late"?"late":"cur"):"todo")+'">'+lb+'</span>'}).join("")
-    +(todo.length>cap?'<span class="pchip more">＋'+(todo.length-cap)+'</span>':"");
+  /* 段階ごとの進み具合。パッと見て「どこまで来たか」が分かるようにする */
+  const gps=[];
+  tops.forEach(t=>{const g=t.x.gp||"—";
+    let b2=gps.length?gps[gps.length-1]:null;
+    if(!b2||b2.g!==g){b2={g:g,n:0,d:0,cur:false};gps.push(b2)}
+    b2.n++;if(t.done)b2.d++;if(t.i===st.i)b2.cur=true});
+  const allN=tops.length,allD=tops.filter(t=>t.done).length;
+  const bar='<div class="bar">'+gps.map(b2=>
+    '<i class="'+(b2.d>=b2.n?"on":b2.cur?"cur":"")+'" style="flex:'+b2.n+'"></i>').join("")+'</div>';
+  const chips=bar+'<div class="gps">'+gps.map(b2=>
+    '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":"")+'">'+esc(b2.g)+
+      (b2.d>=b2.n?'<u>✓</u>':b2.cur?'<u>'+b2.d+"/"+b2.n+'</u>':"")+'</span>').join("")+
+    '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
   const kd=[];
   const dpush=(lb,v,cls)=>{if(!v)return;const n=D.to(v),past=n<0;
     const sub=past?"済":n===0?"本日":"あと"+n+"日";
@@ -1048,8 +1063,8 @@ function cardHTML(s,rank){
     (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
         :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
          '<span class="dl '+dc+'">'+esc(dl)+'</span></div>')+
-    (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+
-    (fin?"":'<div class="chips">'+chips+'</div>')+'</button>'}
+    (fin?"":chips)+
+    (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+'</button>'}
 
 function render(){
   renderDirs();renderUse();syncLists();
@@ -1129,18 +1144,15 @@ function cleanMasters(){
     (s.credits||[]).forEach(c=>{put(c.name);(c.parts||[]).forEach(put)});
     Object.keys(s.stages||{}).forEach(k=>put((s.stages[k]||{}).asg));
     (s.stageList||[]).forEach(x=>{});
-    Object.keys(s.stages||{}).forEach(k=>((s.stages[k]||{}).slots||[]).forEach(v=>put(v.studio)))});
+    Object.keys(s.stages||{}).forEach(k=>((s.stages[k]||{}).slots||[]).forEach(v=>{put(v.who);put(v.note)}))});
   S.projects.forEach(p=>{put(p.artist);put(p.director);
     (p.staff||[]).forEach(r=>String(r.value||"").split(/[、,\n]/).forEach(put))});
   let ch=false;
   Object.keys(S.masters).forEach(k=>{
     if(!Array.isArray(S.masters[k]))return;
-    const arr=S.masters[k];
-    const keep=arr.filter(v=>{
-      if(used[v])return true;
-      /* 使われていない かつ 他の候補の先頭一致（打ちかけ）なら捨てる */
-      return !arr.some(o=>o!==v&&o.indexOf(v)===0)});
-    if(keep.length!==arr.length){S.masters[k]=keep;ch=true}});
+    /* パート名は打ち込み候補として常に残す */
+    const keep=S.masters[k].filter(v=>used[v]||(k==="instrument"&&PARTS.indexOf(v)>=0));
+    if(keep.length!==S.masters[k].length){S.masters[k]=keep;ch=true}});
   return ch}
 function syncLists(){
   document.getElementById("dlHost").innerHTML=MASTER_KEYS.map(k=>
@@ -2072,7 +2084,7 @@ async function syncNow(reason){
       else merged=mergeState(base,S,got.json);
       merged.settings=S.settings}   /* 設定は端末ごと。取り込みで消さない */
     const changed=JSON.stringify(syncable(merged))!==JSON.stringify(syncable(S));
-    if(changed){S=migrate(merged);harvestMasters();dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
+    if(changed){S=migrate(merged);harvestMasters();cleanMasters();dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
     const payload=syncable(S);
     const same=got.json&&JSON.stringify(syncable(got.json))===JSON.stringify(payload);
     if(!same){
@@ -2214,11 +2226,6 @@ function openSettings(){
       '<div><span class="lbl">Branch</span><input class="inp" id="gB" value="'+esc(g.branch)+'"></div></div>'+
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="gT" type="password" value="'+esc(g.token)+'"></div>'+
       '<div class="fg"><button class="btn pri w" id="pub">共有版を公開</button></div><div id="pubOut"></div>'},
-    {id:"ios",t:"iPhone / iPad",h:()=>
-      '<p class="hint" style="margin:0">Safari で開いて、共有ボタン → 「ホーム画面に追加」。'+
-      'アプリとして起動でき、電波がなくても開けます。'+
-      ((window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone?
-        '<br><b style="color:var(--ok)">いまアプリとして動いています。</b>':'')+'</p>'},
     {id:"ver",t:"版",h:()=>'<p class="hint" style="margin:0">いま動いている版：<b>'+APP_VER+'</b>'+
       '<br>古いままなら、アプリを閉じて開き直すか、下のボタンで読み込み直してください。</p>'+
       '<div class="fg"><button class="btn w" id="reld">最新を読み込み直す</button></div>'}];
