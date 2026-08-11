@@ -510,15 +510,15 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"歌録り"},
   {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d",gp:"歌録り"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
-  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-18,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
-  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-16,unit:"d",gp:"追加録り"},
-  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
-  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"choR",   n:"Choリズムエディット",role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
-  {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-12,unit:"d",gp:"追加録り"},
-  {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-11,unit:"d",gp:"追加録り"},
-  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-24,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-20,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"choR",   n:"Choリズムエディット",role:"engineer", anchor:"mastering",off:-19,unit:"d",gp:"追加録り"},
+  {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-18,unit:"d",gp:"追加録り"},
+  {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
+  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
+  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加録り"},
+  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
@@ -535,20 +535,20 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"rhythm", n:"リズムエディット",             role:"engineer", anchor:"live",off:-41,unit:"d",gp:"歌録り"},
   {k:"tsunagi",n:"繋ぎ",                         role:"engineer", anchor:"live",off:-39,unit:"d",gp:"歌録り"},
   {k:"pitch",  n:"ピッチ",                       role:"engineer", anchor:"live",off:-37,unit:"d",gp:"歌録り"},
-  {k:"rough",  n:"ラフミックス展開（レッスン用）",role:"engineer",anchor:"live",off:-35,unit:"d",gp:"歌録り"},
-  {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-25,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
-  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"アレンジ"},
-  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-18,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
-  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-16,unit:"d",gp:"追加録り"},
-  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
-  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",gp:"追加録り"},
-  {k:"choR",   n:"Choリズムエディット",          role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
-  {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"mastering",off:-12,unit:"d",gp:"追加録り"},
-  {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"mastering",off:-11,unit:"d",gp:"追加録り"},
-  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-30,unit:"d",t:"arr",gp:"アレンジ"},
+  {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"live",off:-25,unit:"d",t:"multi",gp:"ライブ準備"},
+  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"live",off:-20,unit:"d",t:"multi",gp:"ライブ準備"},
+  {k:"choR",   n:"Choリズムエディット",          role:"engineer", anchor:"live",off:-18,unit:"d",gp:"ライブ準備"},
+  {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"live",off:-16,unit:"d",gp:"ライブ準備"},
+  {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"live",off:-14,unit:"d",gp:"ライブ準備"},
+  {k:"livemix",n:"ライブ用 仮ミックス",          role:"engineer", anchor:"live",off:-7,unit:"d",gp:"ライブ準備"},
+  {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"ライブ準備"},
+  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"収録用"},
+  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"収録用"},
+  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"収録用"},
+  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"収録用"},
   {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
-  {k:"td",     n:"ミックス",                     role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
+  {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
@@ -636,6 +636,8 @@ function fillDates(s,oldRel){
   const nextMas=masRule(s,s.dates.release);
   if(nextMas&&(!s.dates.mastering||(prevMas&&s.dates.mastering===prevMas)))s.dates.mastering=nextMas}
 const projOf=id=>S.projects.find(p=>p.id===id);
+/* 曲名が空なら仮題を「（仮）」付きで見せる */
+const songTitle=s=>(s.title||"").trim()||((s.work||"").trim()?s.work.trim()+"（仮）":"（無題）");
 const isSolo=a=>!!a&&(S.masters.solo||[]).indexOf(a)>=0;
 function setSolo(a,on){if(!a)return;if(!S.masters.solo)S.masters.solo=[];
   const i=S.masters.solo.indexOf(a);
@@ -712,7 +714,14 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
     if(o.done&&!o.date)o.date=o.ed.date||D.today();return}
   if(all&&!o.done){o.done=true;if(!o.date)o.date=v.map(a=>a.date).filter(Boolean).sort().pop()||D.today()}
   if(!all&&o.done){o.done=false}}
-function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;return applyRule(s,x)||applyRule(s,x.fb)||""}
+/* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
+const PRELIVE={"選曲・制作":1,"歌録り":1,"アレンジ":1,"ライブ準備":1};
+function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
+  let d=applyRule(s,x)||applyRule(s,x.fb)||"";
+  const lv=s.dates&&s.dates.live;
+  if(lv&&d&&d>lv&&PRELIVE[x.gp])d=lv;
+  if(lv&&!d&&PRELIVE[x.gp]&&x.anchor==="mastering")d=lv;
+  return d}
 const stages=s=>s.stageList||[];
 const hasKids=(L,i)=>L[i].d!==1&&!!L[i+1]&&L[i+1].d===1;
 function kidsOf(L,i){const r=[];for(let j=i+1;j<L.length&&L[j].d===1;j++)r.push(L[j]);return r}
@@ -879,7 +888,7 @@ function cardHTML(s,rank){
       (n===null?"":'<u class="'+(n<=14?"soon":"")+'">'+(n===0?"本日":"あと"+n+"日")+'</u>')+'</span>');break}
   return'<button class="card '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
     '<div class="cardtop">'+(rank?'<span class="rank">'+rank+'</span>':"")+
-    '<span class="ct">'+esc(s.title||"（無題）")+'</span>'+
+    '<span class="ct">'+esc(songTitle(s))+'</span>'+
     ((s.use||"master")==="live"?'<span class="sgl live">LIVE</span>':"")+
     (s.single!==false?'<span class="sgl">SINGLE</span>':"")+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>'
@@ -927,7 +936,7 @@ function rowHTML(s){
   const st=status(s),L=stages(s);
   return'<div class="srow" data-sid="'+s.id+'">'+
     '<button class="grip" data-sg="'+s.id+'">⠿</button>'+
-    '<span class="nm"><span class="t">'+esc(s.title||"（無題）")+'</span>'+
+    '<span class="nm"><span class="t">'+esc(songTitle(s))+'</span>'+
     '<span class="s">'+(st.k==="fin"?"完了":esc(L[st.i].n))+'</span></span></div>'}
 function songDrag(box){
   dragList(box,".srow","[data-sg]",()=>{
@@ -1009,7 +1018,7 @@ function stageDrag(s,box,rf){
 let cur=null,stOpen="",stAdv={};
 function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};head();drawSong();show("sheet")}
 function head(){
-  document.getElementById("shTitle").textContent=cur.title||"（無題）";
+  document.getElementById("shTitle").textContent=songTitle(cur);
   const st=status(cur),L=stages(cur);
   document.getElementById("shEye").textContent=[cur.artist||"グループ未設定",
     projTitle(projOf(cur.projectId)),st.k==="fin"?"完了":"現在 "+L[st.i].n].join(" · ")}
@@ -1437,8 +1446,8 @@ function dateCfg(s){
     B.querySelector("#mU").onchange=e=>{s.tplMastering.unit=e.target.value;mark()}}}
 
 document.getElementById("shDel").onclick=()=>{if(!cur||RO)return;
-  if(!confirm("「"+(cur.title||"（無題）")+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。"))return;
-  toTrash("song",cur,(cur.artist?cur.artist+" / ":"")+(cur.title||"（無題）"));
+  if(!confirm("「"+songTitle(cur)+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。"))return;
+  toTrash("song",cur,(cur.artist?cur.artist+" / ":"")+songTitle(cur));
   S.songs=S.songs.filter(x=>x.id!==cur.id);mark();hide("sheet");render();toast("ゴミ箱へ移しました")};
 
 /* ===================== credits export ===================== */
@@ -1489,10 +1498,10 @@ function fmtCredit(part,names){
   /* 「Sound Produced by KAN」のような書き方にも対応する */
   return /\bby$/i.test(part)?part+" "+joinNames(names):part+"："+joinNames(names)}
 function creditText(list,opt){
-  return list.map(s=>"「"+(s.title||"（無題）")+"」\n"+
+  return list.map(s=>"「"+songTitle(s)+"」\n"+
     (creditLines(s,opt).join("\n")||"（未登録）")).join("\n\n")}
 function creditDoc(list,title,opt){
-  const body=list.map(s=>'<p style="margin:14pt 0 4pt;font-weight:bold">「'+esc(s.title||"（無題）")+'」</p>'+
+  const body=list.map(s=>'<p style="margin:14pt 0 4pt;font-weight:bold">「'+esc(songTitle(s))+'」</p>'+
     '<p style="margin:0;line-height:1.7">'+(creditLines(s,opt).map(esc).join("<br>")||"（未登録）")+'</p>').join("");
   return'<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'+
     '<head><meta charset="utf-8"><title>'+esc(title)+'</title></head>'+
@@ -1526,9 +1535,9 @@ function creditSheet(s){
       else{document.execCommand("copy");toast("コピーしました")}};
     B.querySelector("#crCopy").onclick=()=>cp("#crT");
     const c2=B.querySelector("#crCopy2");if(c2)c2.onclick=()=>cp("#crT2");
-    B.querySelector("#crTxt").onclick=()=>dlFile((s.title||"credit")+".txt",creditText([s],opt),"text/plain");
-    B.querySelector("#crDoc").onclick=()=>dlFile((s.title||"credit")+".doc",
-      creditDoc([s],"「"+(s.title||"")+"」 ミュージシャンクレジット",opt),"application/msword");
+    B.querySelector("#crTxt").onclick=()=>dlFile((s.title||s.work||"credit")+".txt",creditText([s],opt),"text/plain");
+    B.querySelector("#crDoc").onclick=()=>dlFile((s.title||s.work||"credit")+".doc",
+      creditDoc([s],"「"+songTitle(s)+"」 ミュージシャンクレジット",opt),"application/msword");
     const bp=B.querySelector("#crDocP");if(bp)bp.onclick=()=>dlFile(head+".doc",
       creditDoc(sib,head,opt),"application/msword")};
   s3("CREDITS","クレジット書き出し","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}]);
@@ -1942,7 +1951,7 @@ function invSheet(){
       '<p class="hint">全体 '+got+'/'+tot+' 受領。チェックすると受領日が入ります。</p>';
     if(!rows.length)h+='<div class="empty"><h3>'+(invMode==="pend"?"未受領はありません":"対象がありません")+'</h3></div>';
     else{let cg="";
-      rows.forEach(r=>{const g=(r.s.artist||"—")+" / "+(r.s.title||"（無題）");
+      rows.forEach(r=>{const g=(r.s.artist||"—")+" / "+songTitle(r.s);
         if(g!==cg){cg=g;h+='<div class="sec">'+esc(g)+'</div>'}
         h+='<div class="st"><button class="chk" role="checkbox" aria-checked="'+(!!r.c.inv)+'" '+
           'data-iv="'+r.s.id+'|'+r.c.id+'">✓</button>'+
