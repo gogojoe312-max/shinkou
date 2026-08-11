@@ -460,6 +460,9 @@ const rowMaster=c=>{
 const ANCHORS={release:"発売日",meeting:"会議日",lesson:"ダンスレッスン",mv:"MV撮影日",
   live:"ライブ初披露日",mastering:"マスタリング日",
   open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出"};
+/* 欄としては出さない基準日。工程の基準としては今までどおり使える */
+const HIDE_ANCHOR={open:1,deliver:1};
+const ANCHOR_KEYS=Object.keys(ANCHORS).filter(k=>!HIDE_ANCHOR[k]);
 /* ライブの制作物では呼び名が変わる */
 const LIVE_LBL={open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出",lesson:"ダンスレッスン"};
 const anchorLabel=(s,k)=>(s&&s.use==="live"&&LIVE_LBL[k])||ANCHORS[k];
@@ -467,7 +470,7 @@ const anchorLabel=(s,k)=>(s&&s.use==="live"&&LIVE_LBL[k])||ANCHORS[k];
 const LTYPES=["オープニングSE","ダンス曲","転換SE","インターリュードSE","エンディングSE",
   "カラオケ","メドレー","MC BGM","影アナ","その他"];
 /* シングルのときだけ出す基準日 */
-const SINGLE_ONLY={meeting:1,mv:1};
+const SINGLE_ONLY={meeting:1};
 /* 数字だけで打てる日付入力。0911 / 9/11 / 260911 / 20260911 に対応 */
 function parseDate(v,ref){
   v=String(v||"").trim();if(!v)return"";
@@ -506,7 +509,7 @@ const MASTER_KEYS=[["artist","グループ"],["director","ディレクター"],
 const KINDS=["シングル","アルバム","ミニアルバム","EP","ベスト","配信","タイアップ","ライブ","その他"];
 const NUMBERED=["シングル","アルバム","ミニアルバム","EP","ベスト"];
 
-function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release","meeting","lesson","mv","mastering"],
+function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release","meeting","lesson","mv","live","mastering"],
  mastering:{anchor:"release",off:-2,unit:"m"},
  stages:[
   {k:"gather", n:"曲集め・作家発注",   role:"composer", anchor:"release",off:-6,unit:"m",gp:"デモ制作"},
@@ -534,7 +537,7 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
-function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナル",dates:["live","release","mastering"],
+function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナル",dates:["release","lesson","mv","live","mastering"],
  mastering:null,
  stages:[
   {k:"pick",   n:"選曲・発注（D判断）",         role:"composer", anchor:"live",off:-90,unit:"d",gp:"デモ制作"},
@@ -563,7 +566,7 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 
-function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["open","rehearsal","deliver"],
+function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehearsal"],
  mastering:null,
  stages:[
   {k:"plan",  n:"内容決定（構成・尺）", role:"me",       anchor:"open",off:-60,unit:"d",gp:"企画"},
@@ -933,7 +936,7 @@ function cardHTML(s,rank){
     kd.push('<span class="'+(past?"past":cls)+'"><em>'+lb+'</em><b>'+D.md(v)+'</b>'+
       '<u class="'+(!past&&n<=14?"soon":"")+'">'+sub+'</u></span>')};
   dpush("レッスン",s.dates.lesson,"k1");
-  if(s.single!==false)dpush("MV撮影",s.dates.mv,"k2");
+  dpush("MV撮影",s.dates.mv,"k2");
   dpush("ライブ",s.dates.live,"k3");
   dpush("マスタリング",masDate(s),"k4");
   for(let i=0;i<L.length;i++){const x=L[i];
@@ -1105,7 +1108,7 @@ function drawSong(){
   '<div class="sec">基準日</div>';
   const useKeys=(s.tplDates&&s.tplDates.length)?s.tplDates:Object.keys(ANCHORS);
   useKeys.forEach(k=>{
-    if(!ANCHORS[k])return;
+    if(!ANCHORS[k]||HIDE_ANCHOR[k])return;
     if(SINGLE_ONLY[k]&&s.single===false)return;
     if(k==="release"||k==="open"){
       const isO=k==="open";
@@ -1424,7 +1427,6 @@ function wireSong(){
     applySolo(s);mark();drawSong();rf()};
   const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
     s.single=x.dataset.g==="1";
-    if(s.single&&(s.tplDates||[]).indexOf("mv")<0)s.tplDates.push("mv");
     mark();drawSong();rf()};
   const dc=b.querySelector("#dateCfg");if(dc)dc.onclick=()=>dateCfg(s);
   const da=b.querySelector("#dateAdd");if(da)da.onclick=()=>dateCfg(s);
@@ -1513,7 +1515,7 @@ function wireSong(){
 
 function dateCfg(s){
   s3("DATES","使う基準日",
-    Object.keys(ANCHORS).map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
+    ANCHOR_KEYS.map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
       ((s.tplDates||[]).indexOf(k)>=0?"checked":"")+'> '+esc(ANCHORS[k])+'</label>').join("")+
     '<div class="sec">マスタリング日の自動計算</div>'+
     '<div class="fg"><div class="seg2" id="masSeg">'+
@@ -1828,7 +1830,7 @@ function editTemplate(id){
   const draw=()=>{
     let h='<div class="fg"><span class="lbl">名前</span><input class="inp" id="tN" value="'+esc(t.name)+'"></div>'+
     '<div class="sec">使う基準日</div><div class="fg">'+
-    Object.keys(ANCHORS).map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
+    ANCHOR_KEYS.map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
       (t.dates.indexOf(k)>=0?"checked":"")+'> '+esc(ANCHORS[k])+'</label>').join("")+'</div>'+
     '<div class="sec">マスタリング日の自動計算</div><div class="fg"><div class="seg2" id="masSeg">'+
       '<button data-ms="auto" aria-pressed="'+(!!t.mastering)+'">自動で決める</button>'+
@@ -2397,7 +2399,10 @@ function migrate(d){
   if(d.templates&&d.templates.length){b.templates=d.templates;
     b.templates.forEach(t=>{const ref=t.id==="tpl_live"?tplLive():t.id==="tpl_single"?tplSingle():
       t.id==="tpl_show"?tplShow():null;
-      t.stages=fixStages(t.stages||[],ref)})}
+      t.stages=fixStages(t.stages||[],ref);
+      t.dates=(t.dates||[]).filter(k=>ANCHORS[k]&&!HIDE_ANCHOR[k]);
+      if(t.id!=="tpl_show")["lesson","mv","live"].forEach(k=>{if(t.dates.indexOf(k)<0)t.dates.push(k)});
+      t.dates.sort((x,y)=>ANCHOR_KEYS.indexOf(x)-ANCHOR_KEYS.indexOf(y))})}
   /* 既定テンプレートが欠けていたら足す（欠けるとライブ用が録音用になってしまう） */
   [tplSingle(),tplLive(),tplShow()].forEach(t=>{
     if(!b.templates.some(x=>x.id===t.id))b.templates.push(t)});
@@ -2441,7 +2446,10 @@ function migrate(d){
     if(s.ord===undefined)s.ord=s.created||0;
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
     if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
-    if(s.single&&s.tplDates.indexOf("mv")<0)s.tplDates.push("mv");
+    /* レッスン・MV撮影・ライブ初披露は最初から出す。公演初日・音源提出の欄は持たせない */
+    if(s.use!=="live")["lesson","mv","live"].forEach(k=>{if(s.tplDates.indexOf(k)<0)s.tplDates.push(k)});
+    s.tplDates=s.tplDates.filter(k=>ANCHORS[k]&&!HIDE_ANCHOR[k])
+      .sort((a2,b3)=>ANCHOR_KEYS.indexOf(a2)-ANCHOR_KEYS.indexOf(b3));
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
     /* 旧アレンジ工程の記録を新しい1工程へ引き継ぐ */
