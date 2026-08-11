@@ -536,6 +536,7 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-18,unit:"d",gp:"ChoDB"},
   {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"ChoDB"},
   {k:"instrec",n:"楽器DBスケジュール",           role:"me",       anchor:"mastering",off:-24,unit:"d",t:"multi",gp:"楽器DB"},
+  {k:"instdb", n:"楽器DB",                     role:"me",       anchor:"mastering",off:-24,unit:"d",gp:"楽器DB"},
   {k:"revo",   n:"ReVoDBスケジュール",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"ReVoDB"},
   {k:"revodb", n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",gp:"ReVoDB"},
   {k:"revoes", n:"ReVoEDITスケジュール",role:"engineer", anchor:"mastering",off:-15,unit:"d",t:"multi",gp:"ReVoDB"},
@@ -570,6 +571,7 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"live",off:-16,unit:"d",gp:"ChoDB"},
   {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"live",off:-14,unit:"d",gp:"ChoDB"},
   {k:"instrec",n:"楽器DBスケジュール",                     role:"me",       anchor:"live",off:-25,unit:"d",t:"multi",gp:"楽器DB"},
+  {k:"instdb", n:"楽器DB",                       role:"me",       anchor:"live",off:-25,unit:"d",gp:"楽器DB"},
   {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"楽器DB"},
   {k:"revo",   n:"ReVoDBスケジュール",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"ReVoDB"},
   {k:"revodb", n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",gp:"ReVoDB"},
@@ -622,7 +624,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-z";
+const APP_VER="2026-08-12-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -750,7 +752,7 @@ const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kar
   meeting:"デモ制作",pick:"デモ制作",arr:"アレンジ",
   vo:"VoDB",vodb:"VoDB",warigo:"VoDB",voes:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
   cho:"ChoDB",chodb:"ChoDB",choes:"ChoDB",choR:"ChoDB",choT:"ChoDB",choP:"ChoDB",
-  instrec:"楽器DB",live:"楽器DB",
+  instrec:"楽器DB",instdb:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
   para:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
   plan:"制作",order:"制作",build:"制作",make:"制作",rec2:"制作",chk1:"制作",td2:"制作",deliv2:"制作",
@@ -790,7 +792,7 @@ function recBefore(s,x){
   /* 自分で足した子工程は、直前の録音工程にぶら下げる */
   if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
   return null}
-const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo",lrec:"lrecS"};
+const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo",instdb:"instrec",lrec:"lrecS"};
 function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""}
 /* その録音のあと何番目の工程か */
 /* 日程に書いた依頼先を、ミュージシャンクレジットへ反映する */
@@ -1191,7 +1193,7 @@ function syncLists(){
 
 /* ===================== song sheet ===================== */
 /* パート候補を出すのは楽器録りの工程だけ */
-const isInstRec=x=>x.k==="instrec"||/楽器/.test(x.n||"");
+const isInstRec=x=>x.k==="instrec"||(x.k!=="instdb"&&/楽器/.test(x.n||""));
 /* 日程にすぐ足せるパート候補。曲のクレジットにあるものを優先する */
 function recChips(s){
   const out=[],skip={Programming:1};skip[MIXPART]=1;skip[MASPART]=1;skip[STUPART]=1;
@@ -2516,6 +2518,7 @@ const NAMEFIX={
   revo:["ReVoDBスケジュール",["ReVoDB"]],
   revodb:["ReVoDB",["ReVoDBスケジュール"]],
   instrec:["楽器DBスケジュール",["楽器録り","楽器DB"]],
+  instdb:["楽器DB",["楽器DBスケジュール"]],
   voes:["VoEDITスケジュール",["VoEDIT 発注・日程"]],
   choes:["ChoEDITスケジュール",["ChoEDIT 発注・日程"]],
   revoes:["ReVoEDITスケジュール",["ReVoEDIT 発注・日程"]],
