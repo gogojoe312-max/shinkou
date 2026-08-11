@@ -510,8 +510,14 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"pitch",  n:"ピッチ",             role:"engineer", anchor:"meeting",off:15,unit:"d",gp:"歌録り"},
   {k:"rough",  n:"ラフミックス展開",   role:"engineer", anchor:"meeting",off:18,unit:"d",gp:"歌録り"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
-  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
-  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-18,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
+  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-16,unit:"d",gp:"追加録り"},
+  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
+  {k:"cho",    n:"ChoDB",              role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"choR",   n:"Choリズムエディット",role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
+  {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-12,unit:"d",gp:"追加録り"},
+  {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-11,unit:"d",gp:"追加録り"},
   {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
@@ -532,8 +538,14 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"rough",  n:"ラフミックス展開（レッスン用）",role:"engineer",anchor:"live",off:-35,unit:"d",gp:"歌録り"},
   {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-25,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
   {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"アレンジ"},
-  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
-  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",e:1,elead:3,gp:"追加録り"},
+  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-18,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"追加録り"},
+  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-16,unit:"d",gp:"追加録り"},
+  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加録り"},
+  {k:"cho",    n:"ChoDB",                        role:"me",       anchor:"mastering",off:-14,unit:"d",t:"multi",gp:"追加録り"},
+  {k:"choR",   n:"Choリズムエディット",          role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加録り"},
+  {k:"choT",   n:"Cho繋ぎ",                      role:"engineer", anchor:"mastering",off:-12,unit:"d",gp:"追加録り"},
+  {k:"choP",   n:"Choピッチ",                    role:"engineer", anchor:"mastering",off:-11,unit:"d",gp:"追加録り"},
   {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"mastering",off:-30,unit:"d",t:"multi",gp:"追加録り"},
   {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",                     role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
@@ -2200,8 +2212,8 @@ const RENAME={"歌録り":"VoDB","エディット":"VoEDIT","アレンジ確定�
   "アレンジ確定":"アレンジ尺確定","アレンジ作り込み":"アレンジFIX","収録用アレンジ仕上げ":"アレンジFIX（収録用）",
   "TD（トラックダウン）":"ミックス","TD":"ミックス",
   "会議用デモ完成":"デモ完成","会議で決定":"曲確認"};
-const DROPK={deliv:1,vosch:1,edit:1};
-const EDPAIR={revoed:"revo",choed:"cho"};
+const DROPK={deliv:1,vosch:1,edit:1,revoed:1,choed:1};
+const EDPAIR={};
 const MULTIK={vo:1,revo:1,cho:1,instrec:1};
 const ROLEFIX={edit:"engineer",revoed:"engineer",choed:"engineer",rough:"engineer",td:"engineer"};
 const ROLEFIX2={kario:"director",demo:"director"};
@@ -2226,7 +2238,7 @@ function fixStages(L,ref){
   L.forEach(x=>{if(RENAME[x.n])x.n=RENAME[x.n];
     if(x.d===undefined)x.d=0;if(x.lead===undefined)x.lead=14;
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
-    if(x.k==="vo"){x.e=0;delete x.elead}
+    if(x.k==="vo"||x.k==="revo"||x.k==="cho"){x.e=0;delete x.elead}
     if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
     if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
