@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#16171B">
 <meta name="color-scheme" content="dark">
 <meta name="mobile-web-app-capable" content="yes">
@@ -101,6 +101,8 @@ main>.artist:first-child{margin-top:2px}
 .card.fin{opacity:.5}
 .cardtop{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .ct{font-family:var(--disp);font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.balls{margin-left:auto;flex-shrink:1;min-width:0;display:flex;flex-wrap:wrap;justify-content:flex-end;gap:4px;max-width:62%}
+.balls .ball{margin-left:0;max-width:100%}
 .ball{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;display:flex;align-items:center;gap:5px;max-width:56%;overflow:hidden}
 .ball i{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;font-style:normal}
 .ball span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -240,8 +242,12 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .gph:not(.on) .cv{transform:rotate(-90deg)}
 .gph.on{color:var(--ink)}
 .gph:hover{color:var(--ink)}
-.st.kid{padding-left:22px;position:relative}
-.st.kid::before{content:"";position:absolute;left:8px;top:0;bottom:0;width:1px;background:var(--line2)}
+.st.kid{padding-left:26px;position:relative;border-bottom-style:dotted}
+.st.kid::before{content:"";position:absolute;left:11px;top:-1px;bottom:50%;width:1px;background:var(--line2)}
+.st.kid::after{content:"";position:absolute;left:11px;top:50%;width:9px;height:1px;background:var(--line2)}
+.st.kid .nm .t{font-size:12.5px;color:var(--dim)}
+.st.kid.on .nm .t{color:var(--ghost)}
+.st.kid .nm .s{font-size:9.5px}
 .ed.kid{margin-left:20px;border-left:2px solid var(--line2)}
 .st.cur{background:linear-gradient(90deg,rgba(233,231,226,.05),transparent)}
 .dtl{border:1px solid var(--line);border-radius:var(--r);padding:10px;margin:0 0 8px 22px;background:#1B1D22}
@@ -624,7 +630,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-b";
+const APP_VER="2026-08-12-c";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -986,6 +992,28 @@ function ballOf(s){
   const i=curIdx(s),L=stages(s);
   if(i>=L.length)return{c:"none",t:"完了"};
   return whoOf(s,L[i])}
+/* いま動いている工程すべての相手。並行して待っているものを見落とさないため */
+function ballsOf(s){
+  const L=stages(s),ci=curIdx(s);
+  if(ci>=L.length)return[{c:"none",t:"完了"}];
+  const out=[],seen={};
+  const push=x=>{const w=whoOf(s,x);const key=w.c+"|"+w.t;
+    if(seen[key])return;seen[key]=1;out.push(w)};
+  push(L[ci]);
+  /* 同じ親の中の子工程は、同時に進むので全部見る */
+  const par=(function(){if(L[ci].d!==1)return ci;
+    for(let j=ci-1;j>=0;j--)if(L[j].d!==1)return j;return -1})();
+  if(par>=0&&L[par+1]&&L[par+1].d===1)
+    for(let j=par+1;j<L.length&&L[j].d===1;j++){
+      if(j===ci||(s.stages[L[j].k]||{}).done)continue;push(L[j])}
+  /* 先に進んでいても、発注して返事を待っている工程は出す */
+  L.forEach((x,i)=>{if(i<=ci)return;
+    const o=s.stages[x.k]||{};
+    if(o.done||o.st!=="req")return;
+    /* スケジュールと対になる工程は、同じ相手なので出さない */
+    if(RECMIRROR[x.k])return;
+    const w=whoOf(s,x);if(w.c==="other"||w.c==="room")push(x)});
+  return out.slice(0,3)}
 function status(s){const i=curIdx(s),L=stages(s);
   if(i>=L.length)return{k:"fin",i:i,dl:"",left:null,lb:""};
   const x=L[i],o=stg(s,x.k);
@@ -1105,7 +1133,8 @@ function cardHTML(s,rank){
     ((s.use||"master")==="live"&&(s.ltype||"")!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype||"LIVE")+'</span>':"")+
     ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>'
-        :'<span class="ball '+bl.c+'"><i></i><span>'+esc(bl.t)+'</span></span>')+'</div>'+
+        :'<span class="balls">'+ballsOf(s).map(w=>
+          '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span></span>').join("")+'</span>')+'</div>'+
     (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
         :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
          '<span class="dl '+dc+'">'+esc(dl)+'</span></div>')+
@@ -2745,6 +2774,15 @@ function migrate(d){
     S=sv})();
   return b}
 
+/* iPhoneは viewport の指定だけでは拡大が止まらないので、ここでも止める */
+["gesturestart","gesturechange","gestureend"].forEach(t=>
+  document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+document.addEventListener("dblclick",e=>e.preventDefault(),{passive:false});
+(function(){let last=0;
+  document.addEventListener("touchend",e=>{
+    const now=Date.now();
+    if(now-last<=350&&e.cancelable)e.preventDefault();
+    last=now},{passive:false})})();
 async function boot(){
   const src=new URLSearchParams(location.search).get("data");
   if(src){RO=true;
