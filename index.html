@@ -1745,7 +1745,13 @@ async function syncNow(reason){
     const got=await ghRead(c);
     let merged;
     if(!got.json){merged=S}
-    else{merged=mergeState(base,S,got.json);}
+    else{
+      /* 空の端末が、中身のある同期先を消してしまわないようにする */
+      const rn=(got.json.songs||[]).length,ln=(S.songs||[]).length;
+      if(!base&&ln===0&&rn>0){merged=got.json}
+      else if(ln===0&&rn>0&&!(base&&(base.songs||[]).length)){merged=got.json}
+      else merged=mergeState(base,S,got.json);
+      merged.settings=S.settings}   /* 設定は端末ごと。取り込みで消さない */
     const changed=JSON.stringify(syncable(merged))!==JSON.stringify(syncable(S));
     if(changed){S=migrate(merged);dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
     const payload=syncable(S);
@@ -1929,7 +1935,7 @@ function openSettings(){
     if(!confirm("この端末の内容を破棄して、同期先の内容を取り込みます。"))return;
     try{const got=await ghRead(syCfg());
       if(!got.json)return toast("同期先にデータがありません");
-      S=migrate(got.json);dirty=true;await flush();
+      const keep=S.settings;S=migrate(got.json);S.settings=keep;dirty=true;await flush();
       await sbPut(JSON.parse(JSON.stringify(syncable(S))));
       render();hide("sheet2");toast("取り込みました")}
     catch(e){toast("取り込めません："+(e.message||e))}}}
