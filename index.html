@@ -357,7 +357,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
       <input id="q" placeholder="曲名・グループ・クレジット" autocomplete="off"></label>
     <select class="sel" id="grpSel">
       <option value="prio">優先順</option>
-      <option value="artist">グループ別</option>
+      <option value="artist" selected>グループ別</option>
       <option value="flat">期限順（全曲）</option>
     </select>
     <select class="sel" id="finSel">
@@ -527,10 +527,10 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"choT",   n:"Cho繋ぎ",            role:"engineer", anchor:"mastering",off:-18,unit:"d",gp:"ChoDB"},
   {k:"choP",   n:"Choピッチ",          role:"engineer", anchor:"mastering",off:-17,unit:"d",gp:"ChoDB"},
   {k:"instrec",n:"楽器録り",           role:"me",       anchor:"mastering",off:-24,unit:"d",t:"multi",gp:"楽器DB"},
-  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加DB"},
-  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"追加DB"},
-  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加DB"},
-  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加DB"},
+  {k:"revo",   n:"ReVoDB",             role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"ReVoDB"},
+  {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"ReVoDB"},
+  {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
+  {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
   {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",       role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
@@ -555,10 +555,10 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"instrec",n:"楽器録り",                     role:"me",       anchor:"live",off:-25,unit:"d",t:"multi",gp:"楽器DB"},
   {k:"livemix",n:"ライブ用 仮ミックス",          role:"engineer", anchor:"live",off:-7,unit:"d",gp:"楽器DB"},
   {k:"live",   n:"ライブ初披露",                 role:"me",       anchor:"live",off:0,unit:"d",gp:"楽器DB"},
-  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"追加DB"},
-  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"追加DB"},
-  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"追加DB"},
-  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"追加DB"},
+  {k:"revo",   n:"ReVoDB",                       role:"me",       anchor:"mastering",off:-16,unit:"d",t:"multi",gp:"ReVoDB"},
+  {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"ReVoDB"},
+  {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
+  {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
   {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
@@ -703,16 +703,16 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";
   if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
-const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","追加DB","仕上げ"];
+const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","ReVoDB","仕上げ"];
 const GPORDER=STEPS.concat(["企画","制作","確認","納品"]);
-const GPFIX={"選曲・制作":"デモ制作","歌録り":"VoDB","追加録り":"追加DB","ライブ準備":"楽器DB","収録用":"追加DB"};
+const GPFIX={"選曲・制作":"デモ制作","歌録り":"VoDB","追加録り":"ReVoDB","ライブ準備":"楽器DB","収録用":"ReVoDB","追加DB":"ReVoDB"};
 /* 工程キーから正しい段階を引く（旧データの取りこぼしを直す） */
 const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kario:"デモ制作",demo:"デモ制作",
   meeting:"デモ制作",pick:"デモ制作",arr:"アレンジ",
   vo:"VoDB",warigo:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
   cho:"ChoDB",choR:"ChoDB",choT:"ChoDB",choP:"ChoDB",
   instrec:"楽器DB",livemix:"楽器DB",live:"楽器DB",
-  revo:"追加DB",revoR:"追加DB",revoT:"追加DB",revoP:"追加DB",
+  revo:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
   para:"仕上げ",td:"仕上げ",mas:"仕上げ",
   plan:"企画",ref:"企画",order:"企画",build:"制作",rec2:"制作",tmp:"制作",
   chk1:"確認",chk2:"確認",fix:"確認",final:"納品",deliv2:"納品",reh:"納品",show:"納品"};
@@ -853,7 +853,7 @@ function mAdd(k,v){v=(v||"").trim();if(!v)return;if(!S.masters[k])S.masters[k]=[
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"prio",use:"all",fin:"hide",collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"artist",use:"all",fin:"hide",collapsed:{},edit:false,reorder:false};
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -2364,8 +2364,9 @@ function fixStages(L,ref){
     if(x.t===undefined)x.t=MULTIK[x.k]?"multi":"";
     if(x.k==="vo"||x.k==="revo"||x.k==="cho"){x.e=0;delete x.elead}
     if(GPFIX[x.gp])x.gp=GPFIX[x.gp];
-    if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
-    if((!x.gp||GPORDER.indexOf(x.gp)<0)&&GPBYK[x.k])x.gp=GPBYK[x.k];
+    /* 既定の工程は、旧データで別の段階に入っていても必ず本来の段階へ戻す */
+    if(GPBYK[x.k])x.gp=GPBYK[x.k];
+    else if(!x.gp&&ref){const r=(ref.stages||[]).find(y=>y.k===x.k);if(r&&r.gp)x.gp=r.gp}
     /* 子工程は親の段階に合わせる */
     if(x.size==="kanso")x.size="utanaka";
     if(ROLEFIX[x.k]&&(x.role==="me"||x.role==="mixEng"))x.role=ROLEFIX[x.k];
