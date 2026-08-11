@@ -704,6 +704,16 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   if(!o.ed)o.ed={done:false,date:"",asg:""};
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","追加DB","仕上げ"];
+const GPORDER=STEPS.concat(["企画","制作","確認","納品"]);
+const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
+/* 段階の順に工程を並べ替える。子工程は親の直後に付いていく */
+function sortByGroup(L){
+  const blocks=[];let cur=null;
+  L.forEach(x=>{if(x.d===1&&cur){cur.items.push(x);return}
+    cur={gp:x.gp,items:[x]};blocks.push(cur)});
+  return blocks.map((b,i)=>({b:b,i:i}))
+    .sort((a,z)=>gpRank(a.b.gp)-gpRank(z.b.gp)||a.i-z.i)
+    .reduce((o,e)=>o.concat(e.b.items),[])}
 const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
@@ -1066,7 +1076,7 @@ function drawSong(){
     '<option value="'+x.id+'" '+(x.id===s.projectId?"selected":"")+'>'+esc((x.artist?x.artist+" / ":"")+projTitle(x))+'</option>').join("");
   const topts='<option value="">—</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("");
   const LV=(s.use||"master")==="live";
-  let h='<div class="fg"><span class="lbl">'+(LV?"名称":"曲名")+'</span><input class="inp" data-f="title" value="'+esc(s.title)+'" placeholder="'+(LV?"例：Opening SE":"")+'"></div>'+
+  let hI='<div class="sec">基本情報</div><div class="fg"><span class="lbl">'+(LV?"名称":"曲名")+'</span><input class="inp" data-f="title" value="'+esc(s.title)+'" placeholder="'+(LV?"例：Opening SE":"")+'"></div>'+
   (LV?'<div class="fg"><span class="lbl">種類</span><div class="qadd" id="ltSeg">'+
     LTYPES.map(t=>'<button class="qc'+(s.ltype===t?" on":"")+'" data-lt="'+esc(t)+'">'+esc(t)+'</button>').join("")+
     '</div></div>':"")+
@@ -1081,32 +1091,25 @@ function drawSong(){
   '<div class="fg"><div class="seg2" id="useSeg">'+
   '<button data-u2="master" aria-pressed="'+((s.use||"master")==="master")+'">原盤</button>'+
   '<button data-u2="live" aria-pressed="'+(s.use==="live")+'">ライブ</button></div></div>'+
-  '<p class="hint">いまの状況：<b style="color:var(--'+(bl.c==="none"?"dim":bl.c)+')">'+esc(bl.t)+'</b></p>'+
-
-  '<div class="sec">'+(LV?"基準日 — 初日から逆算":"基準日 — ここから全工程を逆算")+'</div>';
+  '<div class="sec">基準日</div>';
   const useKeys=(s.tplDates&&s.tplDates.length)?s.tplDates:Object.keys(ANCHORS);
   useKeys.forEach(k=>{
     if(!ANCHORS[k])return;
     if(SINGLE_ONLY[k]&&s.single===false)return;
     if(k==="release"||k==="open"){
       const isO=k==="open";
-      h+='<div class="fg"><span class="lbl">'+(isO?"公演初日":"発売日")+'</span>'+
+      hI+='<div class="fg"><span class="lbl">'+(isO?"公演初日":"発売日")+'</span>'+
         dtIn("data-d",k,s.dates[k],"")+
-        (p&&p.release?'<p class="hint">'+(isO?"公演":"案件")+'「'+esc(projTitle(p))+'」の'+(isO?"初日":"発売日")+' '+esc(p.release)+' を自動で入れています。</p>':
-          '<p class="hint">'+(isO?"公演に初日":"案件に発売日")+'を入れると、紐づくものすべてに自動で入ります。</p>')+'</div>'}
+        '</div>'}
     else if(k==="mastering"){const m=s.tplMastering;
-      h+='<div class="fg"><span class="lbl">マスタリング日</span>'+dtIn("data-d","mastering",s.dates.mastering,relOf(s))+
-        (m?'<p class="hint">自動計算：'+esc(ANCHORS[m.anchor])+(m.off>0?"+":"")+m.off+(m.unit==="m"?"ヶ月":"日")+
-          '　<button class="btn sm" id="dateCfg">変更</button></p>'
-          :'<p class="hint">自動計算しない設定です。収録が決まってから入れてください。　<button class="btn sm" id="dateCfg">変更</button></p>')+'</div>'}
-    else h+='<div class="fg"><span class="lbl">'+esc(anchorLabel(s,k))+'</span>'+dtIn("data-d",k,s.dates[k]||"",relOf(s))+'</div>'});
-  h+='<div class="fg"><button class="btn sm" id="dateAdd">＋ 使う基準日を増やす</button></div>'+
-    '<p class="hint">日付は数字だけで入れられます。0911 → 9月11日、260911 → 2026年9月11日。入力欄から離れたときに確定します。</p>';
+      hI+='<div class="fg"><span class="lbl">マスタリング日</span>'+dtIn("data-d","mastering",s.dates.mastering,relOf(s))+
+        '<p class="hint">'+(m?"自動："+esc(ANCHORS[m.anchor])+(m.off>0?"+":"")+m.off+(m.unit==="m"?"ヶ月":"日"):"手入力")+
+          ' <button class="btn sm" id="dateCfg">変更</button></p></div>'}
+    else hI+='<div class="fg"><span class="lbl">'+esc(anchorLabel(s,k))+'</span>'+dtIn("data-d",k,s.dates[k]||"",relOf(s))+'</div>'});
+  hI+='<div class="fg"><button class="btn sm" id="dateAdd">＋ 基準日を増やす</button></div>'+
+    '<p class="hint">日付は数字だけで入ります。0911 → 9/11</p>';
 
-  h+='<div class="sec">工程<span class="r">'+
-    '<select class="inp sm2" id="applyTpl" style="width:auto;font-size:11.5px;padding:4px 6px">'+
-    '<option value="">テンプレート読込</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+
-    '</select> <button class="btn sm" id="sAdd">＋ 工程</button></span></div><div class="stlist" id="stList">';
+  let h='<div class="stlist" id="stList">';
   const ci=curIdx(s),L=stages(s);let curGp="",gpShow=true;
   L.forEach((x,i)=>{
     if(x.gp&&x.gp!==curGp){curGp=x.gp;
@@ -1215,16 +1218,20 @@ function drawSong(){
         '<option value="d" '+(x.unit==="d"?"selected":"")+'>日</option><option value="m" '+(x.unit==="m"?"selected":"")+'>ヶ月</option></select></div>'+
       '<div style="flex:.5"><span class="lbl">回収日数</span><input type="number" class="inp" data-sl2="'+x.k+'" value="'+(x.lead==null?14:x.lead)+'"></div></div>':"")+
       '</div>'});
-  h+='</div><p class="hint">工程名をタップすると、その場で名前・担当・日程・締切をすべて直せます。⠿ をドラッグで順番を入れ替え。バッジをタップで 未依頼 → 依頼中 → 自分の番 と切り替わります。</p>';
+  h+='</div>'+
+    '<div class="row fg" style="margin-top:12px">'+
+      '<select class="inp sm2" id="applyTpl" style="font-size:11.5px;padding:6px">'+
+      '<option value="">テンプレート読込</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+
+      '</select><button class="btn sm" id="sAdd">＋ 工程</button></div>'+hI;
   if(!LV)h+='<div class="sec">制作クレジット</div>'+
     '<div id="crW">'+crRows(s,"work")+'</div>'+
     '<div class="fg"><button class="btn sm w" data-add="work">＋ 人を追加</button></div>'+
-    '<p class="hint">1行が1人です。名前を入れて、作詞・作曲・編曲のうち担当したものを選んでください。複数選べます。</p>'+
+    ''+
 
     '<div class="sec">ミュージシャンクレジット<span class="r"><button class="btn sm" id="expCr">書き出し</button></span></div>'+
     '<div id="crM">'+crRows(s,"mus")+'</div>'+
     '<div class="fg"><button class="btn sm w" data-add="mus">＋ 人を追加</button></div>'+
-    '<p class="hint">1行が1人です。同じ人が複数パートを弾く場合は「＋パート」で足してください。パートは英語で（Guitar / Bass / Chorus / Programming など）。Mastering Engineer だけの人は宣伝費扱いで請求書欄が出ません。左の ⠿ をドラッグすると並び順を変えられ、その順番のまま書き出されます。</p>';
+    '<p class="hint">1行＝1人。パートは英語表記。⠿ で並び替え。</p>';
   h+='<div class="fg" style="margin-top:18px"><span class="lbl">メモ・申し送り</span>'+
     '<textarea class="inp" data-f="note" placeholder="仕様、注意点">'+esc(s.note)+'</textarea></div>';
   b.innerHTML=h;wireSong()}
@@ -1592,7 +1599,7 @@ function creditSheet(s){
         '<textarea class="inp" id="crT2" style="min-height:190px" readonly>'+esc(head+"\n\n"+creditText(sib,opt))+'</textarea></div>'+
         '<div class="row fg"><button class="btn" id="crCopy2">コピー</button>'+
         '<button class="btn pri" id="crDocP">Wordで書き出す（全'+sib.length+'曲）</button></div>':"")+
-      '<p class="hint">同じ人が単独で担当しているパートは「Programming & Guitar：◯◯」のように1行にまとまります。同じパートを複数人でやっている場合はパート側でまとまります。曲順とクレジットの並び順は、画面で並べた順のまま出ます。</p>';
+      '<p class="hint">同じ人の単独パートは1行にまとまります。並び順は画面のまま出ます。</p>';
     const B=document.getElementById("s3Body");
     B.querySelector("#crMode").onclick=e=>{const x=e.target.closest("[data-cw]");if(!x)return;
       crWork=x.dataset.cw==="1";draw()};
@@ -1706,11 +1713,11 @@ function editProject(id,after){
        '<div><span class="lbl">会場</span><input class="inp" id="pV" value="'+esc(p.venue||"")+'" placeholder="例：中野サンプラザ"></div></div>'+
        '<div class="row fg"><div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div>'+
        '<div><span class="lbl">公演数</span><input class="inp" id="pDays" inputmode="numeric" value="'+esc(p.days||"")+'" placeholder="例 12"></div></div>'+
-       '<p class="hint">初日はこの公演の制作物すべてに自動反映され、そこから逆算して締切が入ります。</p>'
+       '<p class="hint">初日から逆算して締切が入ります。</p>'
      :'<div class="fg"><div class="seg2" id="pS">'+
        '<button data-so="0" aria-pressed="'+(!isSolo(p.artist))+'">グループ</button>'+
        '<button data-so="1" aria-pressed="'+isSolo(p.artist)+'">ソロ</button></div>'+
-       '<p class="hint">ソロにすると、このアーティストの曲から歌割の工程が外れます。設定はアーティスト単位で覚えます。</p></div>'+
+       '<p class="hint">ソロは歌割の工程が外れます。</p></div>'+
      '<div class="row fg"><div style="flex:1.3"><span class="lbl">種別</span><select class="inp" id="pK">'+
        KINDS.map(k=>'<option '+(k===p.kind?"selected":"")+'>'+k+'</option>').join("")+'</select></div>'+
      '<div style="flex:1"><span class="lbl">通算</span><div class="stepper">'+
@@ -1718,13 +1725,13 @@ function editProject(id,after){
        '<button id="pP">＋</button></div></div></div>'+
      '<div class="fg"><span class="lbl">案件名</span><input class="inp" id="pC" value="'+esc(p.custom||"")+'" '+
        'placeholder="'+esc((NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+p.kind)+'">'+
-       '<p class="hint">空欄なら種別と通算から自動で付きます。</p></div>'+
+       '</div>'+
      '<div class="row fg"><div><span class="lbl">発売日</span>'+
        '<input class="inp dt" id="pR" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0911" value="'+esc(fmtDate(p.release))+'"></div>'+
      '<div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div></div>'+
-     '<p class="hint">発売日はこの案件の全曲に自動反映されます（曲側で個別に上書き可）。</p>')+
+     '<p class="hint">発売日は全曲に自動反映されます。</p>')+
      (isShow(p)?"":'<div class="fg"><button class="btn w" id="pSC">スタッフクレジット</button>'+
-       '<p class="hint">アルバムなどで使う、作品全体のスタッフ一覧です。ミュージシャンクレジットのエンジニアはここに入ります。</p></div>')+
+       '<p class="hint">アルバム用。エンジニアはここに入ります。</p></div>')+
      '<div class="fg" style="margin-top:11px"><span class="lbl">メモ</span><textarea class="inp" id="pM2">'+esc(p.note)+'</textarea></div>';
     const B=document.getElementById("s2Body"),g=i=>document.getElementById(i);
     const q=i=>document.getElementById(i);
@@ -1861,7 +1868,7 @@ function masterSheet(){
         '<button data-mk="'+k[0]+'" data-mi="'+i+'">✕</button></span>').join("")||'<p class="hint">まだ登録がありません。</p>')+
       '</div><div class="fg"><input class="inp" data-ak="'+k[0]+'" placeholder="追加して Enter"></div>').join("")+
       '<div class="fg" style="margin-top:16px"><button class="btn w" id="mClean">使っていない候補を整理する</button></div>'+
-      '<p class="hint">曲の入力欄で名前を確定すると、ここに登録されます。打ちかけの文字は登録されません。「整理」を押すと、どこにも使われていない打ちかけの候補を消します。</p>';
+      '<p class="hint">入力欄で確定した名前が貯まります。</p>';
     const B=document.getElementById("s2Body");
     B.querySelectorAll("[data-mk]").forEach(b=>b.onclick=()=>{
       S.masters[b.dataset.mk].splice(+b.dataset.mi,1);mark();draw();syncLists()});
@@ -2353,6 +2360,7 @@ function fixStages(L,ref){
         delete byK[rx.k]});
       L.forEach(x=>{if(byK[x.k])out.push(x)});
       L=out}}
+  L=sortByGroup(L);
   return L}
 function migrate(d){
   const b=BLANK();if(!d)return b;
