@@ -478,8 +478,9 @@ const LTYPES=["セトリ","オープニングSE","ダンス曲","チェイサー
 /* シングルのときだけ出す基準日 */
 const SINGLE_ONLY={meeting:1};
 /* 曲の種類。表記と、シングル専用の基準日の出し分けに使う */
-const SORTS=[["single","シングル","SINGLE"],["album","アルバム","ALBUM"],
-  ["add","アディショナル","ADDITIONAL"],["dl","配信のみ","DIGITAL"]];
+/* 曲の位置づけ。同じシングルの中にも表題とアディショナルがある */
+const SORTS=[["single","表題","TITLE"],["add","アディショナル","ADDITIONAL"],
+  ["album","アルバム曲","ALBUM"],["dl","配信のみ","DIGITAL"]];
 const sortOf=s=>s.sort||(s.single===false?"album":"single");
 const sortTag=s=>{const f=SORTS.find(x=>x[0]===sortOf(s));return f?f[2]:""};
 /* 数字だけで打てる日付入力。0911 / 9/11 / 260911 / 20260911 に対応 */
@@ -633,7 +634,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-e";
+const APP_VER="2026-08-12-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -737,9 +738,12 @@ const isShow=p=>!!p&&(p.mode==="live"||p.kind==="ライブ");
 const SORTBYKIND={"シングル":"single","タイアップ":"single","配信":"dl",
   "アルバム":"album","ミニアルバム":"album","EP":"album","ベスト":"album"};
 function sortForProj(p){if(!p||isShow(p))return"add";return SORTBYKIND[p.kind]||"album"}
-function applySort(s){const p=projOf(s.projectId);
+function applySort(s){
+  if(s.sortSet)return false;            /* 自分で選んだものは動かさない */
+  const p=projOf(s.projectId);
   if(!p||isShow(p))return false;
-  const w=sortForProj(p);
+  /* ライブ先行の曲は、あとでアディショナルかアルバム曲になる */
+  const w=(s.templateId==="tpl_live")?(sortForProj(p)==="album"?"album":"add"):sortForProj(p);
   if(s.sort===w)return false;
   s.sort=w;s.single=(w==="single");return true}
 function projTitle(p){if(!p)return"案件未設定";
@@ -1649,7 +1653,7 @@ function wireSong(){
       if(nu==="live")s.single=false}
     applySolo(s);mark();drawSong();rf()};
   const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
-    s.sort=x.dataset.g;s.single=(s.sort==="single");
+    s.sort=x.dataset.g;s.sortSet=true;s.single=(s.sort==="single");
     mark();drawSong();rf()};
   const dc=b.querySelector("#dateCfg");if(dc)dc.onclick=()=>dateCfg(s);
   const da=b.querySelector("#dateAdd");if(da)da.onclick=()=>dateCfg(s);
@@ -2749,6 +2753,7 @@ function migrate(d){
     if(s.single===undefined)s.single=(s.templateId||"tpl_single")!=="tpl_live";
     if(s.ltype==="インターリュードSE")s.ltype="インタールードSE";
     if(s.sort==="tie")s.sort="single";
+    if(s.sortSet===undefined)s.sortSet=false;
     if(!s.sort){const p0=(d.projects||[]).find(z=>z.id===s.projectId);
       s.sort=(p0&&!isShow(p0)&&(s.templateId||"")!=="tpl_live")?(SORTBYKIND[p0.kind]||"album")
         :(s.single!==false?"single":((s.templateId||"")==="tpl_live"?"add":"album"))}
