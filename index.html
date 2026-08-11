@@ -267,6 +267,10 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .st .grip:hover{color:var(--dim)}
 .st.drag{background:var(--panel2);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.45)}
 .arrbox{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:#1A1C21}
+.rp{border:1px solid var(--line);border-radius:var(--r);padding:10px;background:#1A1C21;margin-bottom:9px}
+.rphd{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.rphd b{font-size:14px}
+.rphd span{font-family:var(--mono);font-size:10.5px;margin-left:auto}
 .arrnow{display:flex;flex-direction:column;gap:2px;margin-bottom:9px}
 .arrnow b{font-size:14px}
 .arrnow span{font-family:var(--mono);font-size:10.5px;color:var(--dim2)}
@@ -735,6 +739,26 @@ const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
 const awaitLabel=r=>r?"修正"+r:"1stアレンジ";
 const haveLabel=r=>r<=1?"1stアレンジ":"修正"+(r-1);
+/* 歌を全部録ってからでないとできない工程。締切は録音の最終日から数える */
+const AFTERREC={warigo:"vo",rhythm:"vo",tsunagi:"vo",pitch:"vo",rough:"vo",
+  choR:"cho",choT:"cho",choP:"cho",revoR:"revo",revoT:"revo",revoP:"revo"};
+function recBefore(s,x){
+  const L=stages(s),i=L.findIndex(z=>z.k===x.k);
+  if(i<0)return null;
+  if(AFTERREC[x.k]){const r=L.find(z=>z.k===AFTERREC[x.k]);if(r&&isMulti(r))return r}
+  /* 自分で足した子工程は、直前の録音工程にぶら下げる */
+  if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
+  return null}
+function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""}
+/* その録音のあと何番目の工程か */
+function recStep(s,rec,x){
+  const L=stages(s),ir=L.indexOf(rec);let n=0;
+  for(let j=ir+1;j<L.length;j++){
+    if(isMulti(L[j]))break;
+    if(L[j].gp!==rec.gp)break;
+    n++;
+    if(L[j].k===x.k)return n}
+  return n||1}
 function slotsOf(s,x){return stg(s,x.k).slots.filter(v=>v.date).sort((a,b)=>a.date.localeCompare(b.date))}
 function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
   return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
@@ -776,6 +800,12 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
 const PRELIVE={"デモ制作":1,"アレンジ":1,"VoDB":1,"ChoDB":1,"楽器DB":1};
 function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
+  /* 録音工程は、決めた日程の最終日がそのまま締切 */
+  if(isMulti(x)){const lr=lastRec(s,x);if(lr)return lr}
+  else{const rec=recBefore(s,x);
+    if(rec){const lr=lastRec(s,rec);
+      /* 録音が済まないと着手できないので、最終録り日から順に2日ずつ空けて並べる */
+      if(lr)return D.addD(lr,2*recStep(s,rec,x))}}
   let d=applyRule(s,x)||applyRule(s,x.fb)||"";
   const lv=s.dates&&s.dates.live;
   if(lv&&d&&d>lv&&PRELIVE[x.gp])d=lv;
@@ -1084,6 +1114,34 @@ function head(){
   document.getElementById("shEye").textContent=[cur.artist||"グループ未設定",
     projTitle(projOf(cur.projectId)),st.k==="fin"?"完了":"現在 "+L[st.i].n].join(" · ")}
 
+/* 録音の日程だけを、いちばん上にまとめて出す。工程の中に埋もれると使いにくいため */
+function slotHTML(s,x,v,si,d){
+  return'<div class="slot'+(v.done?" on":"")+'">'+
+    '<div class="sl1"><button class="chk" role="checkbox" aria-checked="'+(!!v.done)+'" data-sc="'+x.k+'|'+si+'">✓</button>'+
+    dtIn("data-sl",x.k+"|"+si,v.date,d)+
+    '<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" placeholder="'+
+      (isInstRec(x)?"パート":"内容・メンバー")+'" value="'+esc(v.note||"")+'"></div>'+
+    '<div class="sl2"><input class="inp" list="dl_studio" data-ss="'+x.k+'|'+si+'" '+
+      'placeholder="スタジオ" value="'+esc(v.studio||"")+'">'+
+    '<button class="qc'+(v.swait?" on":"")+'" data-sw="'+x.k+'|'+si+'">返事待ち</button>'+
+    '<button class="xb" data-sx2="'+x.k+'|'+si+'">✕</button></div></div>'}
+function recPlanHTML(s){
+  const L=stages(s),ms=L.filter(x=>isMulti(x));
+  if(!ms.length)return"";
+  let h='<div class="sec">録音日程</div>';
+  ms.forEach(x=>{const o=stg(s,x.k),r=recPhase(s,x),d=dlOf(s,x);
+    h+='<div class="rp">'+
+      '<div class="rphd"><b>'+esc(x.n)+'</b>'+
+        '<span class="'+(r.p==="sched"?"c-other":r.p==="none"?"c-todo":"c-me")+'">'+esc(recLabel(s,x))+'</span></div>'+
+      (o.slots.length?o.slots.map((v,si)=>slotHTML(s,x,v,si,d)).join("")
+        :'<p class="hint" style="margin:0 0 8px">まだ日程が決まっていません。決まったら足してください。</p>')+
+      (isInstRec(x)?'<div class="qadd" style="margin-bottom:8px">'+recChips(s).map(pt=>
+        '<button class="qc" data-qa="'+x.k+'|'+esc(pt)+'">＋'+esc(pt)+'</button>').join("")+'</div>':"")+
+      '<div class="arrbtn">'+
+        '<button class="btn sm" data-ro="'+x.k+'">'+(r.p==="sched"?"調整中…（押すと解除）":"日程調整を依頼")+'</button>'+
+        '<button class="btn sm pri" data-sa2="'+x.k+'">＋ 日程を追加</button>'+
+      '</div></div>'});
+  return h}
 function drawSong(){
   const s=cur,b=document.getElementById("shBody"),bl=ballOf(s),p=projOf(s.projectId);
   const popts='<option value="">案件を選択</option>'+S.projects.map(x=>
@@ -1123,7 +1181,7 @@ function drawSong(){
   hI+='<div class="fg"><button class="btn sm" id="dateAdd">＋ 基準日を増やす</button></div>'+
     '<p class="hint">日付は数字だけで入ります。0911 → 9/11</p>';
 
-  let h='<div class="stlist" id="stList">';
+  let h=recPlanHTML(s)+'<div class="sec">工程</div><div class="stlist" id="stList">';
   const ci=curIdx(s),L=stages(s);let curGp="",gpShow=true;
   L.forEach((x,i)=>{
     if(x.gp&&x.gp!==curGp){curGp=x.gp;
@@ -1152,7 +1210,7 @@ function drawSong(){
         bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x));
         if(r.p==="edit"){const ed=edDate(s,x);if(ed)bits.push("EDIT締切 "+D.md(ed))}}
-      if(d)bits.push("締切 "+D.md(d));
+      if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
       if(o.st==="req"&&o.req)bits.push("発注 "+D.md(o.req)+" → 最終締切 "+(ret?D.md(ret):"—"));
       if(left!==null)bits.push(left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日");
       sub=bits.join(" · ")||"締切 未設定"}
@@ -1190,38 +1248,16 @@ function drawSong(){
           SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
         '</div></div>'}
     if(mul){
-      const r=recPhase(s,x);
-      h+='<div class="fg"><span class="lbl">進行</span><div class="arrbox">'+
-        '<div class="arrnow"><b class="'+(r.p==="sched"?"c-other":r.p==="none"?"c-todo":"c-me")+'">'+
-          esc(recLabel(s,x))+'</b>'+
-          '<span>'+(schedFixed(s,x)?esc(slotLine(s,x)):"日程 未確定")+'</span></div>'+
-        '<div class="arrbtn">'+
-          '<button class="btn sm" data-ro="'+x.k+'">'+(r.p==="sched"?"調整中…（押すと解除）":"日程調整を依頼")+'</button>'+
-          '<button class="btn sm pri" data-sa2="'+x.k+'">＋ 日程を追加</button>'+
-        '</div></div></div>'+
-      '<div class="fg"><span class="lbl">日程</span>'+
-        (o.slots.length?o.slots.map((v,si)=>'<div class="slot'+(v.done?" on":"")+'">'+
-          '<div class="sl1"><button class="chk" role="checkbox" aria-checked="'+(!!v.done)+'" data-sc="'+x.k+'|'+si+'">✓</button>'+
-          dtIn("data-sl",x.k+"|"+si,v.date,d)+
-          '<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" placeholder="'+
-            (isInstRec(x)?"パート":"内容・メンバー")+'" value="'+esc(v.note||"")+'"></div>'+
-          '<div class="sl2"><input class="inp" list="dl_studio" data-ss="'+x.k+'|'+si+'" '+
-            'placeholder="スタジオ" value="'+esc(v.studio||"")+'">'+
-          '<button class="qc'+(v.swait?" on":"")+'" data-sw="'+x.k+'|'+si+'">返事待ち</button>'+
-          '<button class="xb" data-sx2="'+x.k+'|'+si+'">✕</button></div></div>').join("")
-          :'<p class="hint" style="margin:0 0 6px">まだ日程が決まっていません。決まったら足してください。</p>')+
-        (isInstRec(x)?'<div class="qadd">'+recChips(s).map(pt=>
-            '<button class="qc" data-qa="'+x.k+'|'+esc(pt)+'">＋'+esc(pt)+'</button>').join("")+'</div>':"")+
-        '</div>'+
+      h+='<p class="hint" style="margin:2px 0 10px">日程は画面いちばん上の「録音日程」で決めます。締切はその最終日がそのまま入ります。</p>'+
         (x.e?'<div class="fg"><span class="lbl">'+esc(x.n.replace(/DB$/,""))+'EDIT</span><div class="edrow">'+
           '<button class="chk" role="checkbox" aria-checked="'+(!!o.ed.done)+'" data-ed="'+x.k+'">✓</button>'+
           '<input class="inp" list="dl_engineer" data-ea="'+x.k+'" placeholder="'+esc(nameFor(s,"engineer")||"担当エンジニア")+'" value="'+esc(o.ed.asg||"")+'">'+
           '</div><p class="hint">締切は最終録り日の'+(x.elead==null?3:x.elead)+'日後'+
           (edDate(s,x)?"（"+esc(edDate(s,x))+"）":"")+'。EDITが済んだらチェックで工程が完了します。</p></div>':"")}
-    h+='<div class="row fg">'+
+    h+=(mul?"":'<div class="row fg">'+
       '<div><span class="lbl">締切</span>'+dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
       '<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div>'+
-      '<div><span class="lbl">最終締切</span>'+dtIn("data-rt",x.k,o.ret||ret,d)+'</div></div>'+
+      '<div><span class="lbl">最終締切</span>'+dtIn("data-rt",x.k,o.ret||ret,d)+'</div></div>')+
       '<div class="row"><button class="btn sm" data-ad2="'+x.k+'">'+(stAdv[x.k]?"締切の計算を閉じる":"締切の計算を変える")+'</button>'+
       '<button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
       '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>'+
