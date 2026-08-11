@@ -639,7 +639,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-11-r";
+const APP_VER="2026-08-11-s";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1041,7 +1041,7 @@ function cardHTML(s,rank){
   const st=status(s),bl=ballOf(s),L=stages(s);
   const fin=st.k==="fin";
   let par=fin?"":(L[st.i].d===1?(function(){for(let j=st.i-1;j>=0;j--)if(L[j].d!==1)return L[j].n;return""})():"");
-  if(!fin&&!par&&L[st.i].gp)par=L[st.i].gp;
+  if(!fin&&!par&&L[st.i].gp&&(s.use||"master")!=="live")par=L[st.i].gp;
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
     stage+="（"+(ao.st==="req"?awaitLabel(ao.rev)+"依頼中":ao.st==="me"?haveLabel(ao.rev)+"確認中":"未依頼")+
@@ -1054,8 +1054,12 @@ function cardHTML(s,rank){
     const kid=hasKids(L,i);
     tops.push({x:x,i:i,kid:kid,ks:kid?kidStat(s,L,i):null,done:doneOf(s,L,i)})});
   /* 段階ごとの進み具合。パッと見て「どこまで来たか」が分かるようにする */
+  const LVC=(s.use||"master")==="live";
   const gps=[];
-  tops.forEach(t=>{const g=t.x.gp||"—";
+  tops.forEach(t=>{
+    if(LVC){gps.push({g:t.x.n,n:1,d:t.done?1:0,cur:t.i===st.i,
+      prov:!t.done&&!!(s.stages[t.x.k]||{}).prov});return}
+    const g=t.x.gp||"—";
     let b2=gps.length?gps[gps.length-1]:null;
     if(!b2||b2.g!==g){b2={g:g,n:0,d:0,cur:false};gps.push(b2)}
     b2.n++;if(t.done)b2.d++;if(t.i===st.i)b2.cur=true;
@@ -1065,8 +1069,8 @@ function cardHTML(s,rank){
     '<i class="'+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'" style="flex:'+b2.n+'"></i>').join("")+'</div>';
   const chips=bar+'<div class="gps">'+gps.map(b2=>
     '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'">'+esc(b2.g)+
-      (b2.d>=b2.n?'<u>✓</u>':b2.cur?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
-    (gps.length>1?'<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span>':"")+'</div>';
+      (b2.d>=b2.n?'<u>✓</u>':b2.cur&&!LVC?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
+    '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
   const kd=[];
   const dpush=(lb,v,cls)=>{if(!v)return;const n=D.to(v),past=n<0;
     const sub=past?"済":n===0?"本日":"あと"+n+"日";
@@ -1076,7 +1080,6 @@ function cardHTML(s,rank){
   dpush("MV撮影",s.dates.mv,"k2");
   dpush("ライブ",s.dates.live,"k3");
   dpush("マスタリング",masDate(s),"k4");
-  if((s.use||"master")==="live"){dpush("リハ",s.dates.rehearsal,"k3");dpush("初日",s.dates.open,"k4")}
   for(let i=0;i<L.length;i++){const x=L[i];
     if(!isMulti(x)||doneOf(s,L,i))continue;
     const sl=slotLine(s,x);if(!sl)continue;
@@ -1121,7 +1124,11 @@ function render(){
     songs.forEach(s=>{const k=s.projectId||"__none";if(!pj.has(k))pj.set(k,[]);pj.get(k).push(s)});
     const blocks=[...pj.entries()].map(e=>{
       const p=projOf(e[0]),key=a+"|"+e[0],open=!V.collapsed[key];
-      const rel=p&&p.release?(isShow(p)?"初日 ":"発売 ")+D.md(p.release):(isShow(p)?"初日 未設定":"発売日 未設定");
+      let rel=p&&p.release?(isShow(p)?"初日 ":"発売 ")+D.md(p.release):(isShow(p)?"初日 未設定":"発売日 未設定");
+      if(p&&isShow(p)){
+        const n=p.release?D.to(p.release):null;
+        rel=(p.rehearsal?"リハ "+D.md(p.rehearsal)+" · ":"")+rel+
+          (n===null?"":" · "+(n<0?"済":n===0?"本日":"あと"+n+"日"))}
       const near=p&&p.release&&D.to(p.release)<=45;
       return'<div class="proj" role="button" tabindex="0" data-c="'+esc(key)+'" data-p="'+esc(e[0])+'" aria-expanded="'+open+'">'+
         '<span class="caret">▼</span><h3>'+esc(projTitle(p))+'</h3>'+
