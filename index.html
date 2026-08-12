@@ -476,7 +476,7 @@ const ANCHOR_KEYS=Object.keys(ANCHORS).filter(k=>!HIDE_ANCHOR[k]);
 const LIVE_LBL={open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出",lesson:"ダンスレッスン"};
 const anchorLabel=(s,k)=>(s&&s.use==="live"&&LIVE_LBL[k])||ANCHORS[k];
 /* ライブ制作物の種類 */
-const LTYPES=["セトリ","オープニングSE","ダンス曲","チェイサー","カラオケ","BUVo",
+const LTYPES=["セトリ","歌割","オープニングSE","ダンス曲","チェイサー","カラオケ","BUVo",
   "転換SE","インタールードSE","エンディングSE","効果音","メドレー","MC BGM","影アナ","その他"];
 /* シングルのときだけ出す基準日 */
 const SINGLE_ONLY={meeting:1};
@@ -623,6 +623,7 @@ const SHOWFLOW={
   "効果音":SEFLOW,
   "ダンス曲":SEFLOW,
   "MC BGM":SEFLOW,
+  "歌割":["make"],
   "チェイサー":["make","deliv2"],
   "カラオケ":["make","deliv2"],
   "メドレー":["make","deliv2"],
@@ -639,7 +640,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-n";
+const APP_VER="2026-08-12-o";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -773,6 +774,7 @@ function masDate(s){if(s.dates.mastering)return s.dates.mastering;
 function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],asg:""};
   const o=s.stages[k];if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";
   if(o.ret===undefined)o.ret="";if(!o.slots)o.slots=[];if(o.asg===undefined)o.asg="";
+  if(o.memo===undefined)o.memo="";
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";if(o.prov===undefined)o.prov=false;
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","ReVoDB","仕上げ"];
@@ -1431,6 +1433,7 @@ function drawSong(){
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
       if(o.st==="req"&&o.req)bits.push("発注 "+D.md(o.req));
       if(left!==null)bits.push(left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日");
+      if(o.memo)bits.push("✎ "+o.memo.split("\n")[0].slice(0,24));
       sub=bits.join(" · ")||"締切 未設定"}
     h+='<div class="st '+(dn?"on":"")+' '+(late?"late":"")+' '+(x.d===1?"kid":"")+' '+(i===ci?"cur":"")+'" data-srow="'+x.k+'">'+
       '<button class="grip" data-tg="'+x.k+'">⠿</button>'+
@@ -1448,6 +1451,8 @@ function drawSong(){
         (rr==="masEng"?"masEng":rr==="director"?"director":rr==="lyricist"||rr==="composer"||rr==="arranger"?rr:"engineer")+
         '" data-as="'+x.k+'" '+
         'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,rr)||ROLES[rr]||"")+'"></div>'})();
+    h+='<div class="fg"><span class="lbl">メモ</span>'+
+      '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>';
     if(ORDERPAIR[x.k]&&stages(s).some(z=>z.k===ORDERPAIR[x.k])){
       const bx=stages(s).find(z=>z.k===ORDERPAIR[x.k]),bo=stg(s,bx.k);
       h+='<div class="fg"><span class="lbl">この発注の先</span><div class="arrbox">'+
@@ -1720,6 +1725,10 @@ function wireSong(){
       if(x&&ORDERPAIR[x.k]){const bx=s.stageList.find(z=>z.k===ORDERPAIR[x.k]);if(bx)r=bx.role}
       mAdd(r==="masEng"?"masEng":r==="director"?"director":
         (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
+  b.querySelectorAll("[data-mm]").forEach(e=>{
+    const fit=()=>{e.style.height="auto";e.style.height=(e.scrollHeight+2)+"px"};
+    fit();e.oninput=()=>{stg(s,e.dataset.mm).memo=e.value;fit();mark()};
+    e.onblur=()=>{drawSong();rf()}});
   b.querySelectorAll("[data-dlr]").forEach(e=>e.onclick=()=>{
     stg(s,e.dataset.dlr).dl="";mark();drawSong();rf()});
   b.querySelectorAll("[data-ad2]").forEach(e=>e.onclick=()=>{
