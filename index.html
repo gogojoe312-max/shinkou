@@ -637,7 +637,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-k";
+const APP_VER="2026-08-12-m";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2755,22 +2755,18 @@ function migrate(d){
   b.masters.instrument=[...new Set((b.masters.instrument||[]).map(toEnPart).map(v=>v==="Horns"?"Brass":v))];
   if(d.settings)b.settings=Object.assign(b.settings,d.settings);
   b.songs=(d.songs||[]).map(s=>{
-    /* ライブ制作物は、録音用の工程を持っていたらライブ用に組み直す */
+    /* ライブ制作物なのに録音用の工程しか持っていないなら、ライブ用に組み直す */
     if(s.use==="live"||(s.templateId==="tpl_show"&&!s.use)){
       const sh=b.templates.find(x=>x.id==="tpl_show")||tplShow();
-      const showKeys={};sh.stages.forEach(x=>showKeys[x.k]=1);
-      const hit=(s.stageList||[]).filter(x=>showKeys[x.k]).length;
-      if(hit<3){s.templateId="tpl_show";s.use="live";s.single=false;
+      const hit=(s.stageList||[]).filter(x=>SHOWSTG[x.k]).length;
+      if(!hit){s.templateId="tpl_show";s.use="live";s.single=false;
         s.stageList=showStages(s.ltype);
-        s.tplDates=sh.dates.slice();s.tplMastering=null}}
+        s.tplDates=sh.dates.slice();s.tplMastering=null}
+      else{s.templateId="tpl_show";s.use="live";s.single=false}}
     const t=b.templates.find(x=>x.id===(s.templateId||"tpl_single"))||b.templates[0];
     const LVS=(s.use==="live"||s.templateId==="tpl_show");
     if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(LVS?showStages(s.ltype):t.stages));
     s.stageList=fixStages(s.stageList,LVS?null:t);
-    /* 制作物は、まだ何も終わっていなければ種類に合う工程へ揃える */
-    if(LVS&&s.ltype&&!Object.keys(s.stages||{}).some(k=>(s.stages[k]||{}).done)){
-      const want=showStages(s.ltype);
-      if(want.map(x=>x.k).join()!==s.stageList.map(x=>x.k).join())s.stageList=want}
     if(!s.tplDates)s.tplDates=t.dates.slice();
     if(s.tplMastering===undefined)s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
     if(!s.dates)s.dates={};
@@ -2810,6 +2806,19 @@ function migrate(d){
       .sort((a2,b3)=>ANCHOR_KEYS.indexOf(a2)-ANCHOR_KEYS.indexOf(b3));
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
+    /* 制作物は種類に合う工程へ揃える。進めた分は残し、自分で足した工程も残す */
+    if((s.use==="live"||s.templateId==="tpl_show")&&s.ltype){
+      const want=showStages(s.ltype),have=s.stageList;
+      if(want.map(x=>x.k).join()!==have.map(x=>x.k).join()){
+        const byK={};have.forEach(x=>byK[x.k]=x);
+        const wantK={};want.forEach(x=>wantK[x.k]=1);
+        /* 種類の並びに合わせる。すでにある工程は設定ごと残す */
+        const next=want.map(x=>byK[x.k]||x);
+        /* 済ませた工程・自分で足した工程は落とさない */
+        have.forEach(x=>{if(wantK[x.k])return;
+          const o=(s.stages||{})[x.k]||{};
+          if(o.done||o.date||o.st||o.rev||(o.slots||[]).length||!SHOWSTG[x.k])next.push(x)});
+        s.stageList=next}}
     /* 旧アレンジ工程の記録を新しい1工程へ引き継ぐ */
     if((s.stages.arrfix||s.stages.arrbld)&&!s.stages.arr){
       const a=s.stages.arrfix||{},b2=s.stages.arrbld||{};
