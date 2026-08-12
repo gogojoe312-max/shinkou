@@ -468,7 +468,7 @@ const ANCHORS={release:"発売日",meeting:"会議日",lesson:"ダンスレッ�
   live:"ライブ初披露日",mastering:"マスタリング日",
   open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出"};
 /* 欄としては出さない基準日。工程の基準としては今までどおり使える */
-const HIDE_ANCHOR={open:1,deliver:1};
+const HIDE_ANCHOR={deliver:1};
 const ANCHOR_KEYS=Object.keys(ANCHORS).filter(k=>!HIDE_ANCHOR[k]);
 /* ライブの制作物では呼び名が変わる */
 const LIVE_LBL={open:"公演初日",rehearsal:"リハーサル",deliver:"音源提出",lesson:"ダンスレッスン"};
@@ -597,18 +597,20 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"mas",    n:"マスタリング",                 role:"masEng",   anchor:"mastering",off:0,unit:"d",gp:"仕上げ"}]}}
 
 /* ライブ制作物の工程は、作るものによって変える */
+/* ライブ制作物の締切はリハから逆算する。リハが無ければ初日から */
+const RH={anchor:"rehearsal",unit:"d"};
 const SHOWSTG={
-  plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"open",off:-45,unit:"d",gp:"制作"},
-  order: {k:"order", n:"発注",     role:"me",       anchor:"open",off:-35,unit:"d",gp:"制作"},
-  build: {k:"build", n:"制作・やり取り", role:"arranger", anchor:"open",off:-25,unit:"d",t:"arr",gp:"制作"},
-  make:  {k:"make",  n:"作成",     role:"me",       anchor:"open",off:-20,unit:"d",gp:"制作"},
-  lrecS: {k:"lrecS", n:"BUVoスケジュール",    role:"me",       anchor:"open",off:-32,unit:"d",t:"multi",gp:"制作"},
-  lrec:  {k:"lrec",  n:"BUVo録り",           role:"me",       anchor:"open",off:-32,unit:"d",gp:"制作"},
-  lrecE: {k:"lrecE", n:"BUVoEDITスケジュール",role:"engineer", anchor:"open",off:-24,unit:"d",t:"multi",gp:"制作"},
-  rec2:  {k:"rec2",  n:"録り",     role:"me",       anchor:"open",off:-18,unit:"d",t:"multi",gp:"制作"},
-  chk1:  {k:"chk1",  n:"確認",     role:"room",     anchor:"open",off:-16,unit:"d",gp:"制作"},
-  td2:   {k:"td2",   n:"ミックス", role:"engineer", anchor:"open",off:-12,unit:"d",gp:"制作"},
-  deliv2:{k:"deliv2",n:"納品",     role:"me",       anchor:"deliver",off:0,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}};
+  plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"rehearsal",off:-38,unit:"d",fb:{anchor:"open",off:-45,unit:"d"},gp:"制作"},
+  order: {k:"order", n:"発注",     role:"me",       anchor:"rehearsal",off:-28,unit:"d",fb:{anchor:"open",off:-35,unit:"d"},gp:"制作"},
+  build: {k:"build", n:"制作・やり取り", role:"arranger", anchor:"rehearsal",off:-18,unit:"d",fb:{anchor:"open",off:-25,unit:"d"},t:"arr",gp:"制作"},
+  make:  {k:"make",  n:"作成",     role:"me",       anchor:"rehearsal",off:-13,unit:"d",fb:{anchor:"open",off:-20,unit:"d"},gp:"制作"},
+  lrecS: {k:"lrecS", n:"BUVoスケジュール",    role:"me",       anchor:"rehearsal",off:-25,unit:"d",fb:{anchor:"open",off:-32,unit:"d"},t:"multi",gp:"制作"},
+  lrec:  {k:"lrec",  n:"BUVo録り",           role:"me",       anchor:"rehearsal",off:-25,unit:"d",fb:{anchor:"open",off:-32,unit:"d"},gp:"制作"},
+  lrecE: {k:"lrecE", n:"BUVoEDITスケジュール",role:"engineer", anchor:"rehearsal",off:-17,unit:"d",fb:{anchor:"open",off:-24,unit:"d"},t:"multi",gp:"制作"},
+  rec2:  {k:"rec2",  n:"録り",     role:"me",       anchor:"rehearsal",off:-11,unit:"d",fb:{anchor:"open",off:-18,unit:"d"},t:"multi",gp:"制作"},
+  chk1:  {k:"chk1",  n:"確認",     role:"room",     anchor:"rehearsal",off:-9,unit:"d",fb:{anchor:"open",off:-16,unit:"d"},gp:"制作"},
+  td2:   {k:"td2",   n:"ミックス", role:"engineer", anchor:"rehearsal",off:-5,unit:"d",fb:{anchor:"open",off:-12,unit:"d"},gp:"制作"},
+  deliv2:{k:"deliv2",n:"納品",     role:"me",       anchor:"rehearsal",off:-2,unit:"d",fb:{anchor:"open",off:-7,unit:"d"},gp:"制作"}};
 const SEFLOW=["order","build","td2","deliv2"];
 const SHOWFLOW={
   "セトリ":["plan"],
@@ -627,7 +629,7 @@ const SHOWFLOW={
   "その他":["plan","order","build","td2","deliv2"]};
 function showStages(ty){const ks=SHOWFLOW[ty]||SHOWFLOW["その他"];
   return ks.map(k=>JSON.parse(JSON.stringify(SHOWSTG[k])))}
-function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehearsal"],
+function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehearsal","open"],
  mastering:null,
  stages:showStages("その他")}}
 
@@ -635,7 +637,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-h";
+const APP_VER="2026-08-12-i";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -933,10 +935,12 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
   if(!all&&o.done){o.done=false}}
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
 const PRELIVE={"デモ制作":1,"アレンジ":1,"VoDB":1,"ChoDB":1,"楽器DB":1};
+function autoDl(s,x){const o=stg(s,x.k),keep=o.dl;o.dl="";
+  try{return dlOf(s,x)}finally{o.dl=keep}}
 function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
   const d0=dlRaw(s,x);
   /* 前の工程より前に来てしまう締切は、前の工程に合わせる */
-  if(AFTERREC[x.k]||RECMIRROR[x.k]){
+  if((AFTERREC[x.k]||RECMIRROR[x.k])&&!o.dl){
     const L=stages(s),i=L.findIndex(z=>z.k===x.k);
     if(i>0&&L[i-1].gp===x.gp){const pd=dlOf(s,L[i-1]);
       if(pd&&(!d0||d0<pd))return pd}}
@@ -1354,6 +1358,7 @@ function drawSong(){
   const useKeys=(s.tplDates&&s.tplDates.length)?s.tplDates:Object.keys(ANCHORS);
   useKeys.forEach(k=>{
     if(!ANCHORS[k]||HIDE_ANCHOR[k])return;
+    if((k==="open"||k==="rehearsal")&&(s.use||"master")!=="live")return;
     if(SINGLE_ONLY[k]&&s.single===false)return;
     if(k==="release"||k==="open"){
       const isO=k==="open";
@@ -1449,9 +1454,11 @@ function drawSong(){
           (isInstRec(x)?'<div class="qadd">'+recChips(s).map(pt=>
             '<button class="qc" data-qa="'+x.k+'|'+esc(pt)+'">＋'+esc(pt)+'</button>').join("")+'</div>':"")+
           '</div>':"")}
-    h+=(mul?"":'<div class="row fg">'+
+    h+='<div class="row fg">'+
       '<div><span class="lbl">締切</span>'+dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
-      '<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div></div>')+
+      (mul?'<div></div>':'<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div>')+'</div>'+
+      (o.dl?'<p class="hint" style="margin:-2px 0 8px">締切を自分で決めています。'+
+        '<button class="btn sm" data-dlr="'+x.k+'" style="margin-left:6px">自動に戻す</button></p>':"")+
       '<div class="row"><button class="btn sm" data-ad2="'+x.k+'">'+(stAdv[x.k]?"締切の計算を閉じる":"締切の計算を変える")+'</button>'+
       '<button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
       '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>'+
@@ -1575,8 +1582,8 @@ function wireSong(){
   wireDt("[data-sd]",(e,v)=>{const k=e.dataset.sd,o=stg(s,k);
     if(o.done){o.date=v;return}
     const x=s.stageList[s.stageList.findIndex(z=>z.k===k)];
-    /* 自動計算どおりの日付なら上書きを持たない（基準日を変えたら追従させるため） */
-    o.dl=(v&&v===(applyRule(s,x)||applyRule(s,x.fb)||""))?"":v});
+    /* 自動計算どおりの日付なら覚えない（基準日を変えたら追従させるため） */
+    o.dl=(v&&v===autoDl(s,x))?"":v});
   wireDt("[data-rq]",(e,v)=>{const o=stg(s,e.dataset.rq);o.req=v;if(v&&!o.st)o.st="req"});
   wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
   b.querySelectorAll("[data-td2]").forEach(e=>e.onclick=()=>{
@@ -1674,6 +1681,8 @@ function wireSong(){
       const r=x?x.role:"engineer";
       mAdd(r==="masEng"?"masEng":r==="director"?"director":
         (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
+  b.querySelectorAll("[data-dlr]").forEach(e=>e.onclick=()=>{
+    stg(s,e.dataset.dlr).dl="";mark();drawSong();rf()});
   b.querySelectorAll("[data-ad2]").forEach(e=>e.onclick=()=>{
     stAdv[e.dataset.ad2]=!stAdv[e.dataset.ad2];drawSong()});
   b.querySelectorAll("[data-skid]").forEach(e=>e.onclick=()=>{
@@ -1747,8 +1756,9 @@ function wireSong(){
 
 function dateCfg(s){
   s3("DATES","使う基準日",
-    ANCHOR_KEYS.map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
-      ((s.tplDates||[]).indexOf(k)>=0?"checked":"")+'> '+esc(ANCHORS[k])+'</label>').join("")+
+    ANCHOR_KEYS.filter(k=>(s.use||"master")==="live"?(k==="open"||k==="rehearsal"):(k!=="open"&&k!=="rehearsal"))
+      .map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
+      ((s.tplDates||[]).indexOf(k)>=0?"checked":"")+'> '+esc(anchorLabel(s,k))+'</label>').join("")+
     '<div class="sec">マスタリング日の自動計算</div>'+
     '<div class="fg"><div class="seg2" id="masSeg">'+
     '<button data-ms="auto" aria-pressed="'+(!!s.tplMastering)+'">自動で決める</button>'+
@@ -2709,6 +2719,7 @@ function migrate(d){
       t.stages=fixStages(t.stages||[],ref);
       t.dates=(t.dates||[]).filter(k=>ANCHORS[k]&&!HIDE_ANCHOR[k]);
       if(t.id!=="tpl_show")["lesson","mv","live"].forEach(k=>{if(t.dates.indexOf(k)<0)t.dates.push(k)});
+      else ["rehearsal","open"].forEach(k=>{if(t.dates.indexOf(k)<0)t.dates.push(k)});
       t.dates.sort((x,y)=>ANCHOR_KEYS.indexOf(x)-ANCHOR_KEYS.indexOf(y))})}
   /* 既定テンプレートが欠けていたら足す（欠けるとライブ用が録音用になってしまう） */
   [tplSingle(),tplLive(),tplShow()].forEach(t=>{
@@ -2767,7 +2778,9 @@ function migrate(d){
     if(!s.use)s.use=(s.templateId||"")==="tpl_show"?"live":"master";
     /* レッスン・MV撮影・ライブ初披露は最初から出す。公演初日・音源提出の欄は持たせない */
     if(s.use!=="live")["lesson","mv","live"].forEach(k=>{if(s.tplDates.indexOf(k)<0)s.tplDates.push(k)});
-    s.tplDates=s.tplDates.filter(k=>ANCHORS[k]&&!HIDE_ANCHOR[k])
+    else ["rehearsal","open"].forEach(k=>{if(s.tplDates.indexOf(k)<0)s.tplDates.push(k)});
+    s.tplDates=s.tplDates.filter(k=>ANCHORS[k]&&!HIDE_ANCHOR[k]&&
+      ((s.use||"master")==="live"?(k==="rehearsal"||k==="open"):(k!=="rehearsal"&&k!=="open")))
       .sort((a2,b3)=>ANCHOR_KEYS.indexOf(a2)-ANCHOR_KEYS.indexOf(b3));
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
