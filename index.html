@@ -640,7 +640,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-q";
+const APP_VER="2026-08-12-r";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -930,21 +930,18 @@ const waitReply=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
 function recPhase(s,x){
   const o=stg(s,x.k),sl=o.slots.filter(a=>a.date||a.note||a.who);
   const dated=sl.filter(a=>a.date),dn=sl.filter(a=>a.done);
+  const soon=nextSlot(s,x);
+  if(soon)return{p:"await",d:dn.length,n:sl.length,next:soon};
   if(o.done)return{p:"done"};
   if(sl.length&&dn.length===sl.length)return{p:"recdone"};
   if(o.st==="studio")return{p:"studio",d:dn.length,n:sl.length};
   if(waitReply(s,x))return{p:"wait",d:dn.length,n:sl.length};
-  if(dated.length){
-    const next=dated.filter(a=>!a.done).map(a=>a.date).sort()[0]||"";
-    /* まだ最初の日が来ていないなら「日程待ち」 */
-    if(next&&D.to(next)>0)return{p:"await",d:dn.length,n:sl.length,next:next};
-    return{p:"rec",d:dn.length,n:sl.length,next:next}}
+  if(dated.length)return{p:"rec",d:dn.length,n:sl.length};
   if(sl.length)return{p:"listed",n:sl.length};
   if(o.st==="req")return{p:"sched"};
   return{p:"none"}}
 function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
-  if(r.p==="done"){const d0=nextSlot(s,x);
-    return d0&&D.to(d0)>0?"日程待ち "+D.md(d0):"完了"}
+  if(r.p==="done")return"完了";
   if(r.p==="studio")return"スタジオ 連絡待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="await")return"日程待ち "+D.md(r.next)+(r.n>1?"（済 "+r.d+"/"+r.n+"）":"");
@@ -1016,19 +1013,20 @@ const schedFixed=(s,x)=>slotsOf(s,x).length>0;
 function waitDate(s,x){
   const o=stg(s,x.k);
   /* 日程を持つ工程は、自分の日を見る（済みにしていても日が来るまでは待ち） */
-  if(isMulti(x)){const d1=nextSlot(s,x);return d1&&D.to(d1)>0?d1:""}
+  if(isMulti(x))return nextSlot(s,x);
   if(o.done)return"";
   /* スケジュールと対になる工程は、そのスケジュールの日を見る */
   const mk=RECMIRROR[x.k];
   if(mk){const r0=stages(s).find(z=>z.k===mk);
-    if(r0){const d0=nextSlot(s,r0);if(d0&&D.to(d0)>0)return d0}
-    return""}
+    return r0?nextSlot(s,r0):""}
   /* 楽器DBの1本ごとの工程は、自分の日を見る */
   if(/^sl_/.test(x.k)&&o.dl&&D.to(o.dl)>0)return o.dl;
   return""}
-/* まだ済んでいない、いちばん近い日 */
+/* これから来る日のうち、いちばん近いもの。
+   先の日付は録りようがないので、済みチェックが付いていても「これから」とみなす */
 function nextSlot(s,x){
-  return (stg(s,x.k).slots||[]).filter(a=>a.date&&!a.done).map(a=>a.date).sort()[0]||""}
+  return (stg(s,x.k).slots||[]).map(a=>a.date)
+    .filter(d0=>d0&&D.to(d0)>0).sort()[0]||""}
 function whoOf(s,x){
   const o=stg(s,x.k);
   {const w0=waitDate(s,x);
@@ -1091,12 +1089,14 @@ function ballsOf(s){
   if(par>=0&&L[par+1]&&L[par+1].d===1)
     for(let j=par+1;j<L.length&&L[j].d===1;j++){
       if(j===ci||(s.stages[L[j].k]||{}).done)continue;push(L[j])}
-  /* 先に進んでいても、発注して返事を待っている工程は出す */
+  /* 先に進んでいても、発注して返事を待っている工程・日にちが決まっている工程は出す */
   L.forEach((x,i)=>{if(i<=ci)return;
     const o=s.stages[x.k]||{};
-    if(o.done||o.st!=="req")return;
     /* スケジュールと対になる工程は、同じ相手なので出さない */
     if(RECMIRROR[x.k])return;
+    /* 親のスケジュールで出るので、その1本ごとの工程は出さない */
+    if(waitDate(s,x)){if(!/^sl_/.test(x.k))push(x);return}
+    if(o.done||o.st!=="req")return;
     const w=whoOf(s,x);if(w.c==="other"||w.c==="room")push(x)});
   return out}
 function status(s){const i=curIdx(s),L=stages(s);
