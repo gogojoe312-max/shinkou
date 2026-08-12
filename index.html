@@ -114,6 +114,7 @@ main>.artist:first-child{margin-top:2px}
 .ball.room{color:var(--room);background:rgba(181,123,255,.13)}
 .ball.none{color:var(--dim2);background:rgba(140,145,155,.1)}
 .ball.todo{color:var(--dim2);background:transparent;border:1px dashed var(--line2)}
+.ball.wait{color:var(--warn);background:rgba(232,163,61,.12)}
 
 .now{display:flex;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:9px;color:var(--dim)}
 .now b{color:var(--ink);font-weight:700;font-size:13.5px}
@@ -282,6 +283,7 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .arrnow b{font-size:14px}
 .arrnow span{font-family:var(--mono);font-size:10.5px;color:var(--dim2)}
 .c-other{color:var(--other)}.c-me{color:var(--me)}.c-todo{color:var(--dim2)}
+.c-wait{color:var(--warn)}
 .arrbtn{display:flex;gap:6px;align-items:center}
 .arrbtn .btn{flex:1}
 .dtwrap{display:flex;gap:4px;align-items:stretch}
@@ -637,7 +639,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-m";
+const APP_VER="2026-08-12-n";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -924,13 +926,17 @@ function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
 const waitReply=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
 /* 日程を持つ工程の状態：未依頼 → 日程調整 → 返事待ち → 日程確定 → 完了 */
 function recPhase(s,x){
-  const o=stg(s,x.k),sl=o.slots.filter(a=>a.date||a.note);
+  const o=stg(s,x.k),sl=o.slots.filter(a=>a.date||a.note||a.who);
   const dated=sl.filter(a=>a.date),dn=sl.filter(a=>a.done);
   if(o.done)return{p:"done"};
   if(sl.length&&dn.length===sl.length)return{p:"recdone"};
   if(o.st==="studio")return{p:"studio",d:dn.length,n:sl.length};
   if(waitReply(s,x))return{p:"wait",d:dn.length,n:sl.length};
-  if(dated.length)return{p:"rec",d:dn.length,n:sl.length};
+  if(dated.length){
+    const next=dated.filter(a=>!a.done).map(a=>a.date).sort()[0]||"";
+    /* まだ最初の日が来ていないなら「日程待ち」 */
+    if(next&&D.to(next)>0)return{p:"await",d:dn.length,n:sl.length,next:next};
+    return{p:"rec",d:dn.length,n:sl.length,next:next}}
   if(sl.length)return{p:"listed",n:sl.length};
   if(o.st==="req")return{p:"sched"};
   return{p:"none"}}
@@ -938,12 +944,13 @@ function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
   if(r.p==="done")return"完了";
   if(r.p==="studio")return"スタジオ 連絡待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
+  if(r.p==="await")return"日程待ち "+D.md(r.next)+(r.n>1?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
   if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
   if(r.p==="sched")return"日程調整 依頼中";
   return"未依頼"}
 /* 日程がすべて済んだら工程も完了にする */
-function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note);
+function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note||a.who);
   if(!v.length)return;
   const all=v.every(a=>a.done);
   if(all&&!o.done){o.done=true;if(!o.date)o.date=v.map(a=>a.date).filter(Boolean).sort().pop()||D.today()}
@@ -1019,6 +1026,7 @@ function whoOf(s,x){
     if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
     if(r.p==="studio")return{c:"other",t:"スタジオ 連絡待ち",st:"req"};
+    if(r.p==="await")return{c:"wait",t:"日程待ち "+D.md(r.next),st:"req"};
     if(r.p==="wait")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"済 "+r.d+"/"+r.n,st:"me"};
     if(r.p==="recdone")return{c:"me",t:"すべて済",st:"me"};
@@ -1027,6 +1035,11 @@ function whoOf(s,x){
     if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
     if(o.st==="req")return{c:"room",t:"会議待ち",st:"req"};
     return{c:"todo",t:"未依頼",st:""}}
+  /* スケジュールと対になる工程は、その日が来るまで日程待ち */
+  if(RECMIRROR[x.k]&&!o.done){
+    const r0=stages(s).find(z=>z.k===RECMIRROR[x.k]);
+    if(r0){const rp=recPhase(s,r0);
+      if(rp.p==="await")return{c:"wait",t:"日程待ち "+D.md(rp.next),st:"req"}}}
   if(x.role==="me"){
     if(o.st==="me")return{c:"me",t:(o.asg||"自分")+"の番",st:"me"};
     if(o.st==="req")return{c:"other",t:(o.asg||"相手")+" 待ち",st:"req"};
@@ -1467,7 +1480,7 @@ function drawSong(){
     if(mul){
       const r=recPhase(s,x);
       h+='<div class="fg"><span class="lbl">日程</span><div class="arrbox">'+
-        '<div class="arrnow"><b class="'+(r.p==="sched"?"c-other":r.p==="none"?"c-todo":"c-me")+'">'+
+        '<div class="arrnow"><b class="'+(r.p==="sched"||r.p==="studio"||r.p==="wait"?"c-other":r.p==="await"?"c-wait":r.p==="none"?"c-todo":"c-me")+'">'+
           esc(recLabel(s,x))+'</b>'+
           '<span>'+(schedFixed(s,x)?esc(slotLine(s,x)):"日程 未定")+'</span></div>'+
         '<div class="arrbtn">'+
