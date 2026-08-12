@@ -634,7 +634,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-f";
+const APP_VER="2026-08-12-g";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -735,6 +735,10 @@ function applySolo(s){
 function ord(n){const a=["th","st","nd","rd"],v=n%100;return n+(a[(v-20)%10]||a[v]||a[0])}
 const isShow=p=>!!p&&(p.mode==="live"||p.kind==="ライブ");
 /* 案件の種類から、その曲の既定の種類を決める */
+/* 録りのスケジュールで書く相手はスタジオ。EDIT・ミックスはエンジニア */
+const STUDIOK={vo:1,cho:1,revo:1,instrec:1,lrecS:1,rec2:1};
+const whoList=x=>STUDIOK[x.k]?"studio":(x.role==="engineer"?"engineer":"musician");
+const whoPh=x=>STUDIOK[x.k]?"スタジオ":(x.role==="engineer"?"担当エンジニア":"誰に頼むか");
 const SORTBYKIND={"シングル":"single","タイアップ":"single","配信":"dl",
   "アルバム":"album","ミニアルバム":"album","EP":"album","ベスト":"album"};
 function sortForProj(p){if(!p||isShow(p))return"add";return SORTBYKIND[p.kind]||"album"}
@@ -819,7 +823,7 @@ function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""
 /* その録音のあと何番目の工程か */
 /* 日程に書いた依頼先を、ミュージシャンクレジットへ反映する */
 function slotPart(x,v){
-  if(isInstRec(x))return toEnPart(v.note||"");
+  if(STUDIOK[x.k])return "";   /* スタジオ名は演奏者ではない */
   if(x.k==="cho")return "Chorus";
   if(x.k==="tdes")return MIXPART;
   if(x.k==="lrecS")return "Background Vocals";
@@ -828,7 +832,7 @@ function slotPart(x,v){
 /* 楽器DBスケジュールで決めた1本ごとに、楽器DBの子工程を作る。
    パート・演奏者・日付をそのまま引き継ぎ、録り終えたらチェックが同期する */
 function slotKey(v,i){
-  const t=((v.note||"")+"|"+(v.who||"")).replace(/[^\w\u3040-\u30ff\u4e00-\u9fff]/g,"");
+  const t=(v.note||"").replace(/[^\w\u3040-\u30ff\u4e00-\u9fff]/g,"");
   return "sl_"+(t||"x")+"_"+i}
 function syncInstKids(s){
   const L=s.stageList||[];
@@ -841,7 +845,7 @@ function syncInstKids(s){
   const mine=old.filter(x=>!/^sl_/.test(x.k));
   const want=slots.map((v,i)=>{
     const k=slotKey(v,i);
-    const nm=[v.note||"パート未定",v.who||""].filter(Boolean).join(" · ");
+    const nm=v.note||"パート未定";
     const was=old.find(x=>x.k===k);
     return Object.assign(was||{},{k:k,n:nm,role:par.role,gp:par.gp,d:1,
       anchor:par.anchor,off:par.off,unit:par.unit,fb:par.fb,t:"",lead:par.lead==null?14:par.lead})});
@@ -858,7 +862,8 @@ function syncInstKids(s){
   slots.forEach((v,i)=>{const o=stg(s,slotKey(v,i));
     if(o.dl!==(v.date||"")){o.dl=v.date||"";ch=true}
     if(!!v.done!==!!o.done){o.done=!!v.done;o.date=v.done?(v.date||D.today()):"";ch=true}
-    if(o.asg!==(v.who||"")){o.asg=v.who||"";ch=true}});
+    const who=(v.who||"").trim();
+    if(o.asg!==who){o.asg=who;ch=true}});
   if(next.length&&stg(s,par.k).asg){stg(s,par.k).asg="";ch=true}
   return ch}
 function syncSlotAssign(s){
@@ -1022,9 +1027,9 @@ function ballsOf(s){
   const short=x=>{const n=x.n||"";
     if(x.d===1)return n.split(" · ")[0]||n;
     return n.replace(/スケジュール$/,"").replace(/DB$/,"DB")};
-  const push=x=>{const w=whoOf(s,x);const key=w.c+"|"+w.t;
+  const push=x=>{const g=short(x),w=whoOf(s,x),key=w.c+"|"+w.t+"|"+g;
     if(seen[key])return;seen[key]=1;
-    out.push({c:w.c,t:w.t,g:short(x)})};
+    out.push({c:w.c,t:w.t,g:g})};
   push(L[ci]);
   /* 同じ親の中の子工程は、同時に進むので全部見る */
   const par=(function(){if(L[ci].d!==1)return ci;
@@ -1039,7 +1044,7 @@ function ballsOf(s){
     /* スケジュールと対になる工程は、同じ相手なので出さない */
     if(RECMIRROR[x.k])return;
     const w=whoOf(s,x);if(w.c==="other"||w.c==="room")push(x)});
-  return out.slice(0,3)}
+  return out}
 function status(s){const i=curIdx(s),L=stages(s);
   if(i>=L.length)return{k:"fin",i:i,dl:"",left:null,lb:""};
   const x=L[i],o=stg(s,x.k);
@@ -1320,8 +1325,8 @@ function slotHTML(s,x,v,si,d){
     (isInstRec(x)?'<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" '+
       'placeholder="パート" value="'+esc(v.note||"")+'">':"")+'</div>'+
     '<div class="sl2">'+
-    '<input class="inp" list="dl_'+(x.role==="engineer"?"engineer":"musician")+'" data-sp="'+x.k+'|'+si+'" '+
-      'placeholder="'+(x.role==="engineer"?"担当エンジニア":"誰に頼むか")+'" value="'+esc(v.who||"")+'">'+
+    '<input class="inp" list="dl_'+whoList(x)+'" data-sp="'+x.k+'|'+si+'" '+
+      'placeholder="'+whoPh(x)+'" value="'+esc(v.who||"")+'">'+
     '<button class="qc'+(v.swait?" on":"")+'" data-sw="'+x.k+'|'+si+'">返事待ち</button>'+
     '<button class="xb" data-sx2="'+x.k+'|'+si+'">✕</button></div></div>'}
 function drawSong(){
@@ -1604,7 +1609,7 @@ function wireSong(){
   b.querySelectorAll("[data-sp]").forEach(e=>{e.oninput=()=>{
       const a=e.dataset.sp.split("|");stg(s,a[0]).slots[+a[1]].who=e.value;mark()};
     e.onblur=()=>{const a=e.dataset.sp.split("|"),x=s.stageList[s.stageList.findIndex(z=>z.k===a[0])];
-      mAdd(x&&x.role==="engineer"?"engineer":"musician",e.value);
+      if(x)mAdd(whoList(x),e.value);
       syncSlotAssign(s);syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
   b.querySelectorAll("[data-sw]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sw.split("|"),v=stg(s,a[0]).slots[+a[1]];
