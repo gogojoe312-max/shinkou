@@ -620,10 +620,10 @@ const SHOWFLOW={
   "エンディングSE":SEFLOW,
   "効果音":SEFLOW,
   "ダンス曲":SEFLOW,
-  "メドレー":SEFLOW,
   "MC BGM":SEFLOW,
   "チェイサー":["make","deliv2"],
   "カラオケ":["make","deliv2"],
+  "メドレー":["make","deliv2"],
   "BUVo":["lrecS","lrec","lrecE","td2","deliv2"],
   "影アナ":["order","rec2","td2","deliv2"],
   "その他":["plan","order","build","td2","deliv2"]};
@@ -637,7 +637,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-j";
+const APP_VER="2026-08-12-k";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -821,6 +821,21 @@ function recBefore(s,x){
   /* 自分で足した子工程は、直前の録音工程にぶら下げる */
   if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
   return null}
+/* 発注したら、その相手にそのまま制作を頼む形にする */
+const ORDERPAIR={order:"build"};
+function syncOrder(s){
+  const L=stages(s);let ch=false;
+  Object.keys(ORDERPAIR).forEach(ok=>{
+    const bk=ORDERPAIR[ok];
+    if(!L.some(x=>x.k===ok)||!L.some(x=>x.k===bk))return;
+    const o=stg(s,ok),b=stg(s,bk);
+    /* 担当者を引き継ぐ */
+    if(o.asg&&b.asg!==o.asg){b.asg=o.asg;ch=true}
+    /* 発注が済んだら、初稿待ちにする */
+    if(o.done&&!b.rev&&!b.st&&!b.done){b.st="req";if(!b.req)b.req=o.date||o.req||D.today();ch=true}
+    /* 発注を取り消したら、まだ何も届いていなければ戻す */
+    if(!o.done&&b.st==="req"&&!b.rev&&!b.done){b.st="";ch=true}});
+  return ch}
 const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo",instdb:"instrec",lrec:"lrecS"};
 function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""}
 /* その録音のあと何番目の工程か */
@@ -1415,10 +1430,21 @@ function drawSong(){
     h+='<div class="dtl">'+
       '<div class="row fg"><div><span class="lbl">工程名</span>'+
         '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div></div>'+
-      '<div class="fg"><span class="lbl">担当者</span><input class="inp" list="dl_'+
-        (x.role==="masEng"?"masEng":x.role==="director"?"director":x.role==="lyricist"||x.role==="composer"||x.role==="arranger"?x.role:"engineer")+
+      (function(){const rr=ORDERPAIR[x.k]?((stages(s).find(z=>z.k===ORDERPAIR[x.k])||{}).role||x.role):x.role;
+        return'<div class="fg"><span class="lbl">'+(ORDERPAIR[x.k]?"発注先":"担当者")+'</span><input class="inp" list="dl_'+
+        (rr==="masEng"?"masEng":rr==="director"?"director":rr==="lyricist"||rr==="composer"||rr==="arranger"?rr:"engineer")+
         '" data-as="'+x.k+'" '+
-        'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,x.role)||ROLES[x.role]||"")+'"></div>';
+        'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,rr)||ROLES[rr]||"")+'"></div>'})();
+    if(ORDERPAIR[x.k]&&stages(s).some(z=>z.k===ORDERPAIR[x.k])){
+      const bx=stages(s).find(z=>z.k===ORDERPAIR[x.k]),bo=stg(s,bx.k);
+      h+='<div class="fg"><span class="lbl">この発注の先</span><div class="arrbox">'+
+        '<div class="arrnow"><b class="'+(bo.st==="req"?"c-other":bo.st==="me"?"c-me":"c-todo")+'">'+esc(bx.n)+' — '+
+          (bo.st==="req"?esc(awaitLabel(bo.rev,firstWord(bx)))+" 待ち"
+           :bo.st==="me"?esc(haveLabel(bo.rev,firstWord(bx)))+" 確認中":"まだ動いていません")+'</b>'+
+          '<span>'+(o.asg?esc(o.asg)+" に依頼":"担当者を入れると引き継がれます")+'</span></div>'+
+        '<p class="hint" style="margin:8px 0 0">この工程を済みにすると、'+esc(bx.n)+'が'+
+          esc(firstWord(bx))+'待ちになります。</p>'+
+        '</div></div>'}
     if(isArr(x)){
       h+='<div class="fg"><span class="lbl">進行</span><div class="arrbox">'+
         '<div class="arrnow">'+(o.prov?'<b class="c-me">ひとまずOK'+(o.st==="req"?'・'+esc(awaitLabel(o.rev,firstWord(x)))+' 待ち':"")+'</b>'
@@ -1634,7 +1660,7 @@ function wireSong(){
     if(hasKids(L,i)){const all=doneOf(s,L,i);
       kidsOf(L,i).forEach(x=>{const o=stg(s,x.k);o.done=!all;if(o.done&&!o.date)o.date=D.today()})}
     else{const o=stg(s,e.dataset.k);o.done=!o.done;if(o.done&&!o.date)o.date=D.today();if(o.done)o.st=""}
-    mark();drawSong();rf()});
+    syncOrder(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-gp]").forEach(e=>e.onclick=()=>{
     const g=e.dataset.gp;gpOpen[g]=!(e.classList.contains("on"));drawSong()});
   b.querySelectorAll("[data-ex]").forEach(e=>e.onclick=()=>{
@@ -1675,9 +1701,10 @@ function wireSong(){
   b.querySelectorAll("[data-sa3]").forEach(e=>e.onchange=()=>{s.stageList[ix(e.dataset.sa3)].anchor=e.value;mark();drawSong();rf()});
   b.querySelectorAll("[data-so]").forEach(e=>e.oninput=()=>{s.stageList[ix(e.dataset.so)].off=+e.value||0;mark()});
   b.querySelectorAll("[data-su]").forEach(e=>e.onchange=()=>{s.stageList[ix(e.dataset.su)].unit=e.value;mark();drawSong();rf()});
-  b.querySelectorAll("[data-as]").forEach(e=>{e.oninput=()=>{stg(s,e.dataset.as).asg=e.value;mark();rf()};
+  b.querySelectorAll("[data-as]").forEach(e=>{e.oninput=()=>{stg(s,e.dataset.as).asg=e.value;syncOrder(s);mark();rf()};
     e.onblur=()=>{const x=s.stageList[ix(e.dataset.as)];
-      const r=x?x.role:"engineer";
+      let r=x?x.role:"engineer";
+      if(x&&ORDERPAIR[x.k]){const bx=s.stageList.find(z=>z.k===ORDERPAIR[x.k]);if(bx)r=bx.role}
       mAdd(r==="masEng"?"masEng":r==="director"?"director":
         (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
   b.querySelectorAll("[data-dlr]").forEach(e=>e.onclick=()=>{
@@ -2861,7 +2888,7 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   purgeTrash();
-  {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true});if(ch)mark()}
+  {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();
   dot("");render();syStart()}
 boot();
