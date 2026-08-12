@@ -105,6 +105,8 @@ main>.artist:first-child{margin-top:2px}
 .balls{display:flex;flex-wrap:wrap;gap:4px;margin:0 0 7px}
 .balls .ball{margin-left:0;max-width:100%}
 .balls:empty{display:none}
+.cmemo{font-size:11.5px;line-height:1.55;color:var(--dim);white-space:pre-wrap;
+  border-left:2px solid var(--line2);padding:1px 0 1px 9px;margin:0 0 9px}
 .ball{margin-left:auto;flex-shrink:0;font-size:11px;font-weight:700;padding:3px 9px;border-radius:12px;display:inline-flex;align-items:center;gap:5px;max-width:100%;overflow:hidden}
 .ball i{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0;font-style:normal}
 .ball span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -640,7 +642,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-r";
+const APP_VER="2026-08-12-s";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1201,6 +1203,9 @@ function cardHTML(s,rank){
     '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'">'+esc(b2.g)+
       (b2.d>=b2.n?'<u>✓</u>':b2.cur&&!LVC?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
     '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
+  /* いま来ている工程のメモは、一覧でも読めるようにする */
+  const cm=fin?"":((s.stages[L[st.i].k]||{}).memo||"").trim();
+  const memoHTML=cm?'<div class="cmemo">✎ '+esc(cm)+'</div>':"";
   const kd=[];
   const dpush=(lb,v,cls)=>{const t=kdTile(lb,v,cls);if(t)kd.push(t)};
   dpush("レッスン",s.dates.lesson,"k1");
@@ -1217,7 +1222,7 @@ function cardHTML(s,rank){
   return'<button class="card '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
     '<div class="cardtop">'+(rank?'<span class="rank">'+rank+'</span>':"")+
     '<span class="ct">'+esc(songTitle(s))+'</span>'+
-    ((s.use||"master")==="live"&&(s.ltype||"")!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype||"LIVE")+'</span>':"")+
+    ((s.use||"master")==="live"&&s.ltype&&s.ltype!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype)+'</span>':"")+
     ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>':"")+'</div>'+
     (fin?"":'<div class="balls">'+ballsOf(s).map(w=>
@@ -1226,7 +1231,7 @@ function cardHTML(s,rank){
     (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
         :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
          '<span class="dl '+dc+'">'+esc(dl)+'</span></div>')+
-    (fin?"":chips)+
+    (fin?"":chips)+memoHTML+
     (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+'</button>'}
 
 function render(){
@@ -2447,6 +2452,21 @@ function openSettings(){
       (lv.map(row).join("")||'<p class="hint">まだありません。</p>')+
       '<div class="fg" style="margin-top:12px"><button class="btn w" id="mMaster">メンバー管理</button></div>'+
       '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'}},
+    {id:"cred",t:"クレジット書き出し",h:()=>{
+      const ms=S.projects.filter(p=>!isShow(p))
+        .filter(p=>S.songs.some(z=>z.projectId===p.id))
+        .sort((a,b)=>(b.release||"").localeCompare(a.release||""));
+      return '<p class="hint" style="margin:0 0 8px">案件ごとに、収録曲すべてのミュージシャンクレジットを出します。</p>'+
+        '<div class="fg"><div class="seg2" id="crMode2">'+
+          '<button data-cw2="0" aria-pressed="'+(!crWork)+'">演奏のみ</button>'+
+          '<button data-cw2="1" aria-pressed="'+crWork+'">作詞作曲編曲も入れる</button></div></div>'+
+        (ms.map(p=>{const n=S.songs.filter(z=>z.projectId===p.id).length;
+          return '<div class="st"><span class="nm"><span class="t">'+esc(projTitle(p))+'</span>'+
+            '<span class="s">'+esc(p.artist||"—")+' · '+n+'曲</span></span>'+
+            '<button class="btn sm" data-crw="'+p.id+'">Word</button>'+
+            '<button class="btn sm" data-crc="'+p.id+'">コピー</button></div>'}).join("")
+          ||'<p class="hint">まだ案件がありません。</p>')+
+        '<div class="fg" style="margin-top:12px"><button class="btn w" id="crAll">すべての曲をWordで書き出す</button></div>'}},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領状況</button></div>'},
     {id:"sync",t:"端末間の同期",h:()=>
       '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
@@ -2494,6 +2514,7 @@ function openSettings(){
     B.querySelectorAll("[data-ac]").forEach(b=>b.onclick=()=>{
       setOpen=setOpen===b.dataset.ac?"":b.dataset.ac;draw()});
     wireSettings(B)};
+  wireSettings.redraw=draw;
   s2("SETTINGS","設定","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
   draw()}
 
@@ -2503,6 +2524,21 @@ function wireSettings(B){
   on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+  {const cm2=q("#crMode2");
+   if(cm2)cm2.onclick=e=>{const x=e.target.closest("[data-cw2]");if(!x)return;
+     crWork=x.dataset.cw2==="1";wireSettings.redraw&&wireSettings.redraw()};}
+  const crList=p=>S.songs.filter(z=>z.projectId===p.id).sort(byOrd);
+  B.querySelectorAll("[data-crw]").forEach(b=>b.onclick=()=>{
+    const p=projOf(b.dataset.crw),head=(p.artist||"")+" "+projTitle(p);
+    dlFile(head+".doc",creditDoc(crList(p),head,{work:crWork}),"application/msword")});
+  B.querySelectorAll("[data-crc]").forEach(b=>b.onclick=()=>{
+    const p=projOf(b.dataset.crc),head=(p.artist||"")+" "+projTitle(p);
+    const t=head+"\n\n"+creditText(crList(p),{work:crWork});
+    if(navigator.clipboard)navigator.clipboard.writeText(t).then(()=>toast("コピーしました"),()=>toast("コピーできませんでした"));
+    else toast("コピーできませんでした")});
+  on("#crAll",()=>{const list=S.songs.filter(z=>(z.use||"master")!=="live").sort(byOrd);
+    if(!list.length)return toast("書き出す曲がありません");
+    dlFile("クレジット一覧.doc",creditDoc(list,"ミュージシャンクレジット 一覧",{work:crWork}),"application/msword")});
     on("#reld",async()=>{
       try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();
         await Promise.all(rs.map(r=>r.unregister()))}
