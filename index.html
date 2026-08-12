@@ -640,7 +640,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-o";
+const APP_VER="2026-08-12-p";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -943,7 +943,8 @@ function recPhase(s,x){
   if(o.st==="req")return{p:"sched"};
   return{p:"none"}}
 function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
-  if(r.p==="done")return"完了";
+  if(r.p==="done"){const d0=nextSlot(s,x);
+    return d0&&D.to(d0)>0?"日程待ち "+D.md(d0):"完了"}
   if(r.p==="studio")return"スタジオ 連絡待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
   if(r.p==="await")return"日程待ち "+D.md(r.next)+(r.n>1?"（済 "+r.d+"/"+r.n+"）":"");
@@ -1011,8 +1012,27 @@ function nameFor(s,role){
   return""}
 /* 録音系（複数日）は 日程調整 → 日程確定 → 完了 の順で進む */
 const schedFixed=(s,x)=>slotsOf(s,x).length>0;
+/* その工程が「日にち待ち」なら、待っている日を返す */
+function waitDate(s,x){
+  const o=stg(s,x.k);
+  /* 日程を持つ工程は、自分の日を見る（済みにしていても日が来るまでは待ち） */
+  if(isMulti(x)){const d1=nextSlot(s,x);return d1&&D.to(d1)>0?d1:""}
+  if(o.done)return"";
+  /* スケジュールと対になる工程は、そのスケジュールの日を見る */
+  const mk=RECMIRROR[x.k];
+  if(mk){const r0=stages(s).find(z=>z.k===mk);
+    if(r0){const d0=nextSlot(s,r0);if(d0&&D.to(d0)>0)return d0}
+    return""}
+  /* 楽器DBの1本ごとの工程は、自分の日を見る */
+  if(/^sl_/.test(x.k)&&o.dl&&D.to(o.dl)>0)return o.dl;
+  return""}
+/* まだ済んでいない、いちばん近い日 */
+function nextSlot(s,x){
+  return (stg(s,x.k).slots||[]).filter(a=>a.date&&!a.done).map(a=>a.date).sort()[0]||""}
 function whoOf(s,x){
   const o=stg(s,x.k);
+  {const w0=waitDate(s,x);
+    if(w0)return{c:"wait",t:"日程待ち "+D.md(w0),st:"req"}}
   if(o.done)return{c:"none",t:"完了",st:"done"};
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
@@ -1037,11 +1057,9 @@ function whoOf(s,x){
     if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
     if(o.st==="req")return{c:"room",t:"会議待ち",st:"req"};
     return{c:"todo",t:"未依頼",st:""}}
-  /* スケジュールと対になる工程は、その日が来るまで日程待ち */
-  if(RECMIRROR[x.k]&&!o.done){
-    const r0=stages(s).find(z=>z.k===RECMIRROR[x.k]);
-    if(r0){const rp=recPhase(s,r0);
-      if(rp.p==="await")return{c:"wait",t:"日程待ち "+D.md(rp.next),st:"req"}}}
+  /* 日にちが決まっていて、その日がまだ来ていないなら日程待ち */
+  {const w=waitDate(s,x);
+    if(w)return{c:"wait",t:"日程待ち "+D.md(w),st:"req"}}
   if(x.role==="me"){
     if(o.st==="me")return{c:"me",t:(o.asg||"自分")+"の番",st:"me"};
     if(o.st==="req")return{c:"other",t:(o.asg||"相手")+" 待ち",st:"req"};
