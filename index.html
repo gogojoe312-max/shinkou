@@ -117,6 +117,7 @@ main>.artist:first-child{margin-top:2px}
 .ball.none{color:var(--dim2);background:rgba(140,145,155,.1)}
 .ball.todo{color:var(--dim2);background:transparent;border:1px dashed var(--line2)}
 .ball.wait{color:var(--warn);background:rgba(232,163,61,.12)}
+.ball.late{color:var(--late);background:rgba(228,90,90,.12)}
 
 .now{display:flex;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:9px;color:var(--dim)}
 .now b{color:var(--ink);font-weight:700;font-size:13.5px}
@@ -642,7 +643,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-12-s";
+const APP_VER="2026-08-12-t";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -778,6 +779,7 @@ function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",re
   if(o.ret===undefined)o.ret="";if(!o.slots)o.slots=[];if(o.asg===undefined)o.asg="";
   if(o.memo===undefined)o.memo="";
   if(o.rev===undefined)o.rev=0;if(o.size===undefined)o.size="";if(o.prov===undefined)o.prov=false;
+  if(!o.got)o.got={};
   return o}
 const STEPS=["デモ制作","アレンジ","VoDB","ChoDB","楽器DB","ReVoDB","仕上げ"];
 const GPORDER=STEPS.concat(["企画","制作","確認","納品"]);
@@ -804,6 +806,8 @@ function sortByGroup(L){
 const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
+/* アレンジから受け取るもの。VoDBに入る前に揃っている必要がある */
+const GOTS=[["stem","VoDB用ステム"],["click","クリック・テンポマップ"],["kari","仮歌用オケ"],["sheet","譜面・コード"]];
 const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
 /* やり取りの言い方。アレンジ工程は「1stアレンジ」、それ以外は「初稿」 */
@@ -1031,6 +1035,11 @@ function nextSlot(s,x){
     .filter(d0=>d0&&D.to(d0)>0).sort()[0]||""}
 function whoOf(s,x){
   const o=stg(s,x.k);
+  /* VoDBに入るのに、アレンジからステムをもらっていない */
+  if((x.k==="vo"||x.k==="vodb")&&!o.done){
+    const ax=stages(s).find(z=>isArr(z));
+    if(ax&&!(stg(s,ax.k).got||{}).stem&&(stg(s,ax.k).rev||stg(s,ax.k).prov||stg(s,ax.k).done))
+      return{c:"late",t:"ステム 未受領",st:""}}
   {const w0=waitDate(s,x);
     if(w0)return{c:"wait",t:"日程待ち "+D.md(w0),st:"req"}}
   if(o.done)return{c:"none",t:"完了",st:"done"};
@@ -1451,7 +1460,9 @@ function drawSong(){
       if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev,firstWord(x))+"依頼中":"")
         :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
         :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
-        if(o.size)bits.push(sizeLabel(o.size))}
+        if(o.size)bits.push(sizeLabel(o.size));
+        {const g=GOTS.filter(z=>o.got[z[0]]).length;
+         bits.push(o.got.stem?"ステム 受領"+(g>1?"ほか"+(g-1):""):"ステム 未受領")}}
       if(mul){bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x))}
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
@@ -1505,7 +1516,12 @@ function drawSong(){
         '</div></div></div>'+
         '<div class="fg"><span class="lbl">尺</span><div class="seg2" id="sz_'+x.k+'">'+
           SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
-        '</div></div>'}
+        '</div></div>'+
+        '<div class="fg"><span class="lbl">受け取ったもの</span><div class="qadd">'+
+          GOTS.map(z=>'<button class="qc'+(o.got[z[0]]?" on":"")+'" data-gt="'+x.k+'|'+z[0]+'">'+
+            (o.got[z[0]]?"✓ ":"")+z[1]+'</button>').join("")+'</div>'+
+          (!o.got.stem?'<p class="hint" style="margin:6px 0 0">VoDBに入る前に、ステムをもらっておいてください。</p>':"")+
+        '</div>'}
     if(mul){
       const r=recPhase(s,x);
       h+='<div class="fg"><span class="lbl">日程</span><div class="arrbox">'+
@@ -1669,6 +1685,9 @@ function wireSong(){
     o.rev=(o.rev||0)+1;o.st="me";mark();drawSong();rf()});
   b.querySelectorAll("[data-au]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.au);
     o.rev=Math.max(0,(o.rev||0)-1);if(!o.rev)o.st="req";mark();drawSong();rf()});
+  b.querySelectorAll("[data-gt]").forEach(e=>e.onclick=()=>{
+    const a=e.dataset.gt.split("|"),o=stg(s,a[0]);
+    o.got[a[1]]=!o.got[a[1]];mark();drawSong();rf()});
   b.querySelectorAll("[data-sz]").forEach(e=>e.onclick=()=>{const a=e.dataset.sz.split("|"),o=stg(s,a[0]);
     o.size=(o.size===a[1])?"":a[1];mark();drawSong();rf()});
   b.querySelectorAll("[data-sc]").forEach(e=>e.onclick=()=>{
