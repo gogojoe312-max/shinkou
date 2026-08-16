@@ -82,6 +82,13 @@ var STAGE_RULES = [
   { words: ['TD', 'ミックス'],                       key: 'td' }
 ];
 
+/* 公演の日を読み取る言葉。グループ名と組み合わせて使います */
+var SHOW_WORDS = { reh: ['リハ', 'リハーサル'], open: ['ライブ', '本番', '公演'] };
+/* 初日をずらすとき、いまの初日から何日以内なら「同じ公演」とみなすか */
+var SHOW_NEAR = 7;
+/* リハは初日から何日前までを見るか */
+var REH_BACK = 14;
+
 /* 工程が読めなかったとき、この言葉が入っていれば黙って飛ばします */
 var IGNORE = ['リハ', 'ライブ', 'ハロコン', '会議', '準備', 'GP', 'セッション',
               '打ち合わせ', '収録', '本番', 'オーディション', '誕生日',
@@ -317,6 +324,8 @@ function apply_(data, events) {
     });
   });
 
+  if (applyShows_(data, events, hit, miss)) changed = true;
+
   if (changed) data.at = new Date().toISOString();
   return { data: data, hit: hit, miss: miss, changed: changed };
 }
@@ -392,6 +401,88 @@ function findTargets_(ev, rule, songs, miss) {
     }
   }
   return out;
+}
+
+/* ===================== 公演の日 ===================== */
+
+/** カレンダーの「○○リハ」「○○ライブ」から、公演の初日とリハを合わせる */
+function applyShows_(data, events, hit, miss) {
+  var changed = false;
+  var shows = (data.projects || []).filter(function (p) {
+    return p.mode === 'live' || p.kind === 'ライブ';
+  });
+  if (!shows.length) return false;
+
+  /* グループごとに、リハの日と本番の日を集める */
+  var reh = {}, opn = {};
+  events.forEach(function (ev) {
+    if (!ev.title) return;
+    var t = norm_(ev.title);
+    /* 工程名が読める予定（ライブTDなど）は、公演の日ではない */
+    if (findStage_(ev.title)) return;
+    var art = findArtist_(ev.title);
+    if (!art) return;
+    var isReh = SHOW_WORDS.reh.some(function (w) { return t.indexOf(norm_(w)) >= 0; });
+    var isOpn = !isReh && SHOW_WORDS.open.some(function (w) { return t.indexOf(norm_(w)) >= 0; });
+    if (isReh) { (reh[art] = reh[art] || []).push(ev.date); }
+    else if (isOpn) { (opn[art] = opn[art] || []).push(ev.date); }
+  });
+  Object.keys(reh).forEach(function (k) { reh[k].sort(); });
+  Object.keys(opn).forEach(function (k) { opn[k].sort(); });
+
+  var used = {};
+  shows.forEach(function (p) {
+    var art = p.artist || '';
+    var name = projName_(p);
+
+    /* 初日：いまの初日の近くに本番の予定があれば、そこへ合わせる */
+    if (p.release) {
+      var near = (opn[art] || []).filter(function (d) {
+        return Math.abs(days_(d, p.release)) <= SHOW_NEAR;
+      }).sort(function (a, b) {
+        return Math.abs(days_(a, p.release)) - Math.abs(days_(b, p.release));
+      });
+      if (near.length) {
+        used[art + '|' + near[0]] = true;
+        if (near[0] !== p.release) {
+          hit.push(near[0] + '  ' + name + '  初日 ' + p.release + ' → ' + near[0]);
+          p.release = near[0]; changed = true;
+        }
+      }
+    } else {
+      miss.push('－  ' + name + '  … 初日が未設定なので、カレンダーと結びつけられません');
+      return;
+    }
+
+    /* リハ：初日の手前にあるリハのうち、いちばん早いもの */
+    var cand = (reh[art] || []).filter(function (d) {
+      var n = days_(p.release, d);
+      return n > 0 && n <= REH_BACK;
+    });
+    if (cand.length && cand[0] !== p.rehearsal) {
+      hit.push(cand[0] + '  ' + name + '  リハ ' +
+               (p.rehearsal ? p.rehearsal + ' → ' : '') + cand[0]);
+      p.rehearsal = cand[0]; changed = true;
+    }
+  });
+
+  /* そのグループの公演がアプリに1つも無いときだけ知らせる（ツアー2日目以降は黙って飛ばす） */
+  Object.keys(opn).forEach(function (art) {
+    var has = shows.some(function (p) { return (p.artist || '') === art; });
+    if (has) return;
+    miss.push(opn[art][0] + '  ' + art + ' の本番  … この公演がアプリにありません');
+  });
+
+  return changed;
+}
+
+/** a から b までの日数（b が後なら正） */
+function days_(b, a) {
+  return Math.round((new Date(b + 'T00:00:00') - new Date(a + 'T00:00:00')) / 86400000);
+}
+
+function projName_(p) {
+  return (p.custom || p.kind || '公演') + (p.artist ? '（' + p.artist + '）' : '');
 }
 
 function sortOf_(s) {
