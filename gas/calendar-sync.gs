@@ -43,6 +43,14 @@ var SONG_ALIAS = {
   'もうどうでも':   'もうどうでもよくなっちゃった'
 };
 
+/* 予定名に出てくる曲の位置づけ。「ロージー表題２曲」のようにまとめて指せる */
+var SORT_WORDS = [
+  { words: ['表題'],               sort: 'single' },
+  { words: ['アディショナル', 'カップリング', 'アディショ'], sort: 'add' },
+  { words: ['アルバム曲', 'アルバム'], sort: 'album' },
+  { words: ['配信'],               sort: 'dl' }
+];
+
 /* 予定名に出てくるグループの呼び名 → アプリのグループ名 */
 var ARTIST_ALIAS = {
   'OCHA':   'OCHA NORMA',
@@ -74,9 +82,10 @@ var STAGE_RULES = [
   { words: ['TD', 'ミックス'],                       key: 'td' }
 ];
 
-/* この言葉が入っている予定は見ません */
-var IGNORE = ['リハ', 'ライブ', 'ハロコン', '制作会議', '音制作会議', '準備', 'GP',
-              'セッション', 'ツアー準備', '打ち合わせ', '会議', '収録', '本番'];
+/* 工程が読めなかったとき、この言葉が入っていれば黙って飛ばします */
+var IGNORE = ['リハ', 'ライブ', 'ハロコン', '会議', '準備', 'GP', 'セッション',
+              '打ち合わせ', '収録', '本番', 'オーディション', '誕生日',
+              'セトリ', 'GV', '大崎', '出張', '休み', '有給'];
 
 /* ===================== 入口 ===================== */
 
@@ -178,6 +187,26 @@ function findStage_(title) {
   return null;
 }
 
+/** 予定名に書いてある曲をすべて拾う */
+function findSongs_(title, songs) {
+  var t = norm_(title), out = [];
+  var add = function (sg) { if (sg && out.indexOf(sg) < 0) out.push(sg); };
+
+  Object.keys(SONG_ALIAS).forEach(function (a) {
+    var n = norm_(a);
+    if (!n || t.indexOf(n) < 0) return;
+    songs.forEach(function (sg) { if (norm_(sg.title) === norm_(SONG_ALIAS[a])) add(sg); });
+  });
+  songs.forEach(function (sg) {
+    var n = norm_(sg.title);
+    if (n.length < 2) return;
+    for (var len = n.length; len >= 2; len--) {
+      if (t.indexOf(n.slice(0, len)) >= 0) { add(sg); return; }
+    }
+  });
+  return out;
+}
+
 /** 予定名から曲を読む。見つからなければ null */
 function findSong_(title, songs) {
   var t = norm_(title);
@@ -222,76 +251,55 @@ function findArtist_(title) {
 
 function apply_(data, events) {
   var songs = (data.songs || []).filter(function (s) { return (s.use || 'master') !== 'live'; });
-  var hit = [], miss = [], changed = false;
-  var seen = {};
+  var hit = [], miss = [], seen = {}, changed = false;
 
   events.forEach(function (ev) {
     if (!ev.title) return;
 
-    for (var i = 0; i < IGNORE.length; i++) {
-      if (norm_(ev.title).indexOf(norm_(IGNORE[i])) >= 0) return;
-    }
-
     var rule = findStage_(ev.title);
-    if (!rule) { miss.push(ev.date + '  ' + ev.title + '  … 工程が読めません'); return; }
-
-    var song = findSong_(ev.title, songs);
-
-    // 曲名が無い場合、その工程を待っている曲がグループ内で1曲だけなら、それに入れる
-    if (!song) {
-      var art = findArtist_(ev.title);
-      if (!art) { miss.push(ev.date + '  ' + ev.title + '  … 曲が読めません'); return; }
-      var waiting = songs.filter(function (s) {
-        if (norm_(s.artist) !== norm_(art)) return false;
-        if (!(s.stageList || []).some(function (x) { return x.k === rule.key; })) return false;
-        var o = (s.stages || {})[rule.key] || {};
-        return !o.done;
-      });
-      if (waiting.length !== 1) {
-        miss.push(ev.date + '  ' + ev.title + '  … ' + art + 'で' + rule.key +
-                  '待ちが' + waiting.length + '曲。曲名を入れてください');
-        return;
+    if (!rule) {
+      for (var i = 0; i < IGNORE.length; i++) {
+        if (norm_(ev.title).indexOf(norm_(IGNORE[i])) >= 0) return;
       }
-      song = waiting[0];
-    }
-
-    if (!(song.stageList || []).some(function (x) { return x.k === rule.key; })) {
-      miss.push(ev.date + '  ' + ev.title + '  … 「' + song.title + '」に' + rule.key + 'がありません');
+      miss.push(ev.date + '  ' + ev.title + '  … 工程が読めません');
       return;
     }
 
-    seen[ev.id] = true;
-    if (!song.stages) song.stages = {};
-    var o = song.stages[rule.key] || (song.stages[rule.key] = blank_());
-    var name = stageName_(song, rule.key);
+    var targets = findTargets_(ev, rule, songs, miss);
+    targets.forEach(function (song) {
+      seen[ev.id] = true;
+      if (!song.stages) song.stages = {};
+      var o = song.stages[rule.key] || (song.stages[rule.key] = blank_());
+      var name = stageName_(song, rule.key);
 
-    if (rule.sched) {
-      var slot = (o.slots || []).filter(function (v) { return v.cal === ev.id; })[0];
-      if (slot) {
-        if (slot.date !== ev.date) {
-          slot.date = ev.date; changed = true;
-          hit.push(ev.date + '  ' + song.title + ' / ' + name + '  日程を動かしました');
+      if (rule.sched) {
+        var slot = (o.slots || []).filter(function (v) { return v.cal === ev.id; })[0];
+        if (slot) {
+          if (slot.date !== ev.date) {
+            slot.date = ev.date; changed = true;
+            hit.push(ev.date + '  ' + song.title + ' / ' + name + '  日程を動かしました');
+          }
+          if (ev.place && !slot.who) { slot.who = ev.place; changed = true; }
+        } else {
+          if (!o.slots) o.slots = [];
+          o.slots.push({ date: ev.date, note: '', who: ev.place || '', swait: false, done: false, cal: ev.id });
+          o.slots.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
+          changed = true;
+          hit.push(ev.date + '  ' + song.title + ' / ' + name + '  日程を追加' +
+                   (ev.place ? '（' + ev.place + '）' : ''));
         }
-        if (ev.place && !slot.who) { slot.who = ev.place; changed = true; }
       } else {
-        if (!o.slots) o.slots = [];
-        o.slots.push({ date: ev.date, note: '', who: ev.place || '', swait: false, done: false, cal: ev.id });
-        o.slots.sort(function (a, b) { return String(a.date).localeCompare(String(b.date)); });
-        changed = true;
-        hit.push(ev.date + '  ' + song.title + ' / ' + name + '  日程を追加' +
-                 (ev.place ? '（' + ev.place + '）' : ''));
+        if (o.dl !== ev.date || o.calDl !== ev.id) {
+          var before = o.dl;
+          o.dl = ev.date; o.calDl = ev.id; changed = true;
+          hit.push(ev.date + '  ' + song.title + ' / ' + name +
+                   (before ? '  締切 ' + before + ' → ' + ev.date : '  締切を設定'));
+        }
       }
-    } else {
-      if (o.dl !== ev.date || o.calDl !== ev.id) {
-        var before = o.dl;
-        o.dl = ev.date; o.calDl = ev.id; changed = true;
-        hit.push(ev.date + '  ' + song.title + ' / ' + name +
-                 (before ? '  締切 ' + before + ' → ' + ev.date : '  締切を設定'));
-      }
-    }
+    });
   });
 
-  // カレンダーから消えた予定の分を片づける
+  /* カレンダーから消えた予定の分を片づける */
   (data.songs || []).forEach(function (s) {
     Object.keys(s.stages || {}).forEach(function (k) {
       var o = s.stages[k];
@@ -311,6 +319,92 @@ function apply_(data, events) {
 
   if (changed) data.at = new Date().toISOString();
   return { data: data, hit: hit, miss: miss, changed: changed };
+}
+
+/** その工程を持っていて、まだ終わっていない曲か */
+function open_(song, key) {
+  if (!(song.stageList || []).some(function (x) { return x.k === key; })) return false;
+  return !((song.stages || {})[key] || {}).done;
+}
+
+/** 予定名から、対象になる曲を決める */
+function findTargets_(ev, rule, songs, miss) {
+  var t = norm_(ev.title);
+
+  /* 曲名がはっきり書いてあれば、それだけ。終わっている工程でも入れる */
+  var named = findSongs_(ev.title, songs);
+  if (named.length) {
+    var ok = named.filter(function (sg) {
+      return (sg.stageList || []).some(function (x) { return x.k === rule.key; });
+    });
+    named.forEach(function (sg) {
+      if (ok.indexOf(sg) < 0) {
+        miss.push(ev.date + '  ' + ev.title + '  … 「' + sg.title + '」に' + rule.key + 'の工程がありません');
+      }
+    });
+    return ok;
+  }
+
+  /* 「ロージー表題２曲」のように、グループ＋位置づけでまとめて指しているか */
+  var arts = [];
+  Object.keys(ARTIST_ALIAS).forEach(function (a) {
+    var n = norm_(a);
+    if (n && t.indexOf(n) >= 0 && arts.indexOf(ARTIST_ALIAS[a]) < 0) arts.push(ARTIST_ALIAS[a]);
+  });
+  if (!arts.length) {
+    miss.push(ev.date + '  ' + ev.title + '  … 曲が読めません');
+    return [];
+  }
+
+  var sorts = [];
+  SORT_WORDS.forEach(function (r) {
+    r.words.forEach(function (w) {
+      if (t.indexOf(norm_(w)) >= 0 && sorts.indexOf(r.sort) < 0) sorts.push(r.sort);
+    });
+  });
+
+  var out = [];
+  arts.forEach(function (art) {
+    var list = songs.filter(function (s) {
+      return norm_(s.artist) === norm_(art) && open_(s, rule.key);
+    });
+    if (sorts.length) {
+      var narrowed = list.filter(function (s) { return sorts.indexOf(sortOf_(s)) >= 0; });
+      /* 位置づけで絞れたら、その全部が対象 */
+      if (narrowed.length) { out = out.concat(narrowed); return; }
+      miss.push(ev.date + '  ' + ev.title + '  … ' + art + 'に' +
+                sorts.join('/') + 'で' + rule.key + '待ちの曲がありません');
+      return;
+    }
+    /* 位置づけが無いときは、1曲に決まるときだけ */
+    if (list.length === 1) { out.push(list[0]); return; }
+    miss.push(ev.date + '  ' + ev.title + '  … ' + art + 'で' + rule.key +
+              '待ちが' + list.length + '曲。曲名か「表題」「アディショナル」を入れてください');
+  });
+
+  /* 「２曲」などと数が書いてあれば、合っているか見ておく */
+  var num = (ev.title.match(/([0-9０-９一二三四五六七八九十]+)\s*曲/) || [])[1];
+  if (num && out.length) {
+    var n = toNum_(num);
+    if (n && n !== out.length) {
+      miss.push(ev.date + '  ' + ev.title + '  … 予定は' + n + '曲ですが、' +
+                out.length + '曲に入れます（' + out.map(function (s) { return s.title; }).join('・') + '）');
+    }
+  }
+  return out;
+}
+
+function sortOf_(s) {
+  return s.sort || (s.single === false ? 'album' : 'single');
+}
+
+function toNum_(str) {
+  var z = String(str).replace(/[０-９]/g, function (c) {
+    return String.fromCharCode(c.charCodeAt(0) - 0xFEE0);
+  });
+  if (/^[0-9]+$/.test(z)) return parseInt(z, 10);
+  var K = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9, '十': 10 };
+  return K[z] || 0;
 }
 
 function blank_() {
