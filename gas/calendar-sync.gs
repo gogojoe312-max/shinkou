@@ -84,7 +84,7 @@ var IGNORE = ['リハ', 'ライブ', 'ハロコン', '制作会議', '音制作�
 function sync() { run_(false); }
 
 /** 書き込まずに、何が起きるかだけ見る */
-function dryRun() { run_(true); }
+function dryRun() { diag_(); run_(true); }
 
 function run_(dry) {
   var data = ghGet_();
@@ -107,6 +107,31 @@ function run_(dry) {
 
   Logger.log(log.join('\n'));
   return log.join('\n');
+}
+
+/* ===================== 調べ用 ===================== */
+
+/** どのアカウントでどのカレンダーを見ているか、予定がどう読めているかを出す */
+function diag_() {
+  var cal = CFG.calendarId ? CalendarApp.getCalendarById(CFG.calendarId)
+                           : CalendarApp.getDefaultCalendar();
+  var evs = readEvents_();
+  var data = ghGet_().json;
+  var songs = (data.songs || []).filter(function (s) { return (s.use || 'master') !== 'live'; });
+  var out = ['実行アカウント: ' + Session.getActiveUser().getEmail(),
+             'カレンダー: ' + (cal ? cal.getName() + ' / ' + cal.getId() : 'なし'),
+             '予定 ' + evs.length + '件 ／ 曲 ' + songs.length + '件', ''];
+  evs.slice(0, 10).forEach(function (e) {
+    var ig = '';
+    for (var i = 0; i < IGNORE.length; i++) {
+      if (norm_(e.title).indexOf(norm_(IGNORE[i])) >= 0) { ig = IGNORE[i]; break; }
+    }
+    var r = findStage_(e.title), sg = findSong_(e.title, songs);
+    out.push(e.date + '  「' + e.title + '」');
+    out.push('      無視=' + (ig || 'なし') + ' / 工程=' + (r ? r.key : 'なし') +
+             ' / 曲=' + (sg ? sg.title : 'なし'));
+  });
+  Logger.log(out.join('\n'));
 }
 
 /* ===================== カレンダー ===================== */
