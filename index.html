@@ -653,7 +653,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-16-b";
+const APP_VER="2026-08-18-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1040,6 +1040,17 @@ function waitDate(s,x){
   return""}
 /* これから来る日のうち、いちばん近いもの。
    先の日付は録りようがないので、済みチェックが付いていても「これから」とみなす */
+/* 楽器DBの1本ごとの工程に対応する、日程の行 */
+function kidSlot(s,k){
+  const m=/^sl_.*_(\d+)$/.exec(k||"");
+  if(!m)return null;
+  const o=(s.stages||{}).instrec;
+  return (o&&o.slots&&o.slots[+m[1]])||null}
+/* その工程の済みを、日程の行にも同じように付ける */
+function setKidDone(s,k,v){
+  const sl=kidSlot(s,k);
+  if(sl&&!!sl.done!==!!v){sl.done=!!v;return true}
+  return false}
 function nextSlot(s,x){
   return (stg(s,x.k).slots||[]).map(a=>a.date)
     .filter(d0=>d0&&D.to(d0)>0).sort()[0]||""}
@@ -1729,8 +1740,11 @@ function wireSong(){
   b.querySelectorAll("[data-k]").forEach(e=>e.onclick=()=>{
     const i=+e.dataset.ki,L=stages(s);
     if(hasKids(L,i)){const all=doneOf(s,L,i);
-      kidsOf(L,i).forEach(x=>{const o=stg(s,x.k);o.done=!all;if(o.done&&!o.date)o.date=D.today()})}
-    else{const o=stg(s,e.dataset.k);o.done=!o.done;if(o.done&&!o.date)o.date=D.today();if(o.done)o.st=""}
+      kidsOf(L,i).forEach(x=>{const o=stg(s,x.k);o.done=!all;if(o.done&&!o.date)o.date=D.today();
+        setKidDone(s,x.k,o.done)})}
+    else{const k=e.dataset.k,o=stg(s,k);o.done=!o.done;
+      if(o.done&&!o.date)o.date=D.today();if(o.done)o.st="";
+      setKidDone(s,k,o.done)}
     syncOrder(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-gp]").forEach(e=>e.onclick=()=>{
     const g=e.dataset.gp;gpOpen[g]=!(e.classList.contains("on"));drawSong()});
