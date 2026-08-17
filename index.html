@@ -447,8 +447,9 @@ const WROLES=[["lyricist","作詞"],["composer","作曲"],["arranger","編曲"]]
 const MASPART="Mastering Engineer",MIXPART="Mix Engineer",STUPART="Recording Studio";
 const PARTS=["Programming","Guitar","Acoustic Guitar","Electric Guitar","Bass","Drums","Percussion",
   "Keyboards","Piano","Organ","Synthesizer","Strings","Brass",
+  "Trumpet","Flugelhorn","Trombone","Bass Trombone","Horn","Tuba",
   "Saxophone","Soprano Saxophone","Alto Saxophone","Tenor Saxophone","Baritone Saxophone","Bass Saxophone",
-  "Trumpet","Flugelhorn","Trombone","Bass Trombone","Horn","Tuba","Flute","Clarinet","Bass Clarinet","Oboe",
+  "Flute","Clarinet","Bass Clarinet","Oboe",
   "Violin","Viola","Cello","Contrabass","Harp",
   "Chorus","Background Vocals","Manipulator",MIXPART,MASPART,STUPART];
 /* 日本語で入っていたパート名を英語表記へ寄せる */
@@ -652,7 +653,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-16-a";
+const APP_VER="2026-08-16-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1895,10 +1896,13 @@ function projShort(p){if(!p)return"";
   if(p.custom&&p.custom.trim())return p.custom.trim();
   return (NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+(KABBR[p.kind]||p.kind)}
 const joinNames=a=>a.join(a.every(n=>/^[\x20-\x7E]+$/.test(n))?",":"、");
+/* パートの並び順。PARTSに載っているものはその順、載っていないものは後ろ */
+const partRank=pt=>{const i=PARTS.indexOf(pt);return i<0?900:i};
+const byPart=(a,b)=>partRank(a)-partRank(b);
 /* 「Alto Saxophone・Tenor Saxophone」→「Alto,Tenor Saxophone」のようにまとめてから & でつなぐ */
 function joinParts(a){
   const order=[],grp={};
-  a.forEach(pt=>{const w=String(pt).trim().split(/\s+/);
+  a.slice().sort(byPart).forEach(pt=>{const w=String(pt).trim().split(/\s+/);
     const base=w.length>1?w[w.length-1]:pt;
     if(!grp[base]){grp[base]=[];order.push(base)}
     grp[base].push(pt)});
@@ -1935,7 +1939,7 @@ function creditLines(s,opt){
       if(!map[pt]){map[pt]=[];order.push(pt)}
       if(map[pt].indexOf(c.name)<0)map[pt].push(c.name)})});
   const used={};
-  order.forEach(pt=>{
+  order.sort(byPart).forEach(pt=>{
     if(used[pt])return;
     const names=map[pt];
     if(names.length===1){
