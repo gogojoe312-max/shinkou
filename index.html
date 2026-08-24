@@ -572,6 +572,7 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m",gp:"デモ制作"},
   {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"},gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
+  {k:"stem",   n:"ステムデータ",         role:"arranger", anchor:"meeting",off:6,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"vo",     n:"VoDBスケジュール",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"vodb",   n:"VoDB",               role:"me",       anchor:"meeting",off:8,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
@@ -592,7 +593,10 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"revoR",  n:"ReVoリズムエディット",role:"engineer",anchor:"mastering",off:-15,unit:"d",gp:"ReVoDB"},
   {k:"revoT",  n:"ReVo繋ぎ",           role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
   {k:"revoP",  n:"ReVoピッチ",         role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
-  {k:"para",   n:"パラデータ",         role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"paraO",  n:"パラデータ 発注",     role:"me",       anchor:"mastering",off:-10,unit:"d",gp:"仕上げ"},
+  {k:"paraR",  n:"パラデータ 受け取り",  role:"arranger", anchor:"mastering",off:-8,unit:"d",gp:"仕上げ"},
+  {k:"paraM",  n:"パラデータ 合体",     role:"me",       anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"paraS",  n:"パラデータ 送付",     role:"me",       anchor:"mastering",off:-6,unit:"d",gp:"仕上げ"},
   {k:"tdes",   n:"ミックススケジュール", role:"engineer", anchor:"mastering",off:-5,unit:"d",t:"multi",gp:"仕上げ"},
   {k:"livemix",n:"ライブ用ミックス",    role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"td",     n:"ミックス",           role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
@@ -606,6 +610,7 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d",gp:"デモ制作"},
   {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d",gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-30,unit:"d",t:"arr",gp:"アレンジ"},
+  {k:"stem",   n:"ステムデータ",                         role:"arranger", anchor:"live",off:-46,unit:"d",gp:"VoDB"},
   {k:"vo",     n:"VoDBスケジュール",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",gp:"VoDB"},
   {k:"vodb",   n:"VoDB",                         role:"me",       anchor:"live",off:-44,unit:"d",gp:"VoDB"},
   {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d",gp:"VoDB"},
@@ -626,7 +631,10 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"revoR",  n:"ReVoリズムエディット",         role:"engineer", anchor:"mastering",off:-15,unit:"d",gp:"ReVoDB"},
   {k:"revoT",  n:"ReVo繋ぎ",                     role:"engineer", anchor:"mastering",off:-14,unit:"d",gp:"ReVoDB"},
   {k:"revoP",  n:"ReVoピッチ",                   role:"engineer", anchor:"mastering",off:-13,unit:"d",gp:"ReVoDB"},
-  {k:"para",   n:"パラデータ",                   role:"arranger", anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"paraO",  n:"パラデータ 発注",              role:"me",       anchor:"mastering",off:-10,unit:"d",gp:"仕上げ"},
+  {k:"paraR",  n:"パラデータ 受け取り",           role:"arranger", anchor:"mastering",off:-8,unit:"d",gp:"仕上げ"},
+  {k:"paraM",  n:"パラデータ 合体",              role:"me",       anchor:"mastering",off:-7,unit:"d",gp:"仕上げ"},
+  {k:"paraS",  n:"パラデータ 送付",              role:"me",       anchor:"mastering",off:-6,unit:"d",gp:"仕上げ"},
   {k:"tdes",   n:"ミックススケジュール",          role:"engineer", anchor:"mastering",off:-5,unit:"d",t:"multi",gp:"仕上げ"},
   {k:"livemix",n:"ライブ用ミックス",             role:"engineer", anchor:"live",off:-7,unit:"d",fb:{anchor:"mastering",off:-10,unit:"d"},gp:"仕上げ"},
   {k:"td",     n:"本番用ミックス",               role:"engineer", anchor:"mastering",off:-3,unit:"d",gp:"仕上げ"},
@@ -673,7 +681,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-g";
+const APP_VER="2026-08-24-h";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -817,11 +825,11 @@ const GPFIX={"選曲・制作":"デモ制作","歌録り":"VoDB","追加録り":
 /* 工程キーから正しい段階を引く（旧データの取りこぼしを直す） */
 const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kario:"デモ制作",demo:"デモ制作",
   meeting:"デモ制作",pick:"デモ制作",arr:"アレンジ",
-  vo:"VoDB",vodb:"VoDB",warigo:"VoDB",voes:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
+  stem:"VoDB",vo:"VoDB",vodb:"VoDB",warigo:"VoDB",voes:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
   cho:"ChoDB",chodb:"ChoDB",choes:"ChoDB",choed:"ChoDB",
   instrec:"楽器DB",instdb:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
-  para:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
+  paraO:"仕上げ",paraR:"仕上げ",paraM:"仕上げ",paraS:"仕上げ",livemix:"仕上げ",tdes:"仕上げ",td:"仕上げ",mas:"仕上げ",
   plan:"制作",order:"制作",build:"制作",make:"制作",rec2:"制作",chk1:"制作",td2:"制作",deliv2:"制作",
   lrecS:"制作",lrec:"制作",lrecE:"制作"};
 const gpRank=g=>{const i=GPORDER.indexOf(g||"");return i<0?999:i};
@@ -837,7 +845,7 @@ const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
 /* アレンジから受け取るもの。VoDBに入る前に揃っている必要がある */
-const GOTS=[["stem","VoDB用ステム"],["click","クリック・テンポマップ"],["kari","仮歌用オケ"],["sheet","譜面・コード"]];
+const GOTS=[["click","クリック・テンポマップ"],["kari","仮歌用オケ"],["sheet","譜面・コード"]];
 const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
 /* やり取りの言い方。アレンジ工程は「1stアレンジ」、それ以外は「初稿」 */
@@ -862,7 +870,7 @@ function recBefore(s,x){
   if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
   return null}
 /* 発注したら、その相手にそのまま制作を頼む形にする */
-const ORDERPAIR={order:"build"};
+const ORDERPAIR={order:"build",paraO:"paraR"};
 function syncOrder(s){
   const L=stages(s);let ch=false;
   Object.keys(ORDERPAIR).forEach(ok=>{
@@ -1071,10 +1079,11 @@ function nextSlot(s,x){
     .filter(d0=>d0&&D.to(d0)>0).sort()[0]||""}
 function whoOf(s,x){
   const o=stg(s,x.k);
-  /* VoDBに入るのに、アレンジからステムをもらっていない */
+  /* VoDBに入るのに、ステムをもらっていない */
   if((x.k==="vo"||x.k==="vodb")&&!o.done){
+    const sx=stages(s).find(z=>z.k==="stem");
     const ax=stages(s).find(z=>isArr(z));
-    if(ax&&!(stg(s,ax.k).got||{}).stem&&(stg(s,ax.k).rev||stg(s,ax.k).prov||stg(s,ax.k).done))
+    if(sx&&!stg(s,"stem").done&&ax&&(stg(s,ax.k).rev||stg(s,ax.k).prov||stg(s,ax.k).done))
       return{c:"late",t:"ステム 未受領",st:""}}
   {const w0=waitDate(s,x);
     if(w0)return{c:"wait",t:"日程待ち "+D.md(w0),st:"req"}}
@@ -1500,8 +1509,8 @@ function drawSong(){
         :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
         :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
         if(o.size)bits.push(sizeLabel(o.size));
-        {const g=GOTS.filter(z=>o.got[z[0]]).length;
-         bits.push(o.got.stem?"ステム 受領"+(g>1?"ほか"+(g-1):""):"ステム 未受領")}}
+        {const g=GOTS.filter(z=>o.got[z[0]]);
+         if(g.length)bits.push(g.map(z=>z[1]).join("・")+" 受領")}}
       if(mul){bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x))}
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
@@ -1559,7 +1568,7 @@ function drawSong(){
         '<div class="fg"><span class="lbl">受け取ったもの</span><div class="qadd">'+
           GOTS.map(z=>'<button class="qc'+(o.got[z[0]]?" on":"")+'" data-gt="'+x.k+'|'+z[0]+'">'+
             (o.got[z[0]]?"✓ ":"")+z[1]+'</button>').join("")+'</div>'+
-          (!o.got.stem?'<p class="hint" style="margin:6px 0 0">VoDBに入る前に、ステムをもらっておいてください。</p>':"")+
+
         '</div>'}
     if(mul){
       const r=recPhase(s,x);
@@ -3049,6 +3058,39 @@ function migrate(d){
       .sort((a2,b3)=>ANCHOR_KEYS.indexOf(a2)-ANCHOR_KEYS.indexOf(b3));
     delete s.people;delete s.musicians;delete s.admin;delete s.ballMode;delete s.ballWho;
     if(!s.stages)s.stages={};
+    /* パラデータを、発注・受け取り・合体・送付の4つに分ける */
+    {const L3=s.stageList||[],i3=L3.findIndex(x=>x.k==="para");
+     const bl=()=>({done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],asg:"",memo:"",rev:0,size:"",prov:false,got:{}});
+     if(i3>=0&&L3.some(x=>x.k==="paraO")){
+       /* すでに4つあるなら、古いパラデータの記録だけ移して消す */
+       const o3=s.stages.para||{};
+       ["paraO","paraR","paraM","paraS"].forEach((k,n)=>{
+         const o=s.stages[k]||(s.stages[k]=bl());
+         if(o3.done&&!o.done){o.done=true;o.date=o.date||o3.date||""}
+         if(n===0){if(o3.st&&!o.st)o.st=o3.st;if(o3.asg&&!o.asg)o.asg=o3.asg;
+           if(o3.memo&&!o.memo)o.memo=o3.memo}
+         if(n===3&&o3.dl&&!o.dl)o.dl=o3.dl});
+       s.stageList=L3.filter(x=>x.k!=="para");delete s.stages.para}
+     else if(i3>=0&&!L3.some(x=>x.k==="paraO")){
+       const b=L3[i3],o3=s.stages.para||{};
+       const mk=(k,n,role)=>Object.assign({},b,{k:k,n:n,role:role,t:""});
+       const four=[mk("paraO","パラデータ 発注","me"),mk("paraR","パラデータ 受け取り","arranger"),
+                   mk("paraM","パラデータ 合体","me"),mk("paraS","パラデータ 送付","me")];
+       s.stageList=L3.slice(0,i3).concat(four,L3.slice(i3+1));
+       four.forEach((x,n)=>{if(s.stages[x.k])return;
+         const o=bl();
+         if(o3.done){o.done=true;o.date=o3.date||""}
+         if(n===0){o.st=o3.st||"";o.asg=o3.asg||"";o.memo=o3.memo||""}
+         if(n===3&&o3.dl)o.dl=o3.dl;
+         s.stages[x.k]=o});
+       delete s.stages.para}}
+    /* ステムデータの工程に、アレンジで付けた受領チェックを引き継ぐ */
+    {const L4=s.stageList||[];
+     if(L4.some(x=>x.k==="stem")&&!s.stages.stem){
+       const ar=L4.find(x=>x.t==="arr"),ao=ar?(s.stages[ar.k]||{}):{};
+       const got=(ao.got||{}).stem;
+       s.stages.stem={done:!!got,date:got?(ao.date||""):"",dl:"",st:"",req:"",ret:"",
+         slots:[],asg:"",memo:"",rev:0,size:"",prov:false,got:{}}}}
     /* Choのリズム・繋ぎ・ピッチを、ひとつのChoEDITにまとめる */
     {const L2=s.stageList||[],old=["choR","choT","choP"];
      const idx=L2.findIndex(x=>old.indexOf(x.k)>=0);
