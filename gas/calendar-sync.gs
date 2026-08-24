@@ -102,6 +102,26 @@ function sync() { run_(false); }
 /** 書き込まずに、何が起きるかだけ見る */
 function dryRun() { diag_(); run_(true); }
 
+/* ===================== アプリから呼ぶ入口 ===================== */
+/**
+ * ウェブアプリとして配置すると、進行アプリの「カレンダーを取り込む」から呼べます。
+ * デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
+ *   次のユーザーとして実行：自分
+ *   アクセスできるユーザー：全員
+ * 出てきたURLを、進行アプリの設定に貼ってください。
+ */
+function doGet(e) {
+  var out;
+  try {
+    var dry = !!(e && e.parameter && e.parameter.dry);
+    out = { ok: true, text: run_(dry) };
+  } catch (err) {
+    out = { ok: false, text: String(err) };
+  }
+  return ContentService.createTextOutput(JSON.stringify(out))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function run_(dry) {
   var data = ghGet_();
   var events = readEvents_();
