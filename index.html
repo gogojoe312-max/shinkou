@@ -572,7 +572,9 @@ function tplSingle(){return{id:"tpl_single",name:"シングル",dates:["release"
   {k:"demo",   n:"デモ完成",           role:"director", anchor:"release",off:-5,unit:"m",gp:"デモ制作"},
   {k:"meeting",n:"曲確認",             role:"room",     anchor:"meeting",off:0,unit:"d",fb:{anchor:"release",off:-5,unit:"m"},gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",           role:"arranger", anchor:"mv",off:0,unit:"d",t:"arr",fb:{anchor:"mastering",off:-21,unit:"d"},gp:"アレンジ"},
-  {k:"stem",   n:"ステムデータ",         role:"arranger", anchor:"meeting",off:6,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
+  {k:"stemO",  n:"ステム 発注",        role:"me",       anchor:"meeting",off:4,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
+  {k:"stemR",  n:"ステム 受け取り",     role:"arranger", anchor:"meeting",off:6,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
+  {k:"stemM",  n:"ステム 合体",        role:"me",       anchor:"meeting",off:6,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"vo",     n:"VoDBスケジュール",               role:"me",       anchor:"meeting",off:7,unit:"d",t:"multi",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"vodb",   n:"VoDB",               role:"me",       anchor:"meeting",off:8,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
   {k:"warigo", n:"歌割",               role:"me",       anchor:"meeting",off:9,unit:"d",fb:{anchor:"release",off:-4,unit:"m"},gp:"VoDB"},
@@ -610,7 +612,9 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
   {k:"kario",  n:"仮歌",                         role:"director", anchor:"live",off:-65,unit:"d",gp:"デモ制作"},
   {k:"demo",   n:"デモ完成",                     role:"director", anchor:"live",off:-60,unit:"d",gp:"デモ制作"},
   {k:"arr",    n:"アレンジ",                     role:"arranger", anchor:"live",off:-30,unit:"d",t:"arr",gp:"アレンジ"},
-  {k:"stem",   n:"ステムデータ",                         role:"arranger", anchor:"live",off:-46,unit:"d",gp:"VoDB"},
+  {k:"stemO",  n:"ステム 発注",                          role:"me",       anchor:"live",off:-48,unit:"d",gp:"VoDB"},
+  {k:"stemR",  n:"ステム 受け取り",                       role:"arranger", anchor:"live",off:-46,unit:"d",gp:"VoDB"},
+  {k:"stemM",  n:"ステム 合体",                          role:"me",       anchor:"live",off:-46,unit:"d",gp:"VoDB"},
   {k:"vo",     n:"VoDBスケジュール",                         role:"me",       anchor:"live",off:-45,unit:"d",t:"multi",gp:"VoDB"},
   {k:"vodb",   n:"VoDB",                         role:"me",       anchor:"live",off:-44,unit:"d",gp:"VoDB"},
   {k:"warigo", n:"歌割",                         role:"me",       anchor:"live",off:-43,unit:"d",gp:"VoDB"},
@@ -681,7 +685,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-h";
+const APP_VER="2026-08-24-i";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -825,7 +829,7 @@ const GPFIX={"選曲・制作":"デモ制作","歌録り":"VoDB","追加録り":
 /* 工程キーから正しい段階を引く（旧データの取りこぼしを直す） */
 const GPBYK={gather:"デモ制作",sdemo:"デモ制作",lyric:"デモ制作",kario:"デモ制作",demo:"デモ制作",
   meeting:"デモ制作",pick:"デモ制作",arr:"アレンジ",
-  stem:"VoDB",vo:"VoDB",vodb:"VoDB",warigo:"VoDB",voes:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
+  stemO:"VoDB",stemR:"VoDB",stemM:"VoDB",vo:"VoDB",vodb:"VoDB",warigo:"VoDB",voes:"VoDB",rhythm:"VoDB",tsunagi:"VoDB",pitch:"VoDB",rough:"VoDB",
   cho:"ChoDB",chodb:"ChoDB",choes:"ChoDB",choed:"ChoDB",
   instrec:"楽器DB",instdb:"楽器DB",live:"楽器DB",
   revo:"ReVoDB",revodb:"ReVoDB",revoes:"ReVoDB",revoR:"ReVoDB",revoT:"ReVoDB",revoP:"ReVoDB",
@@ -845,7 +849,6 @@ const isMulti=x=>x.t==="multi";
 const isArr=x=>x.t==="arr";
 const SIZES=[["1cho","1Cho"],["2cho","2Cho"],["utanaka","歌中暫定フル尺"],["full","フル尺"]];
 /* アレンジから受け取るもの。VoDBに入る前に揃っている必要がある */
-const GOTS=[["click","クリック・テンポマップ"],["kari","仮歌用オケ"],["sheet","譜面・コード"]];
 const sizeLabel=v=>{const f=SIZES.find(x=>x[0]===v);return f?f[1]:""};
 /* rev＝受け取った版の数。0なら1stをまだもらっていない */
 /* やり取りの言い方。アレンジ工程は「1stアレンジ」、それ以外は「初稿」 */
@@ -870,7 +873,7 @@ function recBefore(s,x){
   if(x.d===1)for(let j=i-1;j>=0;j--){if(L[j].d!==1){return isMulti(L[j])?L[j]:null}}
   return null}
 /* 発注したら、その相手にそのまま制作を頼む形にする */
-const ORDERPAIR={order:"build",paraO:"paraR"};
+const ORDERPAIR={order:"build",paraO:"paraR",stemO:"stemR"};
 function syncOrder(s){
   const L=stages(s);let ch=false;
   Object.keys(ORDERPAIR).forEach(ok=>{
@@ -1081,9 +1084,9 @@ function whoOf(s,x){
   const o=stg(s,x.k);
   /* VoDBに入るのに、ステムをもらっていない */
   if((x.k==="vo"||x.k==="vodb")&&!o.done){
-    const sx=stages(s).find(z=>z.k==="stem");
+    const sx=stages(s).find(z=>z.k==="stemR");
     const ax=stages(s).find(z=>isArr(z));
-    if(sx&&!stg(s,"stem").done&&ax&&(stg(s,ax.k).rev||stg(s,ax.k).prov||stg(s,ax.k).done))
+    if(sx&&!stg(s,"stemR").done&&ax&&(stg(s,ax.k).rev||stg(s,ax.k).prov||stg(s,ax.k).done))
       return{c:"late",t:"ステム 未受領",st:""}}
   {const w0=waitDate(s,x);
     if(w0)return{c:"wait",t:"日程待ち "+D.md(w0),st:"req"}}
@@ -1509,8 +1512,7 @@ function drawSong(){
         :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
         :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
         if(o.size)bits.push(sizeLabel(o.size));
-        {const g=GOTS.filter(z=>o.got[z[0]]);
-         if(g.length)bits.push(g.map(z=>z[1]).join("・")+" 受領")}}
+        }
       if(mul){bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x))}
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
@@ -1565,11 +1567,7 @@ function drawSong(){
         '<div class="fg"><span class="lbl">尺</span><div class="seg2" id="sz_'+x.k+'">'+
           SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
         '</div></div>'+
-        '<div class="fg"><span class="lbl">受け取ったもの</span><div class="qadd">'+
-          GOTS.map(z=>'<button class="qc'+(o.got[z[0]]?" on":"")+'" data-gt="'+x.k+'|'+z[0]+'">'+
-            (o.got[z[0]]?"✓ ":"")+z[1]+'</button>').join("")+'</div>'+
-
-        '</div>'}
+        ''}
     if(mul){
       const r=recPhase(s,x);
       h+='<div class="fg"><span class="lbl">日程</span><div class="arrbox">'+
@@ -1741,9 +1739,6 @@ function wireSong(){
     o.rev=(o.rev||0)+1;o.st="me";mark();drawSong();rf()});
   b.querySelectorAll("[data-au]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.au);
     o.rev=Math.max(0,(o.rev||0)-1);if(!o.rev)o.st="req";mark();drawSong();rf()});
-  b.querySelectorAll("[data-gt]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.gt.split("|"),o=stg(s,a[0]);
-    o.got[a[1]]=!o.got[a[1]];mark();drawSong();rf()});
   b.querySelectorAll("[data-sz]").forEach(e=>e.onclick=()=>{const a=e.dataset.sz.split("|"),o=stg(s,a[0]);
     o.size=(o.size===a[1])?"":a[1];mark();drawSong();rf()});
   b.querySelectorAll("[data-sc]").forEach(e=>e.onclick=()=>{
@@ -3084,13 +3079,24 @@ function migrate(d){
          if(n===3&&o3.dl)o.dl=o3.dl;
          s.stages[x.k]=o});
        delete s.stages.para}}
-    /* ステムデータの工程に、アレンジで付けた受領チェックを引き継ぐ */
-    {const L4=s.stageList||[];
-     if(L4.some(x=>x.k==="stem")&&!s.stages.stem){
-       const ar=L4.find(x=>x.t==="arr"),ao=ar?(s.stages[ar.k]||{}):{};
-       const got=(ao.got||{}).stem;
-       s.stages.stem={done:!!got,date:got?(ao.date||""):"",dl:"",st:"",req:"",ret:"",
-         slots:[],asg:"",memo:"",rev:0,size:"",prov:false,got:{}}}}
+    /* ステムを、発注・受け取り・合体の3つに分ける */
+    {const L4=s.stageList||[],bl4=()=>({done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],
+       asg:"",memo:"",rev:0,size:"",prov:false,got:{}});
+     const ar=L4.find(x=>x.t==="arr"),ao=ar?(s.stages[ar.k]||{}):{};
+     const got=!!((ao.got||{}).stem);
+     const i4=L4.findIndex(x=>x.k==="stem");
+     const o4=s.stages.stem||null;
+     if(i4>=0){s.stageList=L4.filter(x=>x.k!=="stem");delete s.stages.stem}
+     ["stemO","stemR","stemM"].forEach((k,n)=>{
+       if(!s.stageList.some(x=>x.k===k))return;
+       const o=s.stages[k]||(s.stages[k]=bl4());
+       /* 古いステム工程、なければアレンジの受領チェックから引き継ぐ */
+       const src=o4||(got?{done:true,date:ao.date||""}:null);
+       if(src&&src.done&&!o.done){o.done=true;o.date=o.date||src.date||""}
+       if(o4&&n===0){if(o4.st&&!o.st)o.st=o4.st;if(o4.asg&&!o.asg)o.asg=o4.asg;
+         if(o4.memo&&!o.memo)o.memo=o4.memo}
+       if(o4&&n===2&&o4.dl&&!o.dl)o.dl=o4.dl});
+     if(ao.got)delete ao.got}
     /* Choのリズム・繋ぎ・ピッチを、ひとつのChoEDITにまとめる */
     {const L2=s.stageList||[],old=["choR","choT","choP"];
      const idx=L2.findIndex(x=>old.indexOf(x.k)>=0);
