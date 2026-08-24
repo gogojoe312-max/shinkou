@@ -452,7 +452,7 @@ const D={
 
 /* ===================== constants ===================== */
 const ROLES={me:"自分",room:"会議・社内",director:"ディレクター",lyricist:"作詞",composer:"作曲",
-  arranger:"編曲",engineer:"エンジニア",masEng:"Mastering Engineer"};
+  arranger:"編曲",engineer:"エンジニア",masEng:"マスタリングエンジニア"};
 /* 録音で押さえることが多いパート。日程に一発で足せるようにする */
 const RECPARTS=["Drums","Bass","Electric Guitar","Acoustic Guitar","Keyboards","Piano","Strings","Brass","Percussion","Chorus"];
 /* ソロ名義のアーティストは歌割の工程を作らない */
@@ -633,7 +633,6 @@ function tplLive(){return{id:"tpl_live",name:"ライブ曲・アディショナ�
 
 /* ライブ制作物の工程は、作るものによって変える */
 /* ライブ制作物の締切はリハから逆算する。リハが無ければ初日から */
-const RH={anchor:"rehearsal",unit:"d"};
 const SHOWSTG={
   plan:  {k:"plan",  n:"内容決定", role:"me",       anchor:"rehearsal",off:-38,unit:"d",fb:{anchor:"open",off:-45,unit:"d"},gp:"制作"},
   order: {k:"order", n:"発注",     role:"me",       anchor:"rehearsal",off:-28,unit:"d",fb:{anchor:"open",off:-35,unit:"d"},gp:"制作"},
@@ -673,7 +672,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-a";
+const APP_VER="2026-08-24-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1086,7 +1085,7 @@ function whoOf(s,x){
   if(o.done)return{c:"none",t:"完了",st:"done"};
   const nm=o.asg||(x.role==="me"?"":x.role==="room"?"":nameFor(s,x.role));
   if(isArr(x)){
-    const nm2=o.asg||nameFor(s,x.role)||(x.k==="arr"?"編曲（仮）":"担当（仮）");
+    const nm2=foeLabel(s,x);
     if(o.prov){
       if(o.st==="req")return{c:"other",t:nm2+" 待ち · "+awaitLabel(o.rev,firstWord(x)),st:"req"};
       return{c:"me",t:"ひとまずOK",st:"me"}}
@@ -1095,9 +1094,9 @@ function whoOf(s,x){
     return{c:"todo",t:"未依頼",st:""}}
   if(isMulti(x)){
     const r=recPhase(s,x);
-    if(r.p==="sched")return{c:"other",t:(o.asg?o.asg+" 待ち":"相手 待ち")+" · 日程調整",st:"req"};
+    if(r.p==="sched")return{c:"other",t:foeLabel(s,x)+" 待ち · 日程調整",st:"req"};
     if(r.p==="listed")return{c:"me",t:"日程を決める",st:"me"};
-    if(r.p==="studio")return{c:"other",t:"スタジオ 連絡待ち",st:"req"};
+    if(r.p==="studio")return{c:"other",t:foeLabel(s,x)+" 連絡待ち",st:"req"};
     if(r.p==="await")return{c:"wait",t:"日程待ち "+D.md(r.next),st:"req"};
     if(r.p==="wait")return{c:"other",t:"返事待ち",st:"req"};
     if(r.p==="rec")return{c:"me",t:"済 "+r.d+"/"+r.n,st:"me"};
@@ -1113,10 +1112,10 @@ function whoOf(s,x){
   if(x.role==="me"){
     /* 自分の作業。まず自分の番、次に相手待ち */
     if(o.st==="me")return{c:"me",t:(ORDERPAIR[x.k]?"発注する":(o.asg||"自分")+"の番"),st:"me"};
-    if(o.st==="req")return{c:"other",t:(o.asg||"相手")+" 待ち",st:"req"};
+    if(o.st==="req")return{c:"other",t:foeLabel(s,x)+" 待ち",st:"req"};
     return{c:"todo",t:"未依頼",st:""}}
   if(o.st==="me")return{c:"me",t:"自分の番",st:"me"};
-  if(o.st==="req")return{c:"other",t:(nm||((ROLES[x.role]||"相手")+"（仮）"))+" 待ち",st:"req"};
+  if(o.st==="req")return{c:"other",t:foeLabel(s,x)+" 待ち",st:"req"};
   return{c:"todo",t:"未依頼",st:""}}
 function ballOf(s){
   const i=curIdx(s),L=stages(s);
@@ -1521,15 +1520,9 @@ function drawSong(){
     if(!open)return;
     h+='<div class="dtl">'+
       ((dn||kid)?"":('<div class="fg"><span class="lbl">状態</span><div class="seg2 stt">'+
-        stStates(x).map(z=>'<button data-ss2="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.st||"")===z[0])+'">'+
+        stStates(x,s).map(z=>'<button data-ss2="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.st||"")===z[0])+'">'+
           esc(z[1])+'</button>').join("")+'</div></div>'))+
-      (function(){const rr=ORDERPAIR[x.k]?((stages(s).find(z=>z.k===ORDERPAIR[x.k])||{}).role||x.role):x.role;
-        return'<div class="fg"><span class="lbl">'+(ORDERPAIR[x.k]?"発注先":"担当者")+'</span><input class="inp" list="dl_'+
-        (rr==="masEng"?"masEng":rr==="director"?"director":rr==="lyricist"||rr==="composer"||rr==="arranger"?rr:"engineer")+
-        '" data-as="'+x.k+'" '+
-        'value="'+esc(o.asg)+'" placeholder="'+esc(nameFor(s,rr)||ROLES[rr]||"")+'"></div>'})();
-    h+='<div class="fg"><span class="lbl">メモ</span>'+
-      '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>';
+      (ORDERPAIR[x.k]?asgField(s,x):"");
     if(ORDERPAIR[x.k]&&stages(s).some(z=>z.k===ORDERPAIR[x.k])){
       const bx=stages(s).find(z=>z.k===ORDERPAIR[x.k]),bo=stg(s,bx.k);
       h+='<div class="fg"><span class="lbl">この発注の先</span><div class="arrbox">'+
@@ -1582,11 +1575,14 @@ function drawSong(){
     h+='<div class="row fg">'+
       '<div><span class="lbl">締切</span>'+dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
       (mul?'<div></div>':'<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div>')+'</div>'+
+      '<div class="fg"><span class="lbl">メモ</span>'+
+      '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>'+
       (o.dl?'<p class="hint" style="margin:-2px 0 8px">締切を自分で決めています。'+
         '<button class="btn sm" data-dlr="'+x.k+'" style="margin-left:6px">自動に戻す</button></p>':"")+
       '<div class="row"><button class="btn sm w" data-ad2="'+x.k+'">'+(stAdv[x.k]?"閉じる":"この工程を直す")+'</button></div>'+
       (stAdv[x.k]?'<div class="fg" style="margin-top:9px"><span class="lbl">工程名</span>'+
         '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div>'+
+        (ORDERPAIR[x.k]?"":asgField(s,x))+
       '<div class="row"><button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
       '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>':"")+
       (stAdv[x.k]?'<div class="row" style="margin-top:9px"><div><span class="lbl">基準</span><select class="inp" data-sa3="'+x.k+'">'+
@@ -1953,12 +1949,29 @@ function projShort(p){if(!p)return"";
   return (NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+(KABBR[p.kind]||p.kind)}
 const joinNames=a=>a.join(a.every(n=>/^[\x20-\x7E]+$/.test(n))?",":"、");
 /* パートの並び順。PARTSに載っているものはその順、載っていないものは後ろ */
+/* 担当者・発注先の入力欄 */
+function asgField(s,x){
+  const o=stg(s,x.k);
+  const rr=ORDERPAIR[x.k]?((stages(s).find(z=>z.k===ORDERPAIR[x.k])||{}).role||x.role):x.role;
+  const dl=rr==="masEng"?"masEng":rr==="director"?"director":
+    (rr==="lyricist"||rr==="composer"||rr==="arranger")?rr:"engineer";
+  return'<div class="fg"><span class="lbl">'+(ORDERPAIR[x.k]?"発注先":"担当者")+'</span>'+
+    '<input class="inp" list="dl_'+dl+'" data-as="'+x.k+'" value="'+esc(o.asg)+'" '+
+    'placeholder="'+esc(nameFor(s,rr)||ROLES[rr]||"")+'"></div>'}
+/* その工程で待つ相手の呼び名 */
+function foeLabel(s,x){
+  const o=(s&&s.stages&&s.stages[x.k])||{};
+  if(o.asg)return o.asg;
+  if(STUDIOK[x.k])return "スタジオ";
+  if(x.role==="me")return "相手";
+  return ROLES[x.role]||"相手"}
 /* その工程で選べる状態 */
-function stStates(x){
-  if(isMulti(x))return [["","未依頼"],["req","日程調整 依頼中"],["studio","スタジオ 連絡待ち"]];
+function stStates(x,s){
+  const foe=foeLabel(s,x);
+  if(isMulti(x))return [["","未依頼"],["req","日程調整を依頼"],["studio",foe+" 連絡待ち"]];
   if(x.role==="room")return [["","未依頼"],["req","会議待ち"],["me","自分の番"]];
-  if(x.role==="me")return [["","未依頼"],["me","自分の番"],["req","相手 待ち"]];
-  return [["","未依頼"],["req","相手 待ち"],["me","自分の番"]]}
+  if(x.role==="me")return [["","未依頼"],["me","自分の番"],["req",foe+" 待ち"]];
+  return [["","未依頼"],["req",foe+" 待ち"],["me","自分の番"]]}
 const partRank=pt=>{const i=PARTS.indexOf(pt);return i<0?900:i};
 const byPart=(a,b)=>partRank(a)-partRank(b);
 /* 「Alto Saxophone・Tenor Saxophone」→「Alto,Tenor Saxophone」のようにまとめてから & でつなぐ */
