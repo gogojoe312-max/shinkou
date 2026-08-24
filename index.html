@@ -299,19 +299,20 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .arrbtn .btn{flex:1}
 /* 日付欄。右端の▤を押すとカレンダーが開く */
 .dtbox{position:relative;display:block;min-width:0}
-.dtbox .dt{width:100%;padding-right:30px}
+.dtbox .dt{width:100%;padding-right:36px}
 .dtbox .dtpick{position:absolute;right:4px;bottom:0;width:26px;height:1px;opacity:0;border:0;padding:0;
   pointer-events:none}
 /* 工程の行から、その場で日付を入れる */
 .qdt{position:relative;flex-shrink:0}
-.qdt .dtpick{position:absolute;right:0;bottom:0;width:100%;height:1px;opacity:0;border:0;padding:0;pointer-events:none}
-.qdb{font-family:var(--mono);font-size:10.5px;color:var(--dim2);padding:3px 8px 4px;border-radius:9px;
-  background:var(--panel2);white-space:nowrap}
-.qdb:hover{color:var(--ink)}
+.qdt .dtpick{position:absolute;inset:0;width:100%;height:100%;opacity:0;border:0;padding:0;margin:0;
+  -webkit-appearance:none;appearance:none;background:transparent;z-index:2}
+.qdb{display:block;font-family:var(--mono);font-size:10.5px;color:var(--dim2);padding:3px 8px 4px;
+  border-radius:9px;background:var(--panel2);white-space:nowrap}
+.qdt:hover .qdb{color:var(--ink)}
 .st.late .qdb{color:var(--late)}
 .dtcal{position:absolute;right:1px;top:1px;bottom:1px;width:28px;display:grid;place-items:center;
   color:var(--dim2);font-size:13px;border-radius:0 5px 5px 0}
-.dtcal:hover{color:var(--ink);background:var(--panel2)}
+.dtbox:hover .dtcal{color:var(--ink)}
 .qadd{display:flex;flex-wrap:wrap;gap:5px;margin-top:8px}
 .qc{border:1px dashed var(--line2);border-radius:13px;padding:4px 10px;font-size:11.5px;color:var(--dim)}
 .qc:hover{border-style:solid;color:var(--ink)}
@@ -552,9 +553,9 @@ function dtIn(attr,key,val,ref,cls){
     '<input class="inp dt '+(cls||"")+'" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" '+
     'autocomplete="off" autocorrect="off" spellcheck="false" id="'+id+'" '+
     attr+'="'+esc(key)+'" data-ref="'+esc(ref||"")+'" placeholder="例 0911" value="'+esc(fmtDate(val))+'">'+
-    '<input type="date" class="dtpick" data-for="'+id+'" tabindex="-1" '+
+    '<input type="date" class="dtpick" data-for="'+id+'" '+
       'value="'+esc(/^\d{4}-\d{2}-\d{2}$/.test(val||"")?val:"")+'">'+
-    '<button class="dtcal" data-cal="'+id+'" aria-label="カレンダーから選ぶ">▤</button></span>'}
+    '<span class="dtcal" aria-hidden="true">▤</span></span>'}
 const MASTER_KEYS=[["artist","グループ"],["director","ディレクター"],
   ["lyricist","作詞家"],["composer","作曲家"],["arranger","編曲家"],
   ["engineer","エンジニア"],["masEng","マスタリングエンジニア"],["studio","スタジオ"],
@@ -685,7 +686,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-i";
+const APP_VER="2026-08-24-j";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1528,8 +1529,7 @@ function drawSong(){
         '</span><span class="s">'+sub+'</span></button>'+
       (dn?"":'<span class="qdt"><input type="date" class="dtpick" data-qd="'+x.k+'" '+
         'value="'+esc(/^\d{4}-\d{2}-\d{2}$/.test(d||"")?d:"")+'">'+
-        '<button class="qdb" data-qdb="'+x.k+'" title="日付を入れる">'+
-        (d?esc(D.md(d)):"日付")+'</button></span>')+
+        '<span class="qdb">'+(d?esc(D.md(d)):"日付")+'</span></span>')+
       (dn||kid?"":'<button class="who '+w.c+'" data-bt="'+x.k+'" title="タップで状態を切替">'+esc(w.t)+'</button>')+
       '</div>';
     if(!open)return;
@@ -1711,15 +1711,10 @@ function wireSong(){
     const x=s.stageList[s.stageList.findIndex(z=>z.k===k)];
     o.dl=v});
   wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
-  b.querySelectorAll("[data-cal]").forEach(e=>e.onclick=ev=>{
-    ev.preventDefault();
-    const pick=b.querySelector('[data-for="'+e.dataset.cal+'"]');
-    if(!pick)return;
-    const f=document.getElementById(e.dataset.cal);
-    if(f){const iso=parseDate(f.value,f.dataset.ref||"");if(iso)pick.value=iso}
-    pick.style.pointerEvents="auto";
-    try{pick.showPicker?pick.showPicker():pick.click()}catch(_){pick.click()}
-    pick.style.pointerEvents="none"});
+  b.querySelectorAll("[data-for]").forEach(e=>e.onfocus=()=>{
+    /* いま打ってある日付を、カレンダーの初期値にする */
+    const f=document.getElementById(e.dataset.for);
+    if(!f)return;const iso=parseDate(f.value,f.dataset.ref||"");if(iso)e.value=iso});
   b.querySelectorAll("[data-for]").forEach(e=>e.onchange=()=>{
     const f=document.getElementById(e.dataset.for);
     if(!f||!e.value)return;
@@ -1785,13 +1780,6 @@ function wireSong(){
     const a=e.dataset.ss2.split("|"),o=stg(s,a[0]);
     o.st=a[1];if(o.st!=="req")o.req="";
     syncOrder(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-qdb]").forEach(e=>e.onclick=ev=>{
-    ev.preventDefault();ev.stopPropagation();
-    const pick=b.querySelector('[data-qd="'+e.dataset.qdb+'"]');
-    if(!pick)return;
-    pick.style.pointerEvents="auto";
-    try{pick.showPicker?pick.showPicker():pick.click()}catch(_){pick.click()}
-    pick.style.pointerEvents="none"});
   b.querySelectorAll("[data-qd]").forEach(e=>e.onchange=()=>{
     if(!e.value)return;
     const k=e.dataset.qd,xx=s.stageList[ix(k)],o=stg(s,k);
