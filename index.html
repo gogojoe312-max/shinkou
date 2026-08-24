@@ -131,12 +131,12 @@ main>.artist:first-child{margin-top:2px}
 .bar i.prov{background:rgba(47,192,138,.4)}
 .gps{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:9px}
 .gp1{font-size:10.5px;line-height:1.5;padding:2px 8px;border-radius:11px;white-space:nowrap;
-  border:1px solid var(--line);background:transparent;color:var(--dim2)}
-.gp1.on{color:var(--ok);border-color:rgba(47,192,138,.4);background:rgba(47,192,138,.09)}
-.gp1.cur{color:#16171B;background:var(--ink);border-color:var(--ink);font-weight:700}
-.gp1.prov{color:var(--me);border-color:rgba(47,192,138,.4);border-style:dashed}
+  background:var(--panel2);color:var(--ghost)}
+.gp1.on{color:rgba(47,192,138,.75);background:rgba(47,192,138,.1)}
+.gp1.cur{color:#16171B;background:var(--ink);font-weight:700}
+.gp1.prov{color:var(--me);background:rgba(47,192,138,.1)}
 .gp1 u{text-decoration:none;font-family:var(--mono);opacity:.75;margin-left:4px}
-.gp1.tot{border-style:dashed;margin-left:auto}
+.gp1.tot{margin-left:auto;background:transparent;color:var(--ghost)}
 .inv{margin-top:8px;font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--dim2)}
 .inv.pend{color:var(--warn)}
 .kd{display:flex;flex-wrap:wrap;gap:7px;margin:0 0 11px}
@@ -230,16 +230,17 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .sec{font-family:var(--mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim2);margin:20px 0 9px;padding-bottom:5px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}
 .sec .r{margin-left:auto}
 
-.st{display:flex;align-items:center;gap:9px;padding:8px 0;border-bottom:1px dashed var(--line)}
-.st:last-of-type{border-bottom:none}
+.st{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:9px;margin:1px 0}
+.st.cur{background:var(--panel)}
+.st:hover{background:rgba(255,255,255,.02)}
 .chk{width:20px;height:20px;border:1px solid var(--line2);border-radius:5px;flex-shrink:0;display:grid;place-items:center;font-size:11px;color:var(--dim2)}
 .chk[aria-checked="true"]{background:var(--ok);border-color:var(--ok);color:#16171B;font-weight:700}
 .st .nm{flex:1;min-width:0}
-.st .nm .t{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.st.on .nm .t{color:var(--ghost)}
-.st.on .nm .s{color:var(--ghost)}
-.st .nm .s{display:block;font-family:var(--mono);font-size:10px;color:var(--dim2);letter-spacing:.03em}
-.st.late .nm .s{color:var(--late)}
+.st .nm .t{display:block;font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.st.on{opacity:.45}
+.st.on .nm .t{font-weight:400}
+.st .nm .s{display:block;font-size:11px;color:var(--dim2);line-height:1.5;margin-top:2px}
+.st.late .nm .s em{color:var(--late);font-style:normal;font-weight:600}
 .st .who{font-size:10px;font-weight:700;padding:3px 9px;border-radius:10px;flex-shrink:0;white-space:nowrap;
   max-width:132px;overflow:hidden;text-overflow:ellipsis;border:1px solid transparent;line-height:1.4}
 .st .who:hover{border-color:currentColor}
@@ -249,13 +250,13 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
   border-bottom:1px solid var(--line);font-family:var(--mono);font-size:10px;letter-spacing:.13em;
   color:var(--dim2);text-align:left}
 .gph span:nth-child(2){flex:1}
-.gph b{color:var(--dim);font-weight:600}
+.gph b{color:var(--ghost);font-weight:400;font-family:var(--mono);font-size:10.5px}
 .gph .cv{flex:0 0 12px;font-size:8px;transition:transform .15s}
 .gph:not(.on) .cv{transform:rotate(-90deg)}
 .gph.on{color:var(--ink)}
 .gph:hover{color:var(--ink)}
 /* 子工程は、名前のところに縦線を引いてぶら下がりを示す。掴む所とは重ねない */
-.st.kid{border-bottom-style:dotted}
+.st.kid{margin-left:2px}
 .st.kid .nm{border-left:2px solid var(--line2);padding-left:11px}
 .st.kid .nm .t{font-size:12.5px;color:var(--dim)}
 .st.kid.on .nm{border-left-color:rgba(47,192,138,.35)}
@@ -669,7 +670,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-c";
+const APP_VER="2026-08-24-d";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1491,8 +1492,9 @@ function drawSong(){
     const cd=d;
     const left=(cd&&!dn)?D.to(cd):null,late=left!==null&&left<0;
     let sub;
-    if(dn)sub="完了 "+(o.date?D.md(o.date):"—");
-    else if(kid)sub=ks.d+"/"+ks.n+" 完了";
+    /* bits は素の文字として入れ、表示のときにエスケープする。期限だけ色を付ける */
+    if(dn)sub=esc("完了 "+(o.date?D.md(o.date):"—"));
+    else if(kid)sub=esc(ks.d+"/"+ks.n+" 完了");
     else{const bits=[];
       if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev,firstWord(x))+"依頼中":"")
         :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
@@ -1503,14 +1505,16 @@ function drawSong(){
       if(mul){bits.push(recLabel(s,x));
         if(schedFixed(s,x))bits.push(slotLine(s,x))}
       if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
-      if(left!==null)bits.push(left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日");
       if(o.memo)bits.push("✎ "+o.memo.split("\n")[0].slice(0,24));
-      sub=bits.join(" · ")||"締切 未設定"}
+      sub=bits.map(esc).join(" · ");
+      if(left!==null){const t=left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日";
+        sub=(sub?sub+" · ":"")+(left<=0?'<em>'+esc(t)+'</em>':esc(t))}
+      if(!sub)sub=esc("締切 未設定")}
     h+='<div class="st '+(dn?"on":"")+' '+(late?"late":"")+' '+(x.d===1?"kid":"")+' '+(i===ci?"cur":"")+'" data-srow="'+x.k+'">'+
       '<button class="grip" data-tg="'+x.k+'">⠿</button>'+
       '<button class="chk" role="checkbox" aria-checked="'+dn+'" data-k="'+x.k+'" data-ki="'+i+'">✓</button>'+
       '<button class="nm" data-ex="'+x.k+'"><span class="t">'+esc(x.n)+
-        '</span><span class="s">'+esc(sub)+'</span></button>'+
+        '</span><span class="s">'+sub+'</span></button>'+
       (dn||kid?"":'<button class="who '+w.c+'" data-bt="'+x.k+'" title="タップで状態を切替">'+esc(w.t)+'</button>')+
       '</div>';
     if(!open)return;
