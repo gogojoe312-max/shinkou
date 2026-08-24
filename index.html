@@ -167,6 +167,8 @@ main>.artist:first-child{margin-top:2px}
 .usebar{display:flex;gap:6px;margin-top:8px}
 .sgl.live{color:var(--warn);border-color:rgba(232,163,61,.5)}
 .seg2 button{white-space:nowrap}
+.seg2.stt{flex-wrap:wrap}
+.seg2.stt button{flex:1 1 auto;font-size:11.5px;padding:6px 8px}
 .sgl{font-family:var(--mono);font-size:8.5px;letter-spacing:.12em;color:var(--dim2);
   border:1px solid var(--line2);border-radius:3px;padding:1px 5px;flex-shrink:0}
 .chipsel{display:flex;gap:6px;margin-top:8px}
@@ -671,7 +673,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-18-b";
+const APP_VER="2026-08-24-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1518,8 +1520,9 @@ function drawSong(){
       '</div>';
     if(!open)return;
     h+='<div class="dtl">'+
-      '<div class="row fg"><div><span class="lbl">工程名</span>'+
-        '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div></div>'+
+      ((dn||kid)?"":('<div class="fg"><span class="lbl">状態</span><div class="seg2 stt">'+
+        stStates(x).map(z=>'<button data-ss2="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.st||"")===z[0])+'">'+
+          esc(z[1])+'</button>').join("")+'</div></div>'))+
       (function(){const rr=ORDERPAIR[x.k]?((stages(s).find(z=>z.k===ORDERPAIR[x.k])||{}).role||x.role):x.role;
         return'<div class="fg"><span class="lbl">'+(ORDERPAIR[x.k]?"発注先":"担当者")+'</span><input class="inp" list="dl_'+
         (rr==="masEng"?"masEng":rr==="director"?"director":rr==="lyricist"||rr==="composer"||rr==="arranger"?rr:"engineer")+
@@ -1581,9 +1584,11 @@ function drawSong(){
       (mul?'<div></div>':'<div><span class="lbl">発注日</span>'+dtToday("data-rq",x.k,o.req,d)+'</div>')+'</div>'+
       (o.dl?'<p class="hint" style="margin:-2px 0 8px">締切を自分で決めています。'+
         '<button class="btn sm" data-dlr="'+x.k+'" style="margin-left:6px">自動に戻す</button></p>':"")+
-      '<div class="row"><button class="btn sm" data-ad2="'+x.k+'">'+(stAdv[x.k]?"締切の計算を閉じる":"締切の計算を変える")+'</button>'+
-      '<button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
-      '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>'+
+      '<div class="row"><button class="btn sm w" data-ad2="'+x.k+'">'+(stAdv[x.k]?"閉じる":"この工程を直す")+'</button></div>'+
+      (stAdv[x.k]?'<div class="fg" style="margin-top:9px"><span class="lbl">工程名</span>'+
+        '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div>'+
+      '<div class="row"><button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
+      '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>':"")+
       (stAdv[x.k]?'<div class="row" style="margin-top:9px"><div><span class="lbl">基準</span><select class="inp" data-sa3="'+x.k+'">'+
         Object.keys(ANCHORS).map(a=>'<option value="'+a+'" '+(x.anchor===a?"selected":"")+'>'+esc(ANCHORS[a])+'</option>').join("")+'</select></div>'+
       '<div style="flex:.5"><span class="lbl">ずらす</span><input type="number" class="inp" data-so="'+x.k+'" value="'+x.off+'"></div>'+
@@ -1784,6 +1789,10 @@ function wireSong(){
   b.querySelectorAll("[data-ex]").forEach(e=>e.onclick=()=>{
     const k=e.dataset.ex;
     stOpen=stOpen===k?"":k;stAdv={};drawSong()});
+  b.querySelectorAll("[data-ss2]").forEach(e=>e.onclick=()=>{
+    const a=e.dataset.ss2.split("|"),o=stg(s,a[0]);
+    o.st=a[1];if(o.st!=="req")o.req="";
+    syncOrder(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
     const xx=s.stageList[ix(e.dataset.bt)];
     /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
@@ -1944,6 +1953,12 @@ function projShort(p){if(!p)return"";
   return (NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+(KABBR[p.kind]||p.kind)}
 const joinNames=a=>a.join(a.every(n=>/^[\x20-\x7E]+$/.test(n))?",":"、");
 /* パートの並び順。PARTSに載っているものはその順、載っていないものは後ろ */
+/* その工程で選べる状態 */
+function stStates(x){
+  if(isMulti(x))return [["","未依頼"],["req","日程調整 依頼中"],["studio","スタジオ 連絡待ち"]];
+  if(x.role==="room")return [["","未依頼"],["req","会議待ち"],["me","自分の番"]];
+  if(x.role==="me")return [["","未依頼"],["me","自分の番"],["req","相手 待ち"]];
+  return [["","未依頼"],["req","相手 待ち"],["me","自分の番"]]}
 const partRank=pt=>{const i=PARTS.indexOf(pt);return i<0?900:i};
 const byPart=(a,b)=>partRank(a)-partRank(b);
 /* 「Alto Saxophone・Tenor Saxophone」→「Alto,Tenor Saxophone」のようにまとめてから & でつなぐ */
