@@ -670,7 +670,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-e";
+const APP_VER="2026-08-24-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1046,6 +1046,8 @@ function waitDate(s,x){
     return r0?nextSlot(s,r0):""}
   /* 楽器DBの1本ごとの工程は、自分の日を見る */
   if(/^sl_/.test(x.k)&&o.dl&&D.to(o.dl)>0)return o.dl;
+  /* 日を決めてあって、まだ何も動いていないなら「日程待ち」。未依頼とは言わない */
+  if(!o.st&&!o.prov&&o.dl&&D.to(o.dl)>0)return o.dl;
   return""}
 /* これから来る日のうち、いちばん近いもの。
    先の日付は録りようがないので、済みチェックが付いていても「これから」とみなす */
@@ -1135,8 +1137,10 @@ function ballsOf(s){
     const o=s.stages[x.k]||{};
     /* スケジュールと対になる工程は、同じ相手なので出さない */
     if(RECMIRROR[x.k])return;
-    /* 親のスケジュールで出るので、その1本ごとの工程は出さない */
-    if(waitDate(s,x)){if(!/^sl_/.test(x.k))push(x);return}
+    /* 日程待ちは、録りの日など「相手と決めた日」だけ出す。
+       自分で置いた締切まで並べると一覧が埋まってしまう */
+    const w0=waitDate(s,x);
+    if(w0){if(isMulti(x))push(x);return}
     if(o.done||o.st!=="req")return;
     const w=whoOf(s,x);if(w.c==="other"||w.c==="room")push(x)});
   return out}
