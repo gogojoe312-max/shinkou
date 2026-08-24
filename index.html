@@ -670,7 +670,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-d";
+const APP_VER="2026-08-24-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -990,31 +990,23 @@ function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note
   if(!all&&o.done){o.done=false}}
 /* ライブ初披露に間に合わせる必要がある段階。ここより後ろの締切は初披露日に前倒しする */
 const PRELIVE={"デモ制作":1,"アレンジ":1,"VoDB":1,"ChoDB":1,"楽器DB":1};
-function autoDl(s,x){const o=stg(s,x.k),keep=o.dl;o.dl="";
-  try{return dlOf(s,x)}finally{o.dl=keep}}
-function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
-  const d0=dlRaw(s,x);
-  /* 前の工程より前に来てしまう締切は、前の工程に合わせる */
-  if((AFTERREC[x.k]||RECMIRROR[x.k])&&!o.dl){
-    const L=stages(s),i=L.findIndex(z=>z.k===x.k);
-    if(i>0&&L[i-1].gp===x.gp){const pd=dlOf(s,L[i-1]);
-      if(pd&&(!d0||d0<pd))return pd}}
-  return d0}
-function dlRaw(s,x){const o=stg(s,x.k);
-  /* 録音工程は、決めた日程の最終日がそのまま締切 */
-  if(isMulti(x)){const lr=lastRec(s,x);if(lr)return lr}
-  /* 実際の録り工程は、スケジュール工程と同じ締切 */
-  if(RECMIRROR[x.k]){const r=stages(s).find(z=>z.k===RECMIRROR[x.k]);
-    if(r)return dlOf(s,r)}
-  {const rec=recBefore(s,x);
-    if(rec){const lr=lastRec(s,rec);
-      /* 録音が済まないと着手できないので、最終録り日から順に2日ずつ空けて並べる */
-      if(lr)return D.addD(lr,2*recStep(s,rec,x))}}
+/* 逆算をやめる前の計算。読み込み時に一度だけ、いまの締切を日付として残すために使う */
+function oldAutoDl(s,x){
+  const rec=recBefore(s,x);
+  if(rec){const lr=lastRec(s,rec);if(lr)return D.addD(lr,2*recStep(s,rec,x))}
   let d=applyRule(s,x)||applyRule(s,x.fb)||"";
   const lv=s.dates&&s.dates.live;
   if(lv&&d&&d>lv&&PRELIVE[x.gp])d=lv;
   if(lv&&!d&&PRELIVE[x.gp]&&x.anchor==="mastering")d=lv;
   return d}
+/* 締切は、自分で入れた日か、決めた日程から来る日だけ。基準日からの逆算はしない */
+function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
+  /* 日程を持つ工程は、決めた日程の最終日 */
+  if(isMulti(x)){const lr=lastRec(s,x);if(lr)return lr}
+  /* 実際の録り工程は、対のスケジュールと同じ */
+  if(RECMIRROR[x.k]){const r=stages(s).find(z=>z.k===RECMIRROR[x.k]);
+    if(r)return dlOf(s,r)}
+  return ""}
 const stages=s=>s.stageList||[];
 const hasKids=(L,i)=>L[i].d!==1&&!!L[i+1]&&L[i+1].d===1;
 function kidsOf(L,i){const r=[];for(let j=i+1;j<L.length&&L[j].d===1;j++)r.push(L[j]);return r}
@@ -1509,7 +1501,7 @@ function drawSong(){
       sub=bits.map(esc).join(" · ");
       if(left!==null){const t=left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日";
         sub=(sub?sub+" · ":"")+(left<=0?'<em>'+esc(t)+'</em>':esc(t))}
-      if(!sub)sub=esc("締切 未設定")}
+      if(!sub)sub=esc("締切なし")}
     h+='<div class="st '+(dn?"on":"")+' '+(late?"late":"")+' '+(x.d===1?"kid":"")+' '+(i===ci?"cur":"")+'" data-srow="'+x.k+'">'+
       '<button class="grip" data-tg="'+x.k+'">⠿</button>'+
       '<button class="chk" role="checkbox" aria-checked="'+dn+'" data-k="'+x.k+'" data-ki="'+i+'">✓</button>'+
@@ -1576,8 +1568,7 @@ function drawSong(){
       dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
       '<div class="fg"><span class="lbl">メモ</span>'+
       '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>'+
-      (o.dl?'<p class="hint" style="margin:-2px 0 8px">締切を自分で決めています。'+
-        '<button class="btn sm" data-dlr="'+x.k+'" style="margin-left:6px">自動に戻す</button></p>':"")+
+
       '<div class="fg" style="margin:2px 0 0"><button class="btn sm lnk" data-ad2="'+x.k+'">'+
         (stAdv[x.k]?"閉じる":"この工程を直す ▾")+'</button></div>'+
       (stAdv[x.k]?'<div class="fg" style="margin-top:9px"><span class="lbl">工程名</span>'+
@@ -1585,12 +1576,6 @@ function drawSong(){
         (ORDERPAIR[x.k]?"":asgField(s,x))+
       '<div class="row"><button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
       '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>':"")+
-      (stAdv[x.k]?'<div class="row" style="margin-top:9px"><div><span class="lbl">基準</span><select class="inp" data-sa3="'+x.k+'">'+
-        Object.keys(ANCHORS).map(a=>'<option value="'+a+'" '+(x.anchor===a?"selected":"")+'>'+esc(ANCHORS[a])+'</option>').join("")+'</select></div>'+
-      '<div style="flex:.5"><span class="lbl">ずらす</span><input type="number" class="inp" data-so="'+x.k+'" value="'+x.off+'"></div>'+
-      '<div style="flex:.5"><span class="lbl">単位</span><select class="inp" data-su="'+x.k+'">'+
-        '<option value="d" '+(x.unit==="d"?"selected":"")+'>日</option><option value="m" '+(x.unit==="m"?"selected":"")+'>ヶ月</option></select></div>'+
-      '</div>':"")+
       '</div>'});
   h+='</div>'+
     '<div class="row fg" style="margin-top:12px">'+
@@ -1705,8 +1690,7 @@ function wireSong(){
   wireDt("[data-sd]",(e,v)=>{const k=e.dataset.sd,o=stg(s,k);
     if(o.done){o.date=v;return}
     const x=s.stageList[s.stageList.findIndex(z=>z.k===k)];
-    /* 自動計算どおりの日付なら覚えない（基準日を変えたら追従させるため） */
-    o.dl=(v&&v===autoDl(s,x))?"":v});
+    o.dl=v});
   wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
   b.querySelectorAll("[data-cal]").forEach(e=>e.onclick=ev=>{
     ev.preventDefault();
@@ -1818,9 +1802,6 @@ function wireSong(){
   /* 工程はその場で編集する。キーから配列の位置を引く */
   const ix=k=>s.stageList.findIndex(z=>z.k===k);
   b.querySelectorAll("[data-sn2]").forEach(e=>e.oninput=()=>{s.stageList[ix(e.dataset.sn2)].n=e.value;mark()});
-  b.querySelectorAll("[data-sa3]").forEach(e=>e.onchange=()=>{s.stageList[ix(e.dataset.sa3)].anchor=e.value;mark();drawSong();rf()});
-  b.querySelectorAll("[data-so]").forEach(e=>e.oninput=()=>{s.stageList[ix(e.dataset.so)].off=+e.value||0;mark()});
-  b.querySelectorAll("[data-su]").forEach(e=>e.onchange=()=>{s.stageList[ix(e.dataset.su)].unit=e.value;mark();drawSong();rf()});
   b.querySelectorAll("[data-as]").forEach(e=>{e.oninput=()=>{stg(s,e.dataset.as).asg=e.value;syncOrder(s);mark();rf()};
     e.onblur=()=>{const x=s.stageList[ix(e.dataset.as)];
       let r=x?x.role:"engineer";
@@ -1831,8 +1812,6 @@ function wireSong(){
     const fit=()=>{e.style.height="auto";e.style.height=(e.scrollHeight+2)+"px"};
     fit();e.oninput=()=>{stg(s,e.dataset.mm).memo=e.value;fit();mark()};
     e.onblur=()=>{drawSong();rf()}});
-  b.querySelectorAll("[data-dlr]").forEach(e=>e.onclick=()=>{
-    stg(s,e.dataset.dlr).dl="";mark();drawSong();rf()});
   b.querySelectorAll("[data-ad2]").forEach(e=>e.onclick=()=>{
     stAdv[e.dataset.ad2]=!stAdv[e.dataset.ad2];drawSong()});
   b.querySelectorAll("[data-skid]").forEach(e=>e.onclick=()=>{
@@ -2316,11 +2295,7 @@ function editTemplate(id){
       '<button class="xb" data-dn="'+i+'">↓</button><button class="xb" data-sx="'+i+'">✕</button></div></div>'+
       '<div class="row"><div><span class="lbl">担当</span><select class="inp" data-sr="'+i+'">'+
         Object.keys(ROLES).map(r=>'<option value="'+r+'" '+(x.role===r?"selected":"")+'>'+ROLES[r]+'</option>').join("")+'</select></div>'+
-      '<div><span class="lbl">基準</span><select class="inp" data-sa="'+i+'">'+
-        Object.keys(ANCHORS).map(k=>'<option value="'+k+'" '+(x.anchor===k?"selected":"")+'>'+esc(ANCHORS[k])+'</option>').join("")+'</select></div>'+
-      '<div style="flex:.55"><span class="lbl">ずらす</span><input type="number" class="inp" data-so="'+i+'" value="'+x.off+'"></div>'+
-      '<div style="flex:.55"><span class="lbl">単位</span><select class="inp" data-su="'+i+'">'+
-        '<option value="d" '+(x.unit==="d"?"selected":"")+'>日</option><option value="m" '+(x.unit==="m"?"selected":"")+'>ヶ月</option></select></div></div></div>'});
+      '</div></div>'});
     document.getElementById("s2Body").innerHTML=h;wire()};
   const wire=()=>{const B=document.getElementById("s2Body");
     B.querySelector("#tN").oninput=e=>{t.name=e.target.value;mark()};
@@ -2334,9 +2309,6 @@ function editTemplate(id){
       B.querySelector("#mU").onchange=e=>{t.mastering.unit=e.target.value;mark()}}
     B.querySelectorAll("[data-sn]").forEach(e=>e.oninput=()=>{t.stages[+e.dataset.sn].n=e.value;mark()});
     B.querySelectorAll("[data-sr]").forEach(e=>e.onchange=()=>{t.stages[+e.dataset.sr].role=e.value;mark()});
-    B.querySelectorAll("[data-sa]").forEach(e=>e.onchange=()=>{t.stages[+e.dataset.sa].anchor=e.value;mark()});
-    B.querySelectorAll("[data-so]").forEach(e=>e.oninput=()=>{t.stages[+e.dataset.so].off=+e.value||0;mark()});
-    B.querySelectorAll("[data-su]").forEach(e=>e.onchange=()=>{t.stages[+e.dataset.su].unit=e.value;mark()});
     B.querySelectorAll("[data-up]").forEach(e=>e.onclick=()=>{const i=+e.dataset.up;if(i<1)return;
       t.stages.splice(i-1,0,t.stages.splice(i,1)[0]);mark();draw()});
     B.querySelectorAll("[data-dn]").forEach(e=>e.onclick=()=>{const i=+e.dataset.dn;if(i>=t.stages.length-1)return;
@@ -3098,11 +3070,12 @@ function migrate(d){
       b.masters[k]=[...new Set(b.masters[k])].sort((x,y)=>x.localeCompare(y,"ja"))});
     b.songs.forEach(s=>{
       fillDates(s,"");applySolo(s);
-      /* 自動計算と同じ値で固定されていた締切は解除して、基準日に追従させる */
-      (s.stageList||[]).forEach(x=>{const o=s.stages[x.k];if(!o)return;
-        const auto=applyRule(s,x)||applyRule(s,x.fb)||"";
-        if(o.dl&&(o.dl===auto||x.k==="mas"))o.dl="";
-        if(o.ret&&o.req&&o.ret===D.addD(o.req,x.lead==null?14:x.lead))o.ret=""})});
+      /* 逆算をやめたので、いままで自動で出ていた締切を一度だけ日付として残す */
+      if(!s.dlFixed){
+        (s.stageList||[]).forEach(x=>{const o=s.stages[x.k];if(!o||o.dl||o.done)return;
+          if(isMulti(x)||RECMIRROR[x.k])return;   /* 日程から決まるものは、そのまま */
+          const d0=oldAutoDl(s,x);if(d0)o.dl=d0});
+        s.dlFixed=true}});
     S=sv})();
   return b}
 
