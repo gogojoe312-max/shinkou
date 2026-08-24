@@ -157,11 +157,26 @@ main>.artist:first-child{margin-top:2px}
 .now .pp{color:var(--dim2);font-weight:400}
 .ball.fin{color:var(--ok);background:rgba(47,192,138,.14)}
 .card.fin{opacity:.62;border-left:3px solid var(--ok)}
+/* 予定の行 */
+.ag{display:flex;align-items:center;gap:11px;width:100%;text-align:left;padding:10px 10px;
+  border-radius:9px;margin-bottom:2px}
+.ag:hover{background:rgba(255,255,255,.03)}
+.ag.on{opacity:.42}
+.agd{flex:0 0 46px;font-family:var(--mono);font-size:12.5px;color:var(--dim)}
+.agd.hot{color:var(--late)}
+.agn{flex:1;min-width:0}
+.agn .t{display:block;font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agn .t .sub{color:var(--dim2);font-weight:400;font-size:11.5px}
+.agn .s{display:block;font-size:11px;color:var(--dim2);margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.agl{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;color:var(--ghost)}
 .pb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--dim2);
   margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
 .pb:first-child{margin-top:2px}
 .pb.late{color:var(--late);border-color:rgba(255,107,107,.35)}
 .pb.now{color:var(--warn);border-color:rgba(232,163,61,.35)}
+.pb.today{color:var(--warn);border-color:rgba(232,163,61,.35)}
+.pb.week{color:var(--ink)}
 .rank{flex:0 0 auto;font-family:var(--mono);font-size:11px;font-weight:600;color:var(--dim2);
   border:1px solid var(--line2);border-radius:50%;width:22px;height:22px;display:grid;place-items:center}
 .usebar{display:flex;gap:6px;margin-top:8px}
@@ -396,6 +411,13 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
       <option value="prio">優先順</option>
       <option value="artist" selected>グループ別</option>
       <option value="flat">期限順（全曲）</option>
+    </select>
+    <select class="sel" id="whoSel">
+      <option value="all">全部</option>
+      <option value="me">自分の番</option>
+      <option value="other">相手待ち</option>
+      <option value="wait">日程待ち</option>
+      <option value="todo">未依頼</option>
     </select>
     <select class="sel" id="finSel">
       <option value="hide">完了を隠す</option>
@@ -686,7 +708,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-j";
+const APP_VER="2026-08-24-k";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1173,12 +1195,15 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",collapsed:{},edit:false,reorder:false};
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
     if(V.use!=="all"&&(s.use||"master")!==V.use)return false;
+    if(V.who!=="all"){const b=ballOf(s);
+      const k=b.c==="me"?"me":b.c==="other"||b.c==="room"?"other":b.c==="wait"?"wait":"todo";
+      if(isFin(s)||k!==V.who)return false}
     if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||""))).join(" ").toLowerCase();
       if(h.indexOf(q)<0)return false}
     return true})}
@@ -1208,10 +1233,60 @@ function renderUse(){
   const c={all:0,master:0,live:0};
   S.songs.forEach(s=>{if(isFin(s))return;c.all++;c[(s.use||"master")]++});
   const bar=document.getElementById("useBar");
-  bar.innerHTML=[["master","原盤"],["live","ライブ"],["all","すべて"]].map(x=>
-    '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+' <b>'+c[x[0]]+'</b></button>').join("");
+  bar.innerHTML=[["master","原盤",c.master],["live","ライブ",c.live],["all","すべて",c.all],
+      ["cal","予定",agenda().length]].map(x=>
+    '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+' <b>'+x[2]+'</b></button>').join("");
   bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
-  document.getElementById("fab").textContent=V.use==="live"?"＋ 制作物":"＋ 楽曲"}
+  const fab=document.getElementById("fab");
+  fab.style.display=V.use==="cal"?"none":"";
+  fab.textContent=V.use==="live"?"＋ 制作物":"＋ 楽曲"}
+
+/* ===================== 予定（日付順に全曲まとめて） ===================== */
+/* 締切と録り日を、日付の順に並べ直す */
+function agenda(){
+  const out=[],q=V.q.trim().toLowerCase();
+  S.songs.forEach(s=>{
+    if(V.dir!=="__all"&&(s.director||"")!==V.dir)return;
+    if(q){const h=[s.title,s.work,s.artist,s.director].join(" ").toLowerCase();
+      if(h.indexOf(q)<0)return}
+    const L=stages(s);
+    L.forEach(x=>{
+      const o=stg(s,x.k);
+      if(isMulti(x)){
+        (o.slots||[]).forEach(v=>{if(!v.date)return;
+          out.push({d:v.date,s:s,x:x,k:"rec",done:!!v.done,
+            note:[v.note,v.who].filter(Boolean).join(" · ")})});
+        return}
+      if(o.done||RECMIRROR[x.k])return;
+      const d=dlOf(s,x);
+      if(d)out.push({d:d,s:s,x:x,k:"dl",done:false,note:""})})});
+  return out.sort((a,b)=>String(a.d).localeCompare(String(b.d))||
+    (a.s.title||"").localeCompare(b.s.title||"","ja"))}
+/* 日付のまとまりの呼び名 */
+function agendaBucket(d){
+  const n=D.to(d);
+  if(n<0)return{k:"late",t:"過ぎている"};
+  if(n===0)return{k:"today",t:"今日"};
+  if(n<=7)return{k:"week",t:"7日以内"};
+  if(n<=30)return{k:"month",t:"1ヶ月以内"};
+  return{k:"later",t:"それより先"}}
+function renderAgenda(m){
+  const a=agenda().filter(e=>!(e.done&&D.to(e.d)<0));
+  if(!a.length){m.innerHTML='<div class="empty"><h3>予定がありません</h3>'+
+    '<p>工程に日付を入れると、ここに日付順で並びます。</p></div>';return}
+  let cur="",h="";
+  a.forEach(e=>{
+    const b=agendaBucket(e.d);
+    if(b.k!==cur){cur=b.k;h+='<div class="pb '+b.k+'">'+esc(b.t)+'</div>'}
+    const n=D.to(e.d),left=n<0?(-n)+"日超過":n===0?"本日":"あと"+n+"日";
+    h+='<button class="ag'+(e.done?" on":"")+'" data-song="'+e.s.id+'">'+
+      '<span class="agd'+(n<=0?" hot":"")+'">'+esc(D.md(e.d))+'</span>'+
+      '<span class="agn"><span class="t">'+esc(e.x.n)+
+        (e.note?' <span class="sub">'+esc(e.note)+'</span>':"")+'</span>'+
+        '<span class="s">'+esc(e.s.title||"（無題）")+' · '+esc(e.s.artist||"")+'</span></span>'+
+      '<span class="agl">'+esc(left)+'</span></button>'});
+  m.innerHTML=h;
+  m.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song))}
 function renderDirs(){
   const map=new Map();let all=0;
   S.songs.forEach(s=>{if(isFin(s))return;all++;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
@@ -1296,7 +1371,9 @@ function cardHTML(s,rank){
 
 function render(){
   renderDirs();renderUse();syncLists();
-  const m=document.getElementById("main"),list=pool();
+  const m=document.getElementById("main");
+  if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
+  const list=pool();
   if(!S.songs.length){
     m.innerHTML='<div class="empty"><h3>まだ楽曲がありません</h3>'+
       '<p>案件に発売日を入れておけば、紐づく曲すべてに<br>逆算した工程が自動で入ります。</p>'+
@@ -1428,7 +1505,7 @@ function stageDrag(s,box,rf){
     s.stageList=order.map(k=>map[k]).filter(Boolean);
     mark();drawSong();rf()})}
 let cur=null,stOpen="",stAdv={},gpOpen={};
-function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};head();drawSong();show("sheet")}
+function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};head();drawSong();show("sheet")}
 function head(){
   document.getElementById("shTitle").textContent=songTitle(cur);
   const st=status(cur),L=stages(cur);
@@ -1493,8 +1570,8 @@ function drawSong(){
       const mem=L.filter(y=>y.gp===x.gp);
       const done=mem.filter(y=>doneOf(s,L,L.indexOf(y))).length,tot=mem.length;
       const cur=mem.some(y=>L.indexOf(y)===ci);
-      /* 手動で開閉した記録が無ければ、済んだ段階だけ畳んでおく */
-      gpShow=gpOpen[x.gp]===undefined?(cur||done<tot):gpOpen[x.gp];
+      /* 手動で開閉した記録が無ければ、いま来ている段階だけ開く */
+      gpShow=gpOpen[x.gp]===undefined?cur:gpOpen[x.gp];
       h+='<button class="gph'+(gpShow?" on":"")+'" data-gp="'+esc(x.gp)+'">'+
         '<span class="cv">▼</span><span>'+esc(x.gp)+'</span>'+
         '<b>'+done+'/'+tot+'</b></button>'}
@@ -2824,6 +2901,7 @@ function toast(t){const e=document.getElementById("toast");e.textContent=t;e.cla
 document.getElementById("q").oninput=e=>{V.q=e.target.value;render()};
 document.getElementById("grpSel").onchange=e=>{V.grp=e.target.value;render()};
 document.getElementById("finSel").onchange=e=>{V.fin=e.target.value;render()};
+document.getElementById("whoSel").onchange=e=>{V.who=e.target.value;render()};
 document.getElementById("btnSet").onclick=openSettings;
 document.getElementById("btnSort").onclick=()=>{
   if(RO)return;
