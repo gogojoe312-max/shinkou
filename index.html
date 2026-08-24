@@ -272,7 +272,8 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .sl1,.sl2{display:flex;align-items:center;gap:7px}
 .sl2{margin-top:6px;flex-wrap:wrap}
 .sl2 .inp{flex:1 1 40%;min-width:0}
-.sl1 .dt{flex:0 0 108px}
+.sl1 .dtbox{flex:0 0 132px}
+.sl1 .dt{width:100%}
 .slot .inp{padding:6px 8px;font-size:12.5px}
 .slot.on .inp{color:var(--ghost)}
 .slot .chk{width:22px;height:22px;flex:0 0 22px}
@@ -290,7 +291,15 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .arrbtn{display:flex;gap:6px;align-items:center}
 .arrbtn .btn{flex:1}
 .dtwrap{display:flex;gap:4px;align-items:stretch}
-.dtwrap .dt{flex:1;min-width:0}
+.dtwrap .dtbox{flex:1;min-width:0}
+/* 日付欄。右端の▤を押すとカレンダーが開く */
+.dtbox{position:relative;display:block;min-width:0}
+.dtbox .dt{width:100%;padding-right:30px}
+.dtbox .dtpick{position:absolute;right:4px;bottom:0;width:26px;height:1px;opacity:0;border:0;padding:0;
+  pointer-events:none}
+.dtcal{position:absolute;right:1px;top:1px;bottom:1px;width:28px;display:grid;place-items:center;
+  color:var(--dim2);font-size:13px;border-radius:0 5px 5px 0}
+.dtcal:hover{color:var(--ink);background:var(--panel2)}
 .tdy{flex:0 0 auto;border:1px solid var(--line2);border-radius:5px;padding:0 9px;
   font-size:11px;color:var(--dim);white-space:nowrap}
 .tdy:hover{background:var(--panel2);color:var(--ink)}
@@ -313,6 +322,9 @@ textarea.inp{resize:vertical;min-height:60px;line-height:1.7}
 .seg2 button{flex:1;padding:8px 6px;font-size:12px;color:var(--dim)}
 .seg2 button[aria-pressed="true"]{background:var(--panel2);color:var(--ink);font-weight:700}
 .hint{font-size:11.5px;color:var(--dim2);line-height:1.75;margin:6px 0 0}
+.callog{white-space:pre-wrap;font-size:11px;line-height:1.65;color:var(--dim);
+  max-height:260px;overflow:auto;margin:8px 0 0;font-family:var(--mono)}
+.callog:empty{display:none}
 .warnbox{border:1px solid #4A3A22;background:#241E14;border-radius:var(--r);padding:9px 11px;font-size:11.5px;color:#D6B478;margin-bottom:12px;line-height:1.7}
 .okbox{border:1px solid #24402F;background:#16241C;color:#7FCFA4}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0));transform:translate(-50%,14px);
@@ -522,10 +534,16 @@ function parseDate(v,ref){
   return D.s(dt)}
 const fmtDate=v=>v?v.replace(/-/g,"/"):"";
 /* 日付入力欄。確定は入力欄を離れたときだけ */
+/* 日付欄。数字を打つほか、カレンダーからも選べる */
 function dtIn(attr,key,val,ref,cls){
-  return'<input class="inp dt '+(cls||"")+'" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" '+
-    'autocomplete="off" autocorrect="off" spellcheck="false" '+
-    attr+'="'+esc(key)+'" data-ref="'+esc(ref||"")+'" placeholder="例 0911" value="'+esc(fmtDate(val))+'">'}
+  const id="dt"+(dtIn.n=(dtIn.n||0)+1);
+  return'<span class="dtbox">'+
+    '<input class="inp dt '+(cls||"")+'" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" '+
+    'autocomplete="off" autocorrect="off" spellcheck="false" id="'+id+'" '+
+    attr+'="'+esc(key)+'" data-ref="'+esc(ref||"")+'" placeholder="例 0911" value="'+esc(fmtDate(val))+'">'+
+    '<input type="date" class="dtpick" data-for="'+id+'" tabindex="-1" '+
+      'value="'+esc(/^\d{4}-\d{2}-\d{2}$/.test(val||"")?val:"")+'">'+
+    '<button class="dtcal" data-cal="'+id+'" aria-label="カレンダーから選ぶ">▤</button></span>'}
 /* 日付欄＋「今日」ボタン */
 function dtToday(attr,key,val,ref,cls){
   return'<div class="dtwrap">'+dtIn(attr,key,val,ref,cls)+
@@ -653,7 +671,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-18-a";
+const APP_VER="2026-08-18-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1690,6 +1708,21 @@ function wireSong(){
     o.dl=(v&&v===autoDl(s,x))?"":v});
   wireDt("[data-rq]",(e,v)=>{const o=stg(s,e.dataset.rq);o.req=v;if(v&&!o.st)o.st="req"});
   wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
+  b.querySelectorAll("[data-cal]").forEach(e=>e.onclick=ev=>{
+    ev.preventDefault();
+    const pick=b.querySelector('[data-for="'+e.dataset.cal+'"]');
+    if(!pick)return;
+    const f=document.getElementById(e.dataset.cal);
+    if(f){const iso=parseDate(f.value,f.dataset.ref||"");if(iso)pick.value=iso}
+    pick.style.pointerEvents="auto";
+    try{pick.showPicker?pick.showPicker():pick.click()}catch(_){pick.click()}
+    pick.style.pointerEvents="none"});
+  b.querySelectorAll("[data-for]").forEach(e=>e.onchange=()=>{
+    const f=document.getElementById(e.dataset.for);
+    if(!f||!e.value)return;
+    f.value=fmtDate(e.value);
+    f.dispatchEvent(new Event("blur"));
+    if(f.onblur)f.onblur()});
   b.querySelectorAll("[data-td2]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.td2.split("|"),f=b.querySelector("["+a[0]+'="'+a[1]+'"]');
     if(!f)return;f.value=fmtDate(D.today());f.dispatchEvent(new Event("blur"))});
@@ -2314,6 +2347,7 @@ function masterSheet(){
 
 /* ===================== 端末間の同期（GitHub のプライベートリポジトリ） ===================== */
 let SY={st:"off",msg:"",busy:false,timer:null,poll:null,last:0};
+const calUrl=()=>S.settings.calUrl||"";
 const syCfg=()=>{if(!S.settings.sync)S.settings.sync={owner:"",repo:"",path:"data.json",branch:"main",token:"",on:false};
   return S.settings.sync};
 function syOk(){const c=syCfg();return c.on&&c.owner&&c.repo&&c.path&&c.token}
@@ -2540,6 +2574,14 @@ function openSettings(){
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
         '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
+    {id:"cal",t:"カレンダーから取り込む",h:()=>
+      '<p class="hint" style="margin:0 0 10px">Googleカレンダーの予定を、日程と締切に取り込みます。'+
+      '毎朝も自動で走りますが、ここから今すぐ走らせられます。</p>'+
+      '<div class="fg"><span class="lbl">取り込み用のURL</span>'+
+        '<input class="inp" id="calU" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(calUrl())+'"></div>'+
+      '<div class="row fg"><button class="btn" id="calDry">下見（書き込まない）</button>'+
+        '<button class="btn pri" id="calGo">いま取り込む</button></div>'+
+      '<pre class="callog" id="calLog"></pre>'},
     {id:"save",t:"保存とバックアップ",h:()=>
       (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
         ? '<p class="hint" style="margin:0 0 10px">入力のたび自動保存し、10分ごとの世代バックアップと1日1回の日次バックアップを取っています。'+
@@ -2583,6 +2625,26 @@ function wireSettings(B){
   on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+  {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
+  const calRun=async dry=>{
+    const u=(q("#calU")?q("#calU").value:"").trim();
+    const box=q("#calLog");
+    if(!u){toast("取り込み用のURLを入れてください");return}
+    S.settings.calUrl=u;mark();
+    if(box)box.textContent="取り込み中…";
+    try{
+      const r=await fetch(u+(u.indexOf("?")<0?"?":"&")+"t="+Date.now()+(dry?"&dry=1":""),
+        {redirect:"follow"});
+      const t=await r.text();
+      let j=null;try{j=JSON.parse(t)}catch(_){}
+      if(box)box.textContent=j?(j.text||""):t.slice(0,1200);
+      if(!dry&&j&&j.ok){
+        if(syOk()){try{await syncNow("manual")}catch(_){}}
+        render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}}
+        toast("取り込みました")}
+    }catch(e){if(box)box.textContent="つながりませんでした："+e.message}};
+  on("#calDry",()=>calRun(true));
+  on("#calGo",()=>calRun(false));
   {const cm2=q("#crMode2");
    if(cm2)cm2.onclick=e=>{const x=e.target.closest("[data-cw2]");if(!x)return;
      crWork=x.dataset.cw2==="1";wireSettings.redraw&&wireSettings.redraw()};}
