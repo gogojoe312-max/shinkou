@@ -170,6 +170,23 @@ main>.artist:first-child{margin-top:2px}
 .agn .s{display:block;font-size:11px;color:var(--dim2);margin-top:2px;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .agl{flex:0 0 auto;font-family:var(--mono);font-size:10.5px;color:var(--ghost)}
+/* 1曲1行 */
+.slim{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;
+  border-radius:9px;margin-bottom:2px;border-left:2px solid transparent}
+.slim:hover{background:rgba(255,255,255,.03)}
+.slim.late{border-left-color:var(--late)} .slim.warn{border-left-color:var(--warn)}
+.slim.fin{opacity:.45}
+.sr{flex:0 0 20px;font-family:var(--mono);font-size:10.5px;color:var(--ghost);text-align:right}
+.sn{flex:1;min-width:0}
+.sn .t{display:block;font-family:var(--disp);font-weight:700;font-size:13.5px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sn .s{display:block;font-size:11px;color:var(--dim2);margin-top:1px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sd{flex:0 0 auto;font-family:var(--mono);font-size:11.5px;color:var(--dim);text-align:right}
+.sd.hot{color:var(--late)}
+.sd u{display:block;text-decoration:none;font-size:9.5px;color:var(--ghost)}
+.sp{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--ghost)}
+.slim .ball{margin-left:0;max-width:110px}
 .pb{font-family:var(--mono);font-size:10px;letter-spacing:.14em;color:var(--dim2);
   margin:20px 0 8px;padding-bottom:5px;border-bottom:1px solid var(--line)}
 .pb:first-child{margin-top:2px}
@@ -412,6 +429,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
       <option value="artist" selected>グループ別</option>
       <option value="flat">期限順（全曲）</option>
     </select>
+    <button class="sel" id="denseBtn" title="表示の細かさ">≡</button>
     <select class="sel" id="whoSel">
       <option value="all">全部</option>
       <option value="me">自分の番</option>
@@ -708,7 +726,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-k";
+const APP_VER="2026-08-24-l";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1195,7 +1213,7 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -1369,6 +1387,8 @@ function cardHTML(s,rank){
     (fin?"":chips)+memoHTML+
     (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+'</button>'}
 
+/* 表示の細かさに合わせて、カードか細い行かを選ぶ */
+const item=(s,rank)=>V.dense?slimHTML(s,rank):cardHTML(s,rank);
 function render(){
   renderDirs();renderUse();syncLists();
   const m=document.getElementById("main");
@@ -1385,9 +1405,9 @@ function render(){
     const a=list.slice().sort(byPrio);let cur="",h="",n=0;
     a.forEach(s=>{const p=prio(s),b=prioBucket(p);
       if(b.k!==cur){cur=b.k;h+='<div class="pb '+b.k+'">'+esc(b.t)+'</div>'}
-      h+=cardHTML(s,++n)});
+      h+=item(s,++n)});
     m.innerHTML=h||'<div class="empty"><h3>該当なし</h3></div>';bind(m);return}
-  if(V.grp==="flat"&&V.use!=="live"){m.innerHTML=list.slice().sort(byDue).map(cardHTML).join("");bind(m);return}
+  if(V.grp==="flat"&&V.use!=="live"){m.innerHTML=list.slice().sort(byDue).map(s=>item(s)).join("");bind(m);return}
   /* 公演の近さ。リハがあればリハ、なければ初日。終わったものは後ろへ */
   const showKey=p=>{if(!p)return"z9999";
     const r=p.rehearsal||p.release||"9999-99-99";
@@ -1423,7 +1443,23 @@ function projBlock(p,pid,songs,artist){
     (sub?'<span class="rel '+(near&&!(pkd&&open)?"near":"")+'">'+esc(sub)+'</span>':"")+'</div>'+
     (open&&pkd?'<div class="kd" style="margin:9px 0 11px">'+pkd+'</div>':"")+
     (open?'<div class="slist" data-pl="'+esc(pid)+'">'+
-      songs.sort(byOrd).map(s=>V.reorder?rowHTML(s):cardHTML(s)).join("")+'</div>':"")}
+      songs.sort(byOrd).map(s=>V.reorder?rowHTML(s):item(s)).join("")+'</div>':"")}
+/* 1曲1行の細い表示 */
+function slimHTML(s,rank){
+  const st=status(s),L=stages(s),fin=st.k==="fin";
+  const bl=fin?{c:"none",t:"完了"}:ballOf(s);
+  const dl=fin?"":st.dl?D.md(st.dl):"—";
+  const left=fin?"":(st.left===null?"":st.left<0?(-st.left)+"日超過":st.left===0?"本日":"あと"+st.left+"日");
+  const tops=L.filter(x=>x.d!==1);
+  const dn=tops.filter((x,i)=>doneOf(s,L,L.indexOf(x))).length;
+  return'<button class="slim '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
+    (rank?'<span class="sr">'+rank+'</span>':"")+
+    '<span class="sn"><span class="t">'+esc(songTitle(s))+'</span>'+
+    '<span class="s">'+esc(fin?"完了":L[st.i].n)+'</span></span>'+
+    '<span class="sd'+(st.left!==null&&st.left<=0&&!fin?" hot":"")+'">'+esc(dl)+
+      (left?'<u>'+esc(left)+'</u>':"")+'</span>'+
+    '<span class="sp">'+dn+'/'+tops.length+'</span>'+
+    '<span class="ball '+bl.c+'"><span>'+esc(bl.t)+'</span></span></button>'}
 function rowHTML(s){
   const st=status(s),L=stages(s);
   return'<div class="srow" data-sid="'+s.id+'">'+
@@ -1665,7 +1701,9 @@ function drawSong(){
       '<div class="fg"><span class="lbl">メモ</span>'+
       '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>'+
 
-      '<div class="fg" style="margin:2px 0 0"><button class="btn sm lnk" data-ad2="'+x.k+'">'+
+      '<div class="fg" style="margin:2px 0 0">'+
+        '<button class="btn sm lnk" data-msg="'+x.k+'">連絡文を作る</button>'+
+        '<button class="btn sm lnk" style="margin-left:14px" data-ad2="'+x.k+'">'+
         (stAdv[x.k]?"閉じる":"この工程を直す ▾")+'</button></div>'+
       (stAdv[x.k]?'<div class="fg" style="margin-top:9px"><span class="lbl">工程名</span>'+
         '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div>'+
@@ -1908,6 +1946,12 @@ function wireSong(){
       if(x&&ORDERPAIR[x.k]){const bx=s.stageList.find(z=>z.k===ORDERPAIR[x.k]);if(bx)r=bx.role}
       mAdd(r==="masEng"?"masEng":r==="director"?"director":
         (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
+  b.querySelectorAll("[data-msg]").forEach(e=>e.onclick=()=>{
+    const x=s.stageList[ix(e.dataset.msg)];if(!x)return;
+    const t=msgFor(s,x);
+    if(navigator.clipboard)navigator.clipboard.writeText(t)
+      .then(()=>toast("連絡文をコピーしました"),()=>alert(t));
+    else alert(t)});
   b.querySelectorAll("[data-mm]").forEach(e=>{
     const fit=()=>{e.style.height="auto";e.style.height=(e.scrollHeight+2)+"px"};
     fit();e.oninput=()=>{stg(s,e.dataset.mm).memo=e.value;fit();mark()};
@@ -2677,6 +2721,8 @@ function openSettings(){
         '<input class="inp" id="calU" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(calUrl())+'"></div>'+
       '<div class="row fg"><button class="btn" id="calDry">下見（書き込まない）</button>'+
         '<button class="btn pri" id="calGo">いま取り込む</button></div>'+
+      '<div class="fg"><button class="btn w" id="calOut">カレンダーへ書き出す（.ics）</button></div>'+
+      '<p class="hint" style="margin:-4px 0 0">出したファイルを開くと、締切と録り日がカレンダーに入ります。</p>'+
       '<pre class="callog" id="calLog"></pre>'},
     {id:"save",t:"保存とバックアップ",h:()=>
       (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
@@ -2739,6 +2785,7 @@ function wireSettings(B){
         render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}}
         toast("取り込みました")}
     }catch(e){if(box)box.textContent="つながりませんでした："+e.message}};
+  on("#calOut",exportICS);
   on("#calDry",()=>calRun(true));
   on("#calGo",()=>calRun(false));
   {const cm2=q("#crMode2");
@@ -2824,6 +2871,46 @@ function restoreSheet(){
       S=migrate(rec);dirty=true;await flush();hide("sheet3");hide("sheet2");render();toast("復元しました")})})}
 
 /* ===================== io ===================== */
+/* 予定をカレンダーの取り込みファイルにする */
+function icsEsc(v){return String(v||"").replace(/[\\;,]/g,c=>"\\"+c).replace(/\n/g,"\\n")}
+function icsDate(d){return String(d).replace(/-/g,"")}
+function buildICS(){
+  const now=new Date().toISOString().replace(/[-:]/g,"").split(".")[0]+"Z";
+  const L=["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//shinkou//JP","CALSCALE:GREGORIAN"];
+  agenda().forEach((e,i)=>{
+    const end=D.addD(e.d,1);
+    const ttl=(e.k==="rec"?"":"〆 ")+e.x.n+"："+(e.s.title||"（無題）");
+    L.push("BEGIN:VEVENT",
+      "UID:shinkou-"+e.s.id+"-"+e.x.k+"-"+icsDate(e.d)+"-"+i+"@shinkou",
+      "DTSTAMP:"+now,
+      "DTSTART;VALUE=DATE:"+icsDate(e.d),
+      "DTEND;VALUE=DATE:"+icsDate(end),
+      "SUMMARY:"+icsEsc(ttl),
+      "DESCRIPTION:"+icsEsc([e.s.artist,projTitle(projOf(e.s.projectId)),e.note].filter(Boolean).join(" · ")),
+      "END:VEVENT")});
+  L.push("END:VCALENDAR");
+  return L.join("\r\n")}
+function exportICS(){
+  const n=agenda().length;
+  if(!n)return toast("書き出す予定がありません");
+  dlFile("shinkou-"+D.today()+".ics",buildICS(),"text/calendar");
+  toast(n+"件を書き出しました")}
+
+/* ===================== 連絡文 ===================== */
+/* 工程から、そのまま送れる文を作る */
+function msgFor(s,x){
+  const o=stg(s,x.k),ttl=songTitle(s),ar=s.artist||"";
+  const head=(ar?ar+"「"+ttl+"」":"「"+ttl+"」")+" の"+x.n;
+  if(isMulti(x)){
+    const v=(o.slots||[]).filter(a=>a.date);
+    if(!v.length)return head+"の日程をご相談させてください。\n候補をいくつかいただけますと助かります。";
+    return head+"の日程です。\n"+
+      v.map(a=>"・"+D.md(a.date)+(a.note?"　"+a.note:"")+(a.who?"　"+a.who:"")).join("\n")+
+      "\nよろしくお願いいたします。"}
+  const d=dlOf(s,x);
+  return head+"をお願いできますでしょうか。"+
+    (d?"\n締切は"+D.md(d)+"を予定しております。":"")+
+    "\nよろしくお願いいたします。"}
 function dlFile(n,t,ty){const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([t],{type:ty||"application/json"}));a.download=n;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
@@ -2902,6 +2989,9 @@ document.getElementById("q").oninput=e=>{V.q=e.target.value;render()};
 document.getElementById("grpSel").onchange=e=>{V.grp=e.target.value;render()};
 document.getElementById("finSel").onchange=e=>{V.fin=e.target.value;render()};
 document.getElementById("whoSel").onchange=e=>{V.who=e.target.value;render()};
+document.getElementById("denseBtn").onclick=()=>{V.dense=!V.dense;
+  document.getElementById("denseBtn").setAttribute("aria-pressed",V.dense);
+  render();toast(V.dense?"1曲1行にしました":"カード表示に戻しました")};
 document.getElementById("btnSet").onclick=openSettings;
 document.getElementById("btnSort").onclick=()=>{
   if(RO)return;
