@@ -248,6 +248,7 @@ main>.artist:first-child{margin-top:2px}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 .aifix{display:flex;gap:8px;margin:12px 0 2px}
+.aians{border:1px solid var(--line2);border-left:3px solid var(--ink);border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:14px;line-height:1.75;white-space:pre-wrap}
 .aifix .inp{flex:1;min-width:0}
 
 .scrim{position:fixed;inset:0;background:rgba(9,10,12,.74);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s}
@@ -462,7 +463,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 <main id="main"></main>
 <button class="fab" id="fab">＋ 楽曲</button>
 <div class="aibar" id="aiBar">
-  <input class="inp" id="aiQ" placeholder="AIに書く（例: 明日ワダさんにLINEでアレンジ依頼した）" autocomplete="off">
+  <input class="inp" id="aiQ" placeholder="AIに書く・聞く（例: 歌録りいつだっけ？）" autocomplete="off">
   <button class="btn pri" id="aiGo">AI</button>
 </div>
 <div class="scrim" id="scrim"></div>
@@ -745,7 +746,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-b";
+const APP_VER="2026-08-28-c";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -3093,7 +3094,9 @@ function aiCtx(){
 
 const AI_SYS=[
 "あなたは音楽制作進行アプリの入力解釈エンジン。ユーザーの自然文（音声入力で句読点や助詞が欠けることもある）を読み、操作JSONに変換する。",
-"出力はJSONのみ。説明文やコードブロック記号は一切禁止。形式: {\"ops\":[...],\"note\":\"補足があれば短く（なければ空）\"}",
+"出力はJSONのみ。説明文やコードブロック記号は一切禁止。形式: {\"ops\":[...],\"ans\":\"\",\"note\":\"補足があれば短く（なければ空）\"}",
+"入力が質問（「〜いつ？」「〜どうなってる？」「残ってるのは？」など、情報を確認したいもの）のときは、与えたデータから読み取って ansに日本語で簡潔に答える。opsは空にする。日付には残り日数も添える（例: 9/5・あと8日）。",
+"指示と質問が混ざっていれば opsと ansの両方を出す。データに無いことは推測せず、ansで「データに無い」と伝える。",
 "",
 "opの種類（s=曲i、p=案件i、st=工程k。iとkは与えたデータのもの）:",
 "{\"t\":\"add_song\",\"title\":\"\",\"artist\":\"\",\"proj\":案件i(不明なら-1),\"director\":\"\",\"tpl\":\"single|live|show\"}  // tpl: 通常曲=single、ライブ用の曲=live、公演そのもの=show",
@@ -3145,7 +3148,8 @@ async function aiChat(msgs){
   let out;try{out=JSON.parse(clean)}catch(e){
     const a=clean.indexOf("{"),b=clean.lastIndexOf("}");
     if(a>=0&&b>a){try{out=JSON.parse(clean.slice(a,b+1))}catch(_){}}}
-  if(!out||!Array.isArray(out.ops))throw new Error("解釈結果を読めませんでした");
+  if(out&&!Array.isArray(out.ops))out.ops=[];
+  if(!out)throw new Error("解釈結果を読めませんでした");
   return {out:out,tx:tx}}
 
 async function aiCall(text){
@@ -3259,12 +3263,13 @@ function aiApply(r){
 
 let AIPV=null;
 function aiPreview(res,msgs){
-  AIPV={list:res.ops.map(aiResolve),note:res.note||"",msgs:msgs};
+  AIPV={list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",msgs:msgs};
   AIPV.list.forEach(r=>{r.on=r.ok});
   const draw=()=>{
     let h="";
+    if(AIPV.ans)h+='<div class="aians">'+esc(AIPV.ans)+'</div>';
     if(AIPV.note)h+='<p class="hint" style="margin:0 0 10px">'+esc(AIPV.note)+'</p>';
-    if(!AIPV.list.length)h+='<p class="hint">反映できる操作はありません。</p>';
+    if(!AIPV.list.length&&!AIPV.ans)h+='<p class="hint">反映できる操作はありません。</p>';
     AIPV.list.forEach((r,i)=>{
       const gs=r.op.g&&r.op.g.length;
       h+='<div class="aiop'+(r.ok?"":" ng")+'">'
@@ -3276,12 +3281,15 @@ function aiPreview(res,msgs){
           '<label class="aif"><span>'+esc(f.l)+'</span>'
           +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
       h+='</div>'});
-    h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="違うところをAIに伝えて直す" autocomplete="off">'
+    h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="続けて聞く・直しを伝える" autocomplete="off">'
       +'<button class="btn" id="aiFixGo">修正</button></div>';
     const n=AIPV.list.filter(r=>r.on).length;
-    s3("AI","この内容で反映しますか",h,[
-      {t:"キャンセル",c:"btn",f:()=>{AIPV=null;hide("sheet3")}},{sp:1},
-      {t:n+"件を反映",c:"btn pri",f:apply}]);
+    const btns=AIPV.list.length?
+      [{t:"キャンセル",c:"btn",f:()=>{AIPV=null;hide("sheet3")}},{sp:1},
+       {t:n+"件を反映",c:"btn pri",f:apply}]:
+      [{sp:1},{t:"閉じる",c:"btn pri",f:()=>{AIPV=null;hide("sheet3");
+        const q=document.getElementById("aiQ");if(q)q.value=""}}];
+    s3("AI",AIPV.list.length?"この内容で反映しますか":"AIの答え",h,btns);
     const B=document.getElementById("s3Body");
     B.querySelectorAll("[data-aion]").forEach(e=>e.onchange=()=>{
       AIPV.list[+e.dataset.aion].on=e.checked;
