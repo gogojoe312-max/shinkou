@@ -1,5 +1,5 @@
 /* 進行 — オフライン用サービスワーカー */
-const CACHE = "shinkou-v3";
+const CACHE = "shinkou-v4";
 const ASSETS = ["./", "./index.html"];
 
 self.addEventListener("install", e => {
