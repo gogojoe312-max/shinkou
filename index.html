@@ -247,6 +247,8 @@ main>.artist:first-child{margin-top:2px}
 .aif{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim2)}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
+.aifix{display:flex;gap:8px;margin:12px 0 2px}
+.aifix .inp{flex:1;min-width:0}
 
 .scrim{position:fixed;inset:0;background:rgba(9,10,12,.74);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -743,7 +745,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLi
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-a";
+const APP_VER="2026-08-28-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -3133,19 +3135,23 @@ async function aiPing(){
   await aiFetch({model:aiCfg().model,max_tokens:16,
     messages:[{role:"user",content:"okとだけ返して"}]})}
 
-async function aiCall(text){
+async function aiChat(msgs){
   const wd=["日","月","火","水","木","金","土"][new Date().getDay()];
   const j=await aiFetch({model:aiCfg().model,max_tokens:3000,
     system:AI_SYS+"\n\n今日: "+D.today()+"（"+wd+"曜）",
-    messages:[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx())+"\n\n入力:\n"+text}]});
+    messages:msgs});
   const tx=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
   const clean=tx.replace(/```json|```/g,"").trim();
   let out;try{out=JSON.parse(clean)}catch(e){
     const a=clean.indexOf("{"),b=clean.lastIndexOf("}");
     if(a>=0&&b>a){try{out=JSON.parse(clean.slice(a,b+1))}catch(_){}}}
-  if(!out)throw new Error("解釈結果を読めませんでした");
   if(!out||!Array.isArray(out.ops))throw new Error("解釈結果を読めませんでした");
-  return out}
+  return {out:out,tx:tx}}
+
+async function aiCall(text){
+  const msgs=[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx())+"\n\n入力:\n"+text}];
+  const r=await aiChat(msgs);
+  return {out:r.out,msgs:msgs.concat([{role:"assistant",content:r.tx}])}}
 
 /* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
 function aiResolve(op){
@@ -3252,8 +3258,8 @@ function aiApply(r){
     default:throw new Error("未対応の操作")}}
 
 let AIPV=null;
-function aiPreview(res,raw){
-  AIPV={list:res.ops.map(aiResolve),note:res.note||"",raw:raw};
+function aiPreview(res,msgs){
+  AIPV={list:res.ops.map(aiResolve),note:res.note||"",msgs:msgs};
   AIPV.list.forEach(r=>{r.on=r.ok});
   const draw=()=>{
     let h="";
@@ -3270,6 +3276,8 @@ function aiPreview(res,raw){
           '<label class="aif"><span>'+esc(f.l)+'</span>'
           +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
       h+='</div>'});
+    h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="違うところをAIに伝えて直す" autocomplete="off">'
+      +'<button class="btn" id="aiFixGo">修正</button></div>';
     const n=AIPV.list.filter(r=>r.on).length;
     s3("AI","この内容で反映しますか",h,[
       {t:"キャンセル",c:"btn",f:()=>{AIPV=null;hide("sheet3")}},{sp:1},
@@ -3281,7 +3289,19 @@ function aiPreview(res,raw){
       const bt=document.querySelector("#s3Foot .pri");if(bt)bt.textContent=n2+"件を反映"});
     B.querySelectorAll("[data-aif]").forEach(e=>{
       const a=e.dataset.aif.split("|");
-      e.oninput=()=>aiSet(AIPV.list[+a[0]].op,a[1],e.value)})};
+      e.oninput=()=>aiSet(AIPV.list[+a[0]].op,a[1],e.value)});
+    const fx=document.getElementById("aiFix"),fg=document.getElementById("aiFixGo");
+    const doFix=async()=>{
+      const f=fx.value.trim();if(!f)return;
+      fg.disabled=true;fx.disabled=true;fg.textContent="…";
+      const ms=AIPV.msgs.concat([{role:"user",content:
+        "修正指示:\n"+f+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
+      try{const r=await aiChat(ms);
+        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]))}
+      catch(e){toast("修正できませんでした: "+(e.message||e));
+        fg.disabled=false;fx.disabled=false;fg.textContent="修正"}};
+    fg.onclick=doFix;
+    fx.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();doFix()}})};
   const apply=()=>{
     if(RO)return toast("閲覧のみのため反映できません");
     let n=0,bad=[];
@@ -3302,7 +3322,7 @@ function aiPreview(res,raw){
    if(!aiCfg().key){openSettings();toast("設定の「AI入力」にAPIキーを入れてください");return}
    if(!navigator.onLine)return toast("オフラインです。入力は残しておきます");
    go.disabled=true;q.disabled=true;const old=go.textContent;go.textContent="…";
-   try{const res=await aiCall(t);aiPreview(res,t)}
+   try{const r=await aiCall(t);aiPreview(r.out,r.msgs)}
    catch(e){toast("解釈できませんでした: "+(e.message||e))}
    go.disabled=false;q.disabled=false;go.textContent=old};
  go.onclick=run;
