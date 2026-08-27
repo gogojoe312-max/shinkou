@@ -80,7 +80,7 @@ button{cursor:pointer;background:none;border:none;padding:0}
 .field input::placeholder{color:var(--dim2)}
 select.sel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:8px 9px;font-size:12px;color:var(--dim);flex-shrink:0;max-width:38vw}
 
-main{padding:14px 14px 92px}
+main{padding:14px 14px 158px}
 .artist{font-family:var(--disp);font-weight:900;font-size:20px;letter-spacing:.02em;margin:26px 0 2px;display:flex;align-items:baseline;gap:9px}
 main>.artist:first-child{margin-top:2px}
 .artist .n{font-family:var(--mono);font-size:11px;font-weight:500;color:var(--dim2);letter-spacing:.06em}
@@ -232,8 +232,21 @@ main>.artist:first-child{margin-top:2px}
 .btn.sm{padding:5px 10px;font-size:11.5px}
 .btn.w{width:100%}
 .btn[aria-pressed="true"]{background:var(--panel2);border-color:var(--ink);color:var(--ink)}
-.fab{position:fixed;right:16px;bottom:calc(18px + env(safe-area-inset-bottom,0));z-index:45;
+.fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0));z-index:45;
   background:var(--ink);color:#16171B;border-radius:26px;padding:13px 20px;font-weight:700;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+.aibar{position:fixed;left:0;right:0;bottom:0;z-index:46;display:flex;gap:8px;align-items:center;
+  padding:9px 12px calc(9px + env(safe-area-inset-bottom,0));
+  background:rgba(13,14,17,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--line2)}
+.aibar .inp{flex:1;min-width:0}
+.aiop{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;margin:0 0 10px}
+.aiop.ng{opacity:.55}
+.aihd{display:flex;gap:10px;align-items:flex-start;font-weight:700;font-size:13.5px;line-height:1.45}
+.aihd input{margin-top:2px}
+.aig{color:var(--warn,#e6b45a);font-size:11px;font-weight:700;margin-left:4px}
+.aifs{margin:8px 0 0 26px;display:flex;flex-direction:column;gap:6px}
+.aif{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim2)}
+.aif span{min-width:88px}
+.aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 
 .scrim{position:fixed;inset:0;background:rgba(9,10,12,.74);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s}
 .scrim.on{opacity:1;pointer-events:auto}
@@ -446,6 +459,10 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 
 <main id="main"></main>
 <button class="fab" id="fab">＋ 楽曲</button>
+<div class="aibar" id="aiBar">
+  <input class="inp" id="aiQ" placeholder="AIに書く（例: 明日ワダさんにLINEでアレンジ依頼した）" autocomplete="off">
+  <button class="btn pri" id="aiGo">AI</button>
+</div>
 <div class="scrim" id="scrim"></div>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="楽曲">
@@ -725,8 +742,8 @@ function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehear
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive(),tplShow()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
-  settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-24-l";
+  settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
+const APP_VER="2026-08-28-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2714,7 +2731,8 @@ function openSettings(){
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
         '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
-    {id:"cal",t:"カレンダーから取り込む",h:()=>
+    {id:"ai",t:"AI入力",h:()=>'<p class="hint" style="margin:0 0 10px">画面下のバーに普通の文で書くと、内容を読み取って日程や状態を入力します。'+'Anthropic APIキーが必要です。キーはこの端末だけに保存され、同期・書き出しには含まれません。</p>'+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button></div>'+'<p class="hint" id="aiLog"></p>'},
+     {id:"cal",t:"カレンダーから取り込む",h:()=>
       '<p class="hint" style="margin:0 0 10px">Googleカレンダーの予定を、日程と締切に取り込みます。'+
       '毎朝も自動で走りますが、ここから今すぐ走らせられます。</p>'+
       '<div class="fg"><span class="lbl">取り込み用のURL</span>'+
@@ -2767,6 +2785,14 @@ function wireSettings(B){
   on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+  {const k=q("#aiK");if(k)k.onblur=()=>{aiCfg().key=k.value.trim();mark()}}
+  {const m=q("#aiM");if(m)m.onblur=()=>{aiCfg().model=m.value.trim()||AI_DEF_MODEL;mark()}}
+  on("#aiTest",async()=>{const box=q("#aiLog");
+    if(!aiCfg().key&&q("#aiK"))aiCfg().key=q("#aiK").value.trim();
+    if(!aiCfg().key){if(box)box.textContent="APIキーを入れてください";return}
+    if(box)box.textContent="確認中…";
+    try{await aiPing();if(box)box.textContent="OK。使えます。"}
+    catch(e){if(box)box.textContent="失敗: "+(e.message||e)}});
   {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
   const calRun=async dry=>{
     const u=(q("#calU")?q("#calU").value:"").trim();
@@ -2914,7 +2940,7 @@ function msgFor(s,x){
 function dlFile(n,t,ty){const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([t],{type:ty||"application/json"}));a.download=n;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
-function exportJSON(){const c=JSON.parse(JSON.stringify(S));c.settings.gh.token="";
+function exportJSON(){const c=JSON.parse(JSON.stringify(S));c.settings.gh.token="";if(c.settings.ai)c.settings.ai.key="";
   dlFile("shinkou-"+D.today()+".json",JSON.stringify(c,null,1));
   S.settings.lastExport=Date.now();mark();toast("書き出しました（Tokenは除外）")}
 function importJSON(){const i=document.createElement("input");i.type="file";i.accept=".json";
@@ -3030,6 +3056,258 @@ document.getElementById("fab").onclick=()=>{
   s.director=V.dir!=="__all"?V.dir:(last?last.director:"");
   applySort(s);applySolo(s);S.songs.unshift(s);mark();render();openSong(s.id);
   setTimeout(()=>{const i=document.querySelector('#shBody [data-f="title"]');if(i)i.focus()},320)};
+
+/* ===================== AI入力バー ===================== */
+/* 画面下のバーに普通の文で書くと、Claude APIで操作に変換してプレビュー→確定で反映する */
+const AI_DEF_MODEL="claude-sonnet-4-6";
+function aiCfg(){if(!S.settings.ai)S.settings.ai={key:"",model:AI_DEF_MODEL};
+  if(!S.settings.ai.model)S.settings.ai.model=AI_DEF_MODEL;return S.settings.ai}
+
+/* いまのデータの要約。AIが人名・曲名・工程を寄せられるように渡す */
+function aiCtx(){
+  const cap=(a,n)=>(a||[]).slice(0,n);
+  const people={};
+  ["director","lyricist","composer","arranger","engineer","musician","studio","artist"].forEach(k=>{
+    const v=cap(S.masters[k],60);if(v.length)people[k]=v});
+  const projs=S.projects.map((p,i)=>({i:i,name:projTitle(p),artist:p.artist||"",
+    release:p.release||"",live:isShow(p)?1:0}));
+  const songs=S.songs.map((s,i)=>{
+    const o={i:i,title:songTitle(s),artist:s.artist||"",dir:s.director||"",
+      proj:s.projectId?S.projects.findIndex(p=>p.id===s.projectId):-1,
+      live:s.use==="live"?1:0,
+      stages:stages(s).map(x=>{const g=stg(s,x.k);
+        const st={k:x.k,n:x.n};if(g.done)st.done=1;if(isMulti(x))st.multi=1;
+        if(g.dl)st.dl=g.dl;if(g.st)st.status=g.st;if(g.asg)st.asg=g.asg;
+        if(isMulti(x)){const sl=g.slots.filter(v=>v.date||v.who)
+          .map(v=>({date:v.date||"",who:v.who||"",done:v.done?1:0,wait:v.swait?1:0}));
+          if(sl.length)st.slots=sl}
+        return st})};
+    const dt={};ANCHOR_KEYS.forEach(k=>{if(s.dates[k])dt[k]=s.dates[k]});
+    if(Object.keys(dt).length)o.dates=dt;
+    return o});
+  return {people:people,projects:projs,songs:songs,
+    open_song:cur?S.songs.indexOf(cur):-1}
+}
+
+const AI_SYS=[
+"あなたは音楽制作進行アプリの入力解釈エンジン。ユーザーの自然文（音声入力で句読点や助詞が欠けることもある）を読み、操作JSONに変換する。",
+"出力はJSONのみ。説明文やコードブロック記号は一切禁止。形式: {\"ops\":[...],\"note\":\"補足があれば短く（なければ空）\"}",
+"",
+"opの種類（s=曲i、p=案件i、st=工程k。iとkは与えたデータのもの）:",
+"{\"t\":\"add_song\",\"title\":\"\",\"artist\":\"\",\"proj\":案件i(不明なら-1),\"director\":\"\",\"tpl\":\"single|live|show\"}  // tpl: 通常曲=single、ライブ用の曲=live、公演そのもの=show",
+"{\"t\":\"upd_song\",\"s\":i,\"set\":{\"title\":\"\",\"artist\":\"\",\"director\":\"\",\"note\":\"\"}}  // 変える項目だけ",
+"{\"t\":\"anchor\",\"s\":i,\"k\":\"release|meeting|lesson|mv|live|mastering|open|rehearsal|deliver\",\"date\":\"YYYY-MM-DD\"}  // 発売日・会議日・MV撮影日などの基準日",
+"{\"t\":\"dl\",\"s\":i,\"st\":\"k\",\"date\":\"YYYY-MM-DD\"}  // 工程の締切",
+"{\"t\":\"done\",\"s\":i,\"st\":\"k\",\"v\":true}  // 完了/未完了",
+"{\"t\":\"status\",\"s\":i,\"st\":\"k\",\"v\":\"\"}  // \"\"=未依頼 \"req\"=相手待ち \"me\"=自分の番",
+"{\"t\":\"slot_add\",\"s\":i,\"st\":\"k\",\"date\":\"\",\"who\":\"\",\"note\":\"\"}  // multi=1の工程（録りなど）の日程追加",
+"{\"t\":\"slot_upd\",\"s\":i,\"st\":\"k\",\"match\":{\"date\":\"\",\"who\":\"\"},\"set\":{\"date\":\"\",\"who\":\"\",\"note\":\"\",\"done\":true,\"swait\":true}}  // 既存日程の変更。matchは片方でよい",
+"{\"t\":\"memo\",\"s\":i,\"st\":\"k\",\"memo\":\"\"}  // 工程メモに追記",
+"{\"t\":\"asg\",\"s\":i,\"st\":\"k\",\"name\":\"\"}  // 発注先・担当者",
+"{\"t\":\"add_proj\",\"artist\":\"\",\"kind\":\"シングル|アルバム|ミニアルバム|EP|ベスト\",\"num\":1,\"release\":\"\",\"director\":\"\",\"live\":false}",
+"{\"t\":\"upd_proj\",\"p\":i,\"set\":{\"artist\":\"\",\"release\":\"\",\"director\":\"\"}}",
+"{\"t\":\"del_song\",\"s\":i}  // 曲をゴミ箱へ（30日は戻せる）",
+"{\"t\":\"master_add\",\"kind\":\"director|lyricist|composer|arranger|engineer|musician|studio\",\"name\":\"\"}  // 人物・スタジオの登録",
+"",
+"規則:",
+"- 日付は今日を基準に絶対日付へ直す（「明日」「来週火曜」「9/5」など）。年が書かれていなければ直近の未来か文脈で判断。",
+"- 人名・曲名・工程は与えたデータに寄せる（「ワダさん」→peopleの該当名、「ミックス」→その曲の工程kなど）。敬称は外す。",
+"- 推測で埋めた値があるopには \"g\":[\"そのキー名\"] を付ける。",
+"- open_songが開いている曲。曲名が書かれていない指示はその曲のことが多い。",
+"- 依頼・返事待ちの記録: multi工程はslot_add/slot_updのswait、それ以外はstatusを\"req\"にし、あわせて {\"t\":\"memo\"} で「M/D 相手 手段(LINE/メール) 依頼」の形の1行を残す。返事が来たら該当を解消し「M/D 返事あり」をmemoで残す。",
+"- 1文に複数の操作があれば複数opにする。意味が取れない・対象を特定できない部分は無理にopにせず、noteで短く伝える。",
+"- 対応するopが無い指示（案件やゴミ箱の削除、テンプレート編集など）はopにせず、noteで「アプリの設定から操作してください」と伝える。"
+].join("\n");
+
+async function aiFetch(body){
+  const a=aiCfg();
+  const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+    headers:{"content-type":"application/json","x-api-key":a.key,
+      "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+    body:JSON.stringify(body)});
+  if(!r.ok){let m="";try{const j=await r.json();m=(j.error&&j.error.message)||""}catch(_){}
+    throw new Error(r.status===401?"APIキーが違います":(r.status+" "+m).trim())}
+  return r.json()}
+
+async function aiPing(){
+  await aiFetch({model:aiCfg().model,max_tokens:16,
+    messages:[{role:"user",content:"okとだけ返して"}]})}
+
+async function aiCall(text){
+  const wd=["日","月","火","水","木","金","土"][new Date().getDay()];
+  const j=await aiFetch({model:aiCfg().model,max_tokens:3000,
+    system:AI_SYS+"\n\n今日: "+D.today()+"（"+wd+"曜）",
+    messages:[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx())+"\n\n入力:\n"+text}]});
+  const tx=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  const clean=tx.replace(/```json|```/g,"").trim();
+  let out;try{out=JSON.parse(clean)}catch(e){
+    const a=clean.indexOf("{"),b=clean.lastIndexOf("}");
+    if(a>=0&&b>a){try{out=JSON.parse(clean.slice(a,b+1))}catch(_){}}}
+  if(!out)throw new Error("解釈結果を読めませんでした");
+  if(!out||!Array.isArray(out.ops))throw new Error("解釈結果を読めませんでした");
+  return out}
+
+/* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
+function aiResolve(op){
+  const r={op:op,ok:true,why:"",song:null,x:null,proj:null};
+  const needSong="upd_song anchor dl done status slot_add slot_upd memo asg del_song".indexOf(op.t)>=0;
+  if(needSong){
+    r.song=(typeof op.s==="number"&&S.songs[op.s])||null;
+    if(!r.song){r.ok=false;r.why="曲を特定できませんでした";return r}}
+  if("dl done status slot_add slot_upd memo asg".indexOf(op.t)>=0){
+    r.x=stages(r.song).find(z=>z.k===op.st)||null;
+    if(!r.x){r.ok=false;r.why="工程を特定できませんでした";return r}
+    if((op.t==="slot_add"||op.t==="slot_upd")&&!isMulti(r.x)){r.ok=false;r.why="日程を持たない工程です";return r}}
+  if(op.t==="anchor"&&!ANCHORS[op.k]){r.ok=false;r.why="基準日の種類が不明です";return r}
+  if(op.t==="upd_proj"){r.proj=(typeof op.p==="number"&&S.projects[op.p])||null;
+    if(!r.proj){r.ok=false;r.why="案件を特定できませんでした";return r}}
+  if(op.t==="add_song"&&typeof op.proj==="number"&&op.proj>=0)r.proj=S.projects[op.proj]||null;
+  if(op.t==="master_add"&&!S.masters[op.kind]){r.ok=false;r.why="登録先の種類が不明です";return r}
+  return r}
+
+const AI_STLBL={"":"未依頼",req:"相手待ち",me:"自分の番",studio:"連絡待ち"};
+function aiSummary(r){
+  const op=r.op,sn=r.song?songTitle(r.song):"",xn=r.x?r.x.n:"";
+  switch(op.t){
+    case "add_song":return "曲を追加: "+(op.title||"（無題）")+(op.artist?" / "+op.artist:"")+(r.proj?"（"+projTitle(r.proj)+"）":"");
+    case "upd_song":return sn+"｜曲情報を変更: "+Object.keys(op.set||{}).map(k=>({title:"曲名",artist:"アーティスト",director:"ディレクター",note:"メモ"}[k]||k)+"→"+op.set[k]).join("、");
+    case "anchor":return sn+"｜"+anchorLabel(r.song,op.k)+" → "+(op.date?D.md(op.date):"（消去）")+(r.song.dates[op.k]?"（現在 "+D.md(r.song.dates[op.k])+"）":"");
+    case "dl":{const now=stg(r.song,op.st).dl;
+      return sn+"｜"+xn+" 締切 → "+(op.date?D.md(op.date):"（消去）")+(now?"（現在 "+D.md(now)+"）":"")}
+    case "done":return sn+"｜"+xn+" を"+(op.v?"完了に":"未完了へ戻す");
+    case "status":return sn+"｜"+xn+" を「"+(AI_STLBL[op.v||""]||op.v)+"」に";
+    case "slot_add":return sn+"｜"+xn+" 日程追加";
+    case "slot_upd":return sn+"｜"+xn+" の日程を変更"+(op.match&&(op.match.date||op.match.who)?"（"+[op.match.date?D.md(op.match.date):"",op.match.who||""].filter(Boolean).join(" ")+"）":"");
+    case "memo":return sn+"｜"+xn+" メモ追記";
+    case "asg":return sn+"｜"+xn+" の担当・発注先";
+    case "add_proj":return "案件を追加: "+(op.artist||"")+" "+(op.live?"公演":((op.num||"")+(op.kind||"")));
+    case "upd_proj":return projTitle(r.proj)+"｜案件を変更: "+Object.keys(op.set||{}).map(k=>k+"→"+op.set[k]).join("、");
+    case "del_song":return "削除（ゴミ箱へ）: "+sn;
+    case "master_add":return "人物を登録: "+(op.name||"");
+    default:return "不明な操作（"+op.t+"）"}}
+
+/* プレビューで直せる欄。p=op内のパス */
+function aiFields(r){
+  const op=r.op,F=[];
+  const f=(p,l,ty)=>F.push({p:p,l:l,ty:ty||"text"});
+  switch(op.t){
+    case "add_song":f("title","曲名");f("artist","アーティスト");f("director","ディレクター");break;
+    case "anchor":case "dl":f("date","日付","date");break;
+    case "slot_add":f("date","日付","date");f("who","相手・メンバー");f("note","メモ");break;
+    case "slot_upd":
+      if(op.set){if(op.set.date!==undefined)f("set.date","新しい日付","date");
+        if(op.set.who!==undefined)f("set.who","相手・メンバー");
+        if(op.set.note!==undefined)f("set.note","メモ")}break;
+    case "memo":f("memo","メモ");break;
+    case "asg":f("name","名前");break;
+    case "add_proj":f("artist","アーティスト");f("release","発売・初日","date");break;
+    case "upd_song":case "upd_proj":
+      Object.keys(op.set||{}).forEach(k=>f("set."+k,k,k==="release"?"date":"text"));break;
+    case "master_add":f("name","名前");break}
+  return F}
+const aiGet=(o,p)=>p.split(".").reduce((a,k)=>a==null?a:a[k],o);
+function aiSet(o,p,v){const ks=p.split(".");const last=ks.pop();
+  const t=ks.reduce((a,k)=>(a[k]=a[k]||{}),o);t[last]=v}
+
+function aiApply(r){
+  const op=r.op;
+  switch(op.t){
+    case "add_song":{const s=newSong({templateId:op.tpl==="live"?"tpl_live":op.tpl==="show"?"tpl_show":"tpl_single"});
+      s.title=nfc(op.title||"");s.artist=nfc(op.artist||"");s.director=nfc(op.director||"");
+      if(r.proj){s.projectId=r.proj.id;if(!s.artist)s.artist=r.proj.artist||"";fillDates(s)}
+      S.songs.push(s);break}
+    case "upd_song":Object.keys(op.set||{}).forEach(k=>{
+      if(["title","artist","director","note"].indexOf(k)>=0)r.song[k]=nfc(String(op.set[k]||""))});break;
+    case "anchor":r.song.dates[op.k]=op.date||"";break;
+    case "dl":stg(r.song,op.st).dl=op.date||"";break;
+    case "done":stg(r.song,op.st).done=!!op.v;break;
+    case "status":stg(r.song,op.st).st=AI_STLBL[op.v||""]!==undefined?(op.v||""):"";break;
+    case "slot_add":stg(r.song,op.st).slots.push({date:op.date||"",who:nfc(op.who||""),
+      note:nfc(op.note||""),done:false,swait:false});break;
+    case "slot_upd":{const o=stg(r.song,op.st),m=op.match||{};
+      let v=o.slots.find(a=>(m.date?a.date===m.date:true)&&(m.who?(a.who||"").indexOf(m.who)>=0:true));
+      if(!v&&o.slots.length===1)v=o.slots[0];
+      if(!v)throw new Error("日程が見つかりません");
+      const st=op.set||{};
+      if(st.date!==undefined)v.date=st.date||"";
+      if(st.who!==undefined)v.who=nfc(String(st.who||""));
+      if(st.note!==undefined)v.note=nfc(String(st.note||""));
+      if(st.done!==undefined)v.done=!!st.done;
+      if(st.swait!==undefined)v.swait=!!st.swait;break}
+    case "memo":{const o=stg(r.song,op.st);o.memo=(o.memo?o.memo+"\n":"")+nfc(op.memo||"");break}
+    case "asg":stg(r.song,op.st).asg=nfc(op.name||"");break;
+    case "add_proj":{const p={id:uid(),artist:nfc(op.artist||""),kind:op.live?"シングル":(op.kind||"シングル"),
+      num:op.num||1,custom:"",release:op.release||"",director:nfc(op.director||""),note:"",mtime:Date.now()};
+      if(op.live)p.mode="live";S.projects.push(p);break}
+    case "upd_proj":{const oldRel=r.proj.release;
+      Object.keys(op.set||{}).forEach(k=>{
+        if(["artist","director"].indexOf(k)>=0)r.proj[k]=nfc(String(op.set[k]||""));
+        if(k==="release")r.proj.release=op.set[k]||""});
+      if(op.set&&op.set.release!==undefined&&op.set.release!==oldRel)
+        S.songs.filter(s=>s.projectId===r.proj.id).forEach(s=>fillDates(s,oldRel));break}
+    case "del_song":toTrash("song",r.song,(r.song.artist?r.song.artist+" / ":"")+songTitle(r.song));
+      S.songs=S.songs.filter(x=>x.id!==r.song.id);
+      if(cur&&cur.id===r.song.id){cur=null;hide("sheet")}break;
+    case "master_add":mAdd(op.kind,op.name||"");break;
+    default:throw new Error("未対応の操作")}}
+
+let AIPV=null;
+function aiPreview(res,raw){
+  AIPV={list:res.ops.map(aiResolve),note:res.note||"",raw:raw};
+  AIPV.list.forEach(r=>{r.on=r.ok});
+  const draw=()=>{
+    let h="";
+    if(AIPV.note)h+='<p class="hint" style="margin:0 0 10px">'+esc(AIPV.note)+'</p>';
+    if(!AIPV.list.length)h+='<p class="hint">反映できる操作はありません。</p>';
+    AIPV.list.forEach((r,i)=>{
+      const gs=r.op.g&&r.op.g.length;
+      h+='<div class="aiop'+(r.ok?"":" ng")+'">'
+        +'<label class="aihd"><input type="checkbox" data-aion="'+i+'" '+(r.on?"checked":"")+(r.ok?"":" disabled")+'>'
+        +'<span>'+esc(aiSummary(r))+(gs?' <b class="aig">推測あり</b>':"")+'</span></label>'
+        +(r.ok?"":'<p class="hint" style="margin:4px 0 0 26px">'+esc(r.why)+'</p>');
+      if(r.ok){const F=aiFields(r);
+        if(F.length)h+='<div class="aifs">'+F.map((f,j)=>
+          '<label class="aif"><span>'+esc(f.l)+'</span>'
+          +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
+      h+='</div>'});
+    const n=AIPV.list.filter(r=>r.on).length;
+    s3("AI","この内容で反映しますか",h,[
+      {t:"キャンセル",c:"btn",f:()=>{AIPV=null;hide("sheet3")}},{sp:1},
+      {t:n+"件を反映",c:"btn pri",f:apply}]);
+    const B=document.getElementById("s3Body");
+    B.querySelectorAll("[data-aion]").forEach(e=>e.onchange=()=>{
+      AIPV.list[+e.dataset.aion].on=e.checked;
+      const n2=AIPV.list.filter(r=>r.on).length;
+      const bt=document.querySelector("#s3Foot .pri");if(bt)bt.textContent=n2+"件を反映"});
+    B.querySelectorAll("[data-aif]").forEach(e=>{
+      const a=e.dataset.aif.split("|");
+      e.oninput=()=>aiSet(AIPV.list[+a[0]].op,a[1],e.value)})};
+  const apply=()=>{
+    if(RO)return toast("閲覧のみのため反映できません");
+    let n=0,bad=[];
+    AIPV.list.filter(r=>r.on).forEach(r=>{
+      try{aiApply(r);n++}catch(e){bad.push(aiSummary(r)+"："+(e.message||e))}});
+    if(n){harvestMasters();cleanMasters();mark();render();
+      if(cur){cur=S.songs.find(x=>x.id===cur.id)||cur;head();drawSong()}}
+    AIPV=null;hide("sheet3");
+    const q=document.getElementById("aiQ");if(q&&n)q.value="";
+    toast(n+"件反映しました"+(bad.length?"（"+bad.length+"件は失敗）":""));
+    if(bad.length)console.warn("AI入力の失敗:",bad)};
+  draw()}
+
+{const q=document.getElementById("aiQ"),go=document.getElementById("aiGo");
+ const run=async()=>{
+   const t=q.value.trim();if(!t)return;
+   if(RO)return toast("閲覧のみのため使えません");
+   if(!aiCfg().key){openSettings();toast("設定の「AI入力」にAPIキーを入れてください");return}
+   if(!navigator.onLine)return toast("オフラインです。入力は残しておきます");
+   go.disabled=true;q.disabled=true;const old=go.textContent;go.textContent="…";
+   try{const res=await aiCall(t);aiPreview(res,t)}
+   catch(e){toast("解釈できませんでした: "+(e.message||e))}
+   go.disabled=false;q.disabled=false;go.textContent=old};
+ go.onclick=run;
+ q.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();run()}})}
+
 
 function seed(){
   const rel=D.addM(D.today(),5);
