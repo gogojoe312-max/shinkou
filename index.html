@@ -22,7 +22,7 @@
   color-scheme:dark;
   --bg:#16171B; --panel:#1E2025; --panel2:#24272D; --line:#2D3038; --line2:#3B4049;
   --ink:#E9E7E2; --dim:#8C919B; --dim2:#666B76; --ghost:#4E535C;
-  --me:#2FC08A; --other:#6D8BFF; --room:#B57BFF;
+  --me:#2FC08A; --other:#8A93A6; --room:#8A93A6;
   --ok:#2FC08A; --warn:#E8A33D; --late:#FF6B6B;
   --r:7px;
   --jp:"Noto Sans JP",system-ui,sans-serif;
@@ -120,8 +120,10 @@ main>.artist:first-child{margin-top:2px}
 .ball.late{color:var(--late);background:rgba(228,90,90,.12)}
 
 .now{display:flex;align-items:baseline;gap:8px;font-size:12.5px;margin-bottom:9px;color:var(--dim)}
-.now b{color:var(--ink);font-weight:700;font-size:13.5px}
-.now .dl{margin-left:auto;font-family:var(--mono);font-size:11.5px;flex-shrink:0}
+.now b{color:var(--ink);font-weight:800;font-size:15px}
+.now .dl{margin-left:auto;font-family:var(--mono);font-size:11.5px;flex-shrink:0;display:flex;align-items:baseline;gap:6px}
+.now .dl .dln{font-size:14px;font-weight:700;font-style:normal}
+.now .dl .dld{font-size:10.5px;color:var(--dim2)}
 .now .dl.late{color:var(--late)} .now .dl.warn{color:var(--warn)}
 
 .bar{display:flex;gap:3px;margin:0 0 8px}
@@ -153,6 +155,8 @@ main>.artist:first-child{margin-top:2px}
 .kd .past{border-left-color:var(--line2)!important;background:transparent}
 .kd .past b{color:var(--ghost);font-weight:500}
 .kd .past em{color:var(--ghost)}
+.kd .nxt{background:#22261F;border-left-width:4px}
+.kd .nxt u{color:var(--warn)}
 .okt{color:var(--ok)}
 .now .pp{color:var(--dim2);font-weight:400}
 .ball.fin{color:var(--ok);background:rgba(47,192,138,.14)}
@@ -248,6 +252,21 @@ main>.artist:first-child{margin-top:2px}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 .aifix{display:flex;gap:8px;margin:12px 0 2px}
+.todaybar{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:6px 14px 8px;-webkit-overflow-scrolling:touch}
+.todaybar::-webkit-scrollbar{display:none}
+.todaybar b{font-size:10.5px;font-family:var(--mono);letter-spacing:.1em;color:var(--warn);flex-shrink:0}
+.tdc{flex-shrink:0;display:flex;gap:6px;align-items:baseline;padding:4px 10px;border-radius:12px;
+  background:var(--panel2);border:1px solid var(--line2);font-size:11.5px;color:var(--ink);white-space:nowrap}
+.tdc u{text-decoration:none;color:var(--dim2);font-size:10.5px;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.tdc.late{border-color:rgba(255,107,107,.5);color:var(--late)}
+.cfm{position:fixed;inset:0;z-index:70;background:rgba(9,10,12,.74);display:none;align-items:center;justify-content:center;padding:24px}
+.cfm.on{display:flex}
+.cfmbox{background:var(--panel);border:1px solid var(--line2);border-radius:14px;padding:18px 18px 14px;max-width:340px;width:100%}
+.cfmbox p{margin:0 0 14px;font-size:14px;line-height:1.7}
+.cfmbtns{display:flex;gap:10px;justify-content:flex-end}
+.lgr{display:flex;gap:10px;padding:7px 2px;border-bottom:1px solid var(--line);font-size:12.5px;line-height:1.6}
+.lgd{flex:0 0 74px;font-family:var(--mono);color:var(--dim2);font-size:11px}
+.lgt{flex:1}.lgt u{text-decoration:none;color:var(--dim2);font-size:11px}
 .aians{border:1px solid var(--line2);border-left:3px solid var(--ink);border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:14px;line-height:1.75;white-space:pre-wrap}
 .aifix .inp{flex:1;min-width:0}
 
@@ -432,11 +451,13 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
     <div class="spacer"></div>
     <span id="saveDot"></span>
     <span id="syncDot"></span>
-    <button class="iconbtn" id="btnSort" title="曲の並び替え">⇅</button>
+    <button class="iconbtn" id="btnUndo" title="元に戻す" style="display:none">↺</button>
+      <button class="iconbtn" id="btnSort" title="曲の並び替え">⇅</button>
     <button class="iconbtn" id="btnSet" title="設定">⚙</button>
   </div>
   <div class="dirbar" id="dirbar"></div>
   <div class="usebar" id="useBar"></div>
+    <div class="todaybar" id="todayBar" style="display:none"></div>
   <div class="tools">
     <label class="field"><span style="color:var(--dim2);font-size:12px">⌕</span>
       <input id="q" placeholder="曲名・グループ・クレジット" autocomplete="off"></label>
@@ -503,6 +524,10 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 </div>
 
 <div id="dlHost"></div>
+<div class="cfm" id="cfm"><div class="cfmbox">
+  <p id="cfmMsg"></p>
+  <div class="cfmbtns"><button class="btn" id="cfmNg">やめる</button><button class="btn pri" id="cfmOk">OK</button></div>
+</div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -742,11 +767,11 @@ function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehear
  mastering:null,
  stages:showStages("その他")}}
 
-const BLANK=()=>({v:8,projects:[],songs:[],trash:[],templates:[tplSingle(),tplLive(),tplShow()],
+const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(),tplLive(),tplShow()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-c";
+const APP_VER="2026-08-28-d";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -779,7 +804,7 @@ async function encUnpack(rec,pin){
 
 let sT=null,dirty=false,chg=0;
 let curProj=null;
-function mark(){dirty=true;chg++;dot("busy");clearTimeout(sT);sT=setTimeout(flush,400);
+function mark(){undoPushMaybe();dirty=true;chg++;dot("busy");clearTimeout(sT);sT=setTimeout(flush,400);
   /* 開いている曲・案件に更新時刻を刻む */
   if(cur&&document.getElementById("sheet").classList.contains("on"))cur.mtime=Date.now();
   if(curProj&&document.getElementById("sheet2").classList.contains("on"))curProj.mtime=Date.now();
@@ -1032,7 +1057,7 @@ function slotsOf(s,x){return stg(s,x.k).slots.filter(v=>v.date).sort((a,b)=>a.da
 function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
   return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
     (a.who?" "+a.who:"")+
-    (a.swait?"@返事待ち":"")).join("・")}
+    (a.swait?"@返事待ち"+(a.swaitAt&&D.to(a.swaitAt)<0?(-D.to(a.swaitAt))+"日":""):"")).join("・")}
 const waitReply=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
 /* 日程を持つ工程の状態：未依頼 → 日程調整 → 返事待ち → 日程確定 → 完了 */
 function recPhase(s,x){
@@ -1242,7 +1267,10 @@ function pool(){const q=V.q.trim().toLowerCase();
     if(V.who!=="all"){const b=ballOf(s);
       const k=b.c==="me"?"me":b.c==="other"||b.c==="room"?"other":b.c==="wait"?"wait":"todo";
       if(isFin(s)||k!==V.who)return false}
-    if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||""))).join(" ").toLowerCase();
+    if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||"")))
+        .concat(stages(s).map(x=>{const o=s.stages[x.k]||{};
+          return x.n+" "+(o.memo||"")+" "+(o.asg||"")+" "+((o.slots||[]).map(v=>(v.who||"")+" "+(v.note||"")).join(" "))}))
+        .join(" ").toLowerCase();
       if(h.indexOf(q)<0)return false}
     return true})}
 const byDue=(a,b)=>{const x=status(a).dl||"9999",y=status(b).dl||"9999";
@@ -1285,7 +1313,10 @@ function agenda(){
   const out=[],q=V.q.trim().toLowerCase();
   S.songs.forEach(s=>{
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return;
-    if(q){const h=[s.title,s.work,s.artist,s.director].join(" ").toLowerCase();
+    if(q){const h=[s.title,s.work,s.artist,s.director]
+        .concat(stages(s).map(x=>{const o=s.stages[x.k]||{};
+          return x.n+" "+(o.memo||"")+" "+(o.asg||"")+" "+((o.slots||[]).map(v=>(v.who||"")+" "+(v.note||"")).join(" "))}))
+        .join(" ").toLowerCase();
       if(h.indexOf(q)<0)return}
     const L=stages(s);
     L.forEach(x=>{
@@ -1317,14 +1348,30 @@ function renderAgenda(m){
     const b=agendaBucket(e.d);
     if(b.k!==cur){cur=b.k;h+='<div class="pb '+b.k+'">'+esc(b.t)+'</div>'}
     const n=D.to(e.d),left=n<0?(-n)+"日超過":n===0?"本日":"あと"+n+"日";
-    h+='<button class="ag'+(e.done?" on":"")+'" data-song="'+e.s.id+'">'+
+    h+='<button class="ag'+(e.done?" on":"")+'" data-song="'+e.s.id+'" data-stk="'+e.x.k+'" data-kind="'+e.k+'" data-dd="'+e.d+'">'+
       '<span class="agd'+(n<=0?" hot":"")+'">'+esc(D.md(e.d))+'</span>'+
       '<span class="agn"><span class="t">'+esc(e.x.n)+
         (e.note?' <span class="sub">'+esc(e.note)+'</span>':"")+'</span>'+
         '<span class="s">'+esc(e.s.title||"（無題）")+' · '+esc(e.s.artist||"")+'</span></span>'+
       '<span class="agl">'+esc(left)+'</span></button>'});
   m.innerHTML=h;
-  m.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song))}
+  m.querySelectorAll("[data-song]").forEach(b=>{
+    b.onclick=()=>{if(b._swiped){b._swiped=false;return}openSong(b.dataset.song)};
+    b.addEventListener("touchstart",ev=>{const t=ev.touches[0];b._tx=t.clientX;b._ty=t.clientY},{passive:true});
+    b.addEventListener("touchend",ev=>{
+      if(RO||b._tx==null)return;
+      const t=ev.changedTouches[0],dx=t.clientX-b._tx,dy=t.clientY-b._ty;b._tx=null;
+      if(Math.abs(dx)<64||Math.abs(dy)>40)return;
+      b._swiped=true;
+      const s=S.songs.find(z=>z.id===b.dataset.song);if(!s)return;
+      const x=stages(s).find(z=>z.k===b.dataset.stk);if(!x)return;
+      let now;
+      if(b.dataset.kind==="rec"){const o=stg(s,x.k);
+        const v=o.slots.find(a=>a.date===b.dataset.dd);if(!v)return;
+        v.done=!v.done;now=v.done;syncSlotDone(s,x);syncInstKids(s)}
+      else{const o=stg(s,x.k);o.done=!o.done;now=o.done}
+      mark();render();
+      toast(now?"完了にしました（↺で戻せます）":"未完了に戻しました")},{passive:true})})}
 function renderDirs(){
   const map=new Map();let all=0;
   S.songs.forEach(s=>{if(isFin(s))return;all++;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
@@ -1338,7 +1385,7 @@ function renderDirs(){
 /* 大きめの日付タイル。曲のカードと公演の見出しで共用する */
 function kdTile(lb,v,cls){if(!v)return"";
   const n=D.to(v),past=n<0,sub=past?"済":n===0?"本日":"あと"+n+"日";
-  return'<span class="'+(past?"past":cls)+'"><em>'+esc(lb)+'</em><b>'+D.md(v)+'</b>'+
+  return'<span class="'+(past?"past":cls+(n<=7?" nxt":""))+'"><em>'+esc(lb)+'</em><b>'+D.md(v)+'</b>'+
     '<u class="'+(!past&&n<=14?"soon":"")+'">'+sub+'</u></span>'}
 function cardHTML(s,rank){
   const st=status(s),bl=ballOf(s),L=stages(s);
@@ -1347,11 +1394,11 @@ function cardHTML(s,rank){
   if(!fin&&!par&&L[st.i].gp&&(s.use||"master")!=="live")par=L[st.i].gp;
   let stage=fin?"":L[st.i].n;
   if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
-    stage+="（"+(ao.prov?"ひとまずOK"+(ao.st==="req"?"・"+awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中":"")
-      :ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"
+    stage+="（"+(ao.prov?"ひとまずOK"+(ao.st==="req"?"・"+awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"+(ao.req&&D.to(ao.req)<0?(-D.to(ao.req))+"日":""):"")
+      :ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"+(ao.req&&D.to(ao.req)<0?(-D.to(ao.req))+"日":"")
       :ao.st==="me"?haveLabel(ao.rev,firstWord(L[st.i]))+"確認中":"未依頼")+
       (ao.size?"・"+sizeLabel(ao.size):"")+"）"}
-  const dl=fin?"":st.dl?(st.lb+" "+D.md(st.dl)+" · "+(st.left<0?(-st.left)+"日 超過":st.left===0?"本日":"あと"+st.left+"日")):"締切 未設定";
+  const dl=fin?"":st.dl?('<b class="dln">'+(st.left<0?(-st.left)+"日超過":st.left===0?"本日":"あと"+st.left+"日")+'</b><span class="dld">'+D.md(st.dl)+'</span>'):'<span class="dld">締切 未設定</span>';
   const dc=st.k==="late"?"late":st.k==="warn"?"warn":"";
   /* 親レベルの工程を、済みとこれからに分ける */
   const tops=[];
@@ -1398,19 +1445,28 @@ function cardHTML(s,rank){
     ((s.use||"master")==="live"&&s.ltype&&s.ltype!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype)+'</span>':"")+
     ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
     (fin?'<span class="ball fin"><i></i><span>完了</span></span>':"")+'</div>'+
+    (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
+        :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
+         '<span class="dl '+dc+'">'+dl+'</span></div>')+
     (fin?"":'<div class="balls">'+ballsOf(s).map(w=>
       '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span>'+
       (w.g?'<u>'+esc(w.g)+'</u>':"")+'</span>').join("")+'</div>')+
-    (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
-        :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
-         '<span class="dl '+dc+'">'+esc(dl)+'</span></div>')+
     (fin?"":chips)+memoHTML+
     (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+'</button>'}
 
 /* 表示の細かさに合わせて、カードか細い行かを選ぶ */
 const item=(s,rank)=>V.dense?slimHTML(s,rank):cardHTML(s,rank);
+function renderToday(){
+  const el=document.getElementById("todayBar");if(!el)return;
+  const a=agenda().filter(e=>!e.done&&D.to(e.d)<=0);
+  if(!a.length){el.style.display="none";el.innerHTML="";return}
+  el.style.display="";
+  el.innerHTML='<b>今日</b>'+a.map(e=>
+    '<button class="tdc'+(D.to(e.d)<0?" late":"")+'" data-song="'+e.s.id+'">'+
+    esc(e.x.n)+'<u>'+esc(e.s.title||"（無題）")+'</u></button>').join("");
+  el.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song))}
 function render(){
-  renderDirs();renderUse();syncLists();
+  renderDirs();renderUse();syncLists();renderToday();
   const m=document.getElementById("main");
   if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
   const list=pool();
@@ -1888,7 +1944,7 @@ function wireSong(){
       syncSlotAssign(s);syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
   b.querySelectorAll("[data-sw]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sw.split("|"),v=stg(s,a[0]).slots[+a[1]];
-    v.swait=!v.swait;mark();drawSong();rf()});
+    v.swait=!v.swait;v.swaitAt=v.swait?D.today():"";mark();drawSong();rf()});
   b.querySelectorAll("[data-sx2]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.sx2.split("|");stg(s,a[0]).slots.splice(+a[1],1);syncInstKids(s);mark();drawSong();rf()});
   b.querySelectorAll("[data-sa2]").forEach(e=>e.onclick=()=>{
@@ -1941,11 +1997,11 @@ function wireSong(){
     if(s.ltype&&!Object.keys(s.stages||{}).some(k=>(s.stages[k]||{}).done))
       s.stageList=showStages(s.ltype);
     mark();drawSong();rf()};
-  const ug=b.querySelector("#useSeg");if(ug)ug.onclick=e=>{const x=e.target.closest("[data-u2]");if(!x)return;
+  const ug=b.querySelector("#useSeg");if(ug)ug.onclick=async e=>{const x=e.target.closest("[data-u2]");if(!x)return;
     const nu=x.dataset.u2;if(nu===(s.use||"master"))return;
     const tid=nu==="live"?"tpl_show":"tpl_single";
     const t=S.templates.find(z=>z.id===tid);
-    if(t&&!confirm(nu==="live"?"ライブ制作物に切り替えます。工程がライブ用（企画〜納品）に入れ替わります。"
+    if(t&&!await ask(nu==="live"?"ライブ制作物に切り替えます。工程がライブ用（企画〜納品）に入れ替わります。"
       :"原盤に切り替えます。工程が録音用に入れ替わります。"))return;
     s.use=nu;
     if(t){s.templateId=t.id;s.stageList=JSON.parse(JSON.stringify(t.stages));
@@ -1970,8 +2026,8 @@ function wireSong(){
     const x=s.stageList[ix(e.dataset.msg)];if(!x)return;
     const t=msgFor(s,x);
     if(navigator.clipboard)navigator.clipboard.writeText(t)
-      .then(()=>toast("連絡文をコピーしました"),()=>alert(t));
-    else alert(t)});
+      .then(()=>toast("連絡文をコピーしました"),()=>showText(t));
+    else showText(t)});
   b.querySelectorAll("[data-mm]").forEach(e=>{
     const fit=()=>{e.style.height="auto";e.style.height=(e.scrollHeight+2)+"px"};
     fit();e.oninput=()=>{stg(s,e.dataset.mm).memo=e.value;fit();mark()};
@@ -1985,8 +2041,8 @@ function wireSong(){
     s.stageList.splice(j,0,{k:k,n:"新しい工程",role:pa.role,gp:pa.gp,d:1,lead:pa.lead==null?14:pa.lead,
       anchor:pa.anchor,off:pa.off,unit:pa.unit,fb:pa.fb,t:""});
     stOpen=k;mark();drawSong();rf()});
-  b.querySelectorAll("[data-sx]").forEach(e=>e.onclick=()=>{const i=ix(e.dataset.sx);
-    if(!confirm("「"+s.stageList[i].n+"」を削除します。"))return;
+  b.querySelectorAll("[data-sx]").forEach(e=>e.onclick=async()=>{const i=ix(e.dataset.sx);
+    if(!await ask("「"+s.stageList[i].n+"」を削除します。","削除"))return;
     delete s.stages[s.stageList[i].k];s.stageList.splice(i,1);mark();drawSong();rf()});
   b.querySelectorAll("[data-qa]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.qa.split("|"),o=stg(s,a[0]);
@@ -1999,9 +2055,9 @@ function wireSong(){
     s.stageList.push({k:k,n:"新しい工程",role:"me",
       anchor:(s.tplDates&&s.tplDates[0])||"release",off:0,unit:"d",d:0,lead:14,t:""});
     stOpen=k;stAdv={};mark();drawSong();rf()};
-  const at=b.querySelector("#applyTpl");if(at)at.onchange=()=>{
+  const at=b.querySelector("#applyTpl");if(at)at.onchange=async()=>{
     const t=S.templates.find(x=>x.id===at.value);if(!t)return;
-    if(!confirm("「"+t.name+"」の工程で置き換えます。完了記録は同じ工程のみ引き継ぎます。")){at.value="";return}
+    if(!await ask("「"+t.name+"」の工程で置き換えます。完了記録は同じ工程のみ引き継ぎます。","置き換える")){at.value="";return}
     s.templateId=t.id;s.stageList=JSON.parse(JSON.stringify(t.stages));
     s.tplDates=t.dates.slice();s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
     applySolo(s);mark();drawSong();rf()};
@@ -2075,8 +2131,9 @@ function dateCfg(s){
     B.querySelector("#mO").oninput=e=>{s.tplMastering.off=+e.target.value||0;mark()};
     B.querySelector("#mU").onchange=e=>{s.tplMastering.unit=e.target.value;mark()}}}
 
-document.getElementById("shDel").onclick=()=>{if(!cur||RO)return;
-  if(!confirm("「"+songTitle(cur)+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。"))return;
+document.getElementById("shDel").onclick=async()=>{if(!cur||RO)return;
+  if(!await ask("「"+songTitle(cur)+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。","ゴミ箱へ"))return;
+  logAdd("削除: "+(cur.artist?cur.artist+" / ":"")+songTitle(cur));
   toTrash("song",cur,(cur.artist?cur.artist+" / ":"")+songTitle(cur));
   S.songs=S.songs.filter(x=>x.id!==cur.id);mark();hide("sheet");render();toast("ゴミ箱へ移しました")};
 
@@ -2359,11 +2416,12 @@ function editProject(id,after){
         S.songs.forEach(x=>{if(x.projectId===p.id&&(x.use||"")==="live"&&!x.dates.rehearsal)x.dates.rehearsal=iso});
         mark();render()}}
     const pit=q("pItems");
-    if(pit)pit.onclick=ev=>{const x=ev.target.closest("[data-plt]");if(!x)return;
+    if(pit)pit.onclick=async ev=>{const x=ev.target.closest("[data-plt]");if(!x)return;
       const ty=x.dataset.plt;
       const hv=S.songs.find(z=>z.projectId===p.id&&(z.use||"")==="live"&&z.ltype===ty);
       if(hv){
-        if(!confirm("「"+ty+"」を公演から外します。ゴミ箱へ移ります。"))return;
+        if(!await ask("「"+ty+"」を公演から外します。ゴミ箱へ移ります。","外す"))return;
+        logAdd("削除: "+songTitle(hv));
         toTrash("song",hv,songTitle(hv));
         S.songs=S.songs.filter(z=>z.id!==hv.id)}
       else{
@@ -2408,7 +2466,8 @@ function editProject(id,after){
       S.songs.forEach(x=>{if(x.projectId===p.id)fillDates(x,old)});
       mark();render()}};
   s2("PROJECT","案件","",
-   [{t:"削除",c:"btn dgr sm",f:()=>{if(!confirm("案件をゴミ箱へ移します。楽曲は残ります。"))return;
+   [{t:"削除",c:"btn dgr sm",f:async()=>{if(!await ask("案件をゴミ箱へ移します。楽曲は残ります。","ゴミ箱へ"))return;
+      logAdd("案件を削除: "+(p.artist?p.artist+" / ":"")+projTitle(p));
       toTrash("project",p,(p.artist?p.artist+" / ":"")+projTitle(p));
       S.projects=S.projects.filter(x=>x.id!==p.id);S.songs.forEach(x=>{if(x.projectId===p.id)x.projectId=""});
       mark();hide("sheet2");render();toast("ゴミ箱へ移しました")}},{sp:1},
@@ -2477,7 +2536,7 @@ function editTemplate(id){
       t.stages.splice(i-1,0,t.stages.splice(i,1)[0]);mark();draw()});
     B.querySelectorAll("[data-dn]").forEach(e=>e.onclick=()=>{const i=+e.dataset.dn;if(i>=t.stages.length-1)return;
       t.stages.splice(i+1,0,t.stages.splice(i,1)[0]);mark();draw()});
-    B.querySelectorAll("[data-sx]").forEach(e=>e.onclick=()=>{if(!confirm("削除します。"))return;
+    B.querySelectorAll("[data-sx]").forEach(e=>e.onclick=async()=>{if(!await ask("削除します。","削除"))return;
       t.stages.splice(+e.dataset.sx,1);mark();draw()});
     B.querySelector("#sAdd").onclick=()=>{t.stages.push({k:"s"+Date.now()+Math.floor(Math.random()*99),
       n:"新しい工程",role:"me",anchor:t.dates[0]||"release",off:0,unit:"d"});mark();draw()}};
@@ -2563,6 +2622,8 @@ function mergeState(base,local,remote){
   if(!out.templates.length)out.templates=local.templates;
   const tr={};(local.trash||[]).concat(remote.trash||[]).forEach(t=>{if(!tr[t.id])tr[t.id]=t});
   out.trash=Object.keys(tr).map(k=>tr[k]);
+  const lg={};(local.log||[]).concat(remote.log||[]).forEach(t=>{if(!lg[t.id])lg[t.id]=t});
+  out.log=Object.keys(lg).map(k=>lg[k]).sort((a,b)=>b.at-a.at).slice(0,500);
   out.masters=JSON.parse(JSON.stringify(local.masters||{}));
   Object.keys(remote.masters||{}).forEach(k=>{
     const a=out.masters[k]||[],b=remote.masters[k]||[];
@@ -2570,7 +2631,7 @@ function mergeState(base,local,remote){
   out.settings=local.settings;   /* トークンなどは端末ごと */
   return out}
 const syncable=st=>({v:st.v,songs:st.songs,projects:st.projects,templates:st.templates,
-  masters:st.masters,trash:st.trash,at:Date.now()});
+  masters:st.masters,trash:st.trash,log:st.log||[],at:Date.now()});
 
 async function syncNow(reason){
   if(RO||SY.busy||!syOk())return;
@@ -2614,8 +2675,10 @@ function syStart(){
   clearInterval(SY.poll);
   if(!syOk()){syDot("off");return}
   syncNow("start");
-  SY.poll=setInterval(()=>{if(!document.hidden)syncNow("poll")},60000)}
-window.addEventListener("online",()=>{if(syOk())syncNow("online")});
+  SY.poll=setInterval(()=>{if(!document.hidden)syncNow("poll")},25000)}
+window.addEventListener("online",()=>{if(syOk())syncNow("online");
+  const a=(S.settings&&S.settings.ai)||{};
+  if(a.drafts&&a.drafts.length)toast("AIの下書きが"+a.drafts.length+"件あります（入力欄を空のままAIを押すと出ます）")});
 window.addEventListener("focus",()=>{if(syOk()&&Date.now()-SY.last>15000)syncNow("focus")});
 document.addEventListener("visibilitychange",()=>{if(!document.hidden&&syOk()&&Date.now()-SY.last>15000)syncNow("visible")});
 
@@ -2645,8 +2708,8 @@ function trashSheet(){
       const t=S.trash.find(x=>x.id===b.dataset.tr);if(!t)return;
       stamp(t.data);if(t.type==="song")S.songs.unshift(t.data);else S.projects.push(t.data);
       S.trash=S.trash.filter(x=>x.id!==t.id);mark();draw();render();toast("戻しました")});
-    B.querySelectorAll("[data-td]").forEach(b=>b.onclick=()=>{
-      if(!confirm("完全に削除します。元に戻せません。"))return;
+    B.querySelectorAll("[data-td]").forEach(b=>b.onclick=async()=>{
+      if(!await ask("完全に削除します。元に戻せません。","完全に削除"))return;
       S.trash=S.trash.filter(x=>x.id!==b.dataset.td);mark();draw();toast("削除しました")})};
   s2("TRASH","ゴミ箱","",[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);draw()}
 
@@ -2734,7 +2797,7 @@ function openSettings(){
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
         '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
-    {id:"ai",t:"AI入力",h:()=>'<p class="hint" style="margin:0 0 10px">画面下のバーに普通の文で書くと、内容を読み取って日程や状態を入力します。'+'Anthropic APIキーが必要です。キーはこの端末だけに保存され、同期・書き出しには含まれません。</p>'+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button></div>'+'<p class="hint" id="aiLog"></p>'},
+    {id:"ai",t:"AI入力",h:()=>'<p class="hint" style="margin:0 0 10px">画面下のバーに普通の文で書くと、内容を読み取って日程や状態を入力します。'+'Anthropic APIキーが必要です。キーはこの端末だけに保存され、同期・書き出しには含まれません。</p>'+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="fg"><span class="lbl">記名（作業ログに残す名前・任意）</span><input class="inp" id="aiN" value="'+esc(aiCfg().name||"")+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button><button class="btn" id="mLog">作業ログ</button></div>'+'<p class="hint" id="aiLog"></p>'},
      {id:"cal",t:"カレンダーから取り込む",h:()=>
       '<p class="hint" style="margin:0 0 10px">Googleカレンダーの予定を、日程と締切に取り込みます。'+
       '毎朝も自動で走りますが、ここから今すぐ走らせられます。</p>'+
@@ -2790,6 +2853,8 @@ function wireSettings(B){
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
   {const k=q("#aiK");if(k)k.onblur=()=>{aiCfg().key=k.value.trim();mark()}}
   {const m=q("#aiM");if(m)m.onblur=()=>{aiCfg().model=m.value.trim()||AI_DEF_MODEL;mark()}}
+  {const nm=q("#aiN");if(nm)nm.onblur=()=>{aiCfg().name=nm.value.trim();mark()}}
+  on("#mLog",logSheet);
   on("#aiTest",async()=>{const box=q("#aiLog");
     if(!aiCfg().key&&q("#aiK"))aiCfg().key=q("#aiK").value.trim();
     if(!aiCfg().key){if(box)box.textContent="APIキーを入れてください";return}
@@ -2852,7 +2917,7 @@ function wireSettings(B){
   on("#syNow",async()=>{if(!syOk())return toast("先に設定を入れてください");
     await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)});
   on("#syPull",async()=>{if(!syOk())return toast("先に設定を入れてください");
-    if(!confirm("この端末の内容を破棄して、同期先の内容を取り込みます。"))return;
+    if(!await ask("この端末の内容を破棄して、同期先の内容を取り込みます。","取り込む"))return;
     try{const got=await ghRead(syCfg());
       if(!got.json)return toast("同期先にデータがありません");
       const keep=S.settings;S=migrate(got.json);S.settings=keep;dirty=true;await flush();
@@ -2892,7 +2957,8 @@ function restoreSheet(){
         :'<p class="hint">まだバックアップがありません。しばらく使うと自動で作られます。</p>',
       [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}]);
     document.getElementById("s3Body").querySelectorAll("[data-rk]").forEach(b=>b.onclick=async()=>{
-      if(!confirm("この時点のデータに戻します。現在の内容は置き換わります。"))return;
+      if(!await ask("この時点のデータに戻します。現在の内容は置き換わります。","戻す"))return;
+      logAdd("バックアップから復元");
       let rec=await kvGet(b.dataset.rk);
       if(rec&&rec.enc){if(!CK)return toast("先にパスコードで解除してください");
         try{const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:B64.dec(rec.iv)},CK,B64.dec(rec.data));
@@ -3060,6 +3126,61 @@ document.getElementById("fab").onclick=()=>{
   applySort(s);applySolo(s);S.songs.unshift(s);mark();render();openSong(s.id);
   setTimeout(()=>{const i=document.querySelector('#shBody [data-f="title"]');if(i)i.focus()},320)};
 
+/* ===================== 作業ログ・元に戻す・確認シート ===================== */
+function logAdd(t){if(!S.log)S.log=[];
+  S.log.unshift({id:uid(),at:Date.now(),by:(S.settings.ai&&S.settings.ai.name)||"",t:String(t).slice(0,200)});
+  if(S.log.length>500)S.log.length=500}
+function logSheet(){
+  const rows=(S.log||[]).slice(0,150).map(e=>{
+    const d=new Date(e.at),ds=(d.getMonth()+1)+"/"+d.getDate()+" "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+    return '<div class="lgr"><span class="lgd">'+ds+'</span><span class="lgt">'+esc(e.t)+(e.by?' <u>'+esc(e.by)+'</u>':"")+'</span></div>'}).join("");
+  s3("LOG","作業ログ",rows||'<p class="hint">まだ記録がありません。AIでの反映や削除がここに残ります。</p>',
+    [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}])}
+
+/* 元に戻す：変更のかたまりごとに直前の状態を積む */
+let UNDO=[],LASTSNAP=null,UNDOSKIP=false;
+const snapNow=()=>JSON.stringify({songs:S.songs,projects:S.projects,templates:S.templates,
+  masters:S.masters,trash:S.trash,log:S.log||[]});
+function undoPushMaybe(){
+  if(UNDOSKIP||RO)return;
+  const now=Date.now();
+  if(!undoPushMaybe._t||now-undoPushMaybe._t>1500){
+    if(LASTSNAP){UNDO.push(LASTSNAP);if(UNDO.length>10)UNDO.shift();undoBtnUpd()}}
+  undoPushMaybe._t=now;
+  clearTimeout(undoPushMaybe._s);
+  undoPushMaybe._s=setTimeout(()=>{LASTSNAP=snapNow()},1200)}
+function undoBtnUpd(){const b=document.getElementById("btnUndo");
+  if(b)b.style.display=UNDO.length?"":"none"}
+function undoInit(){LASTSNAP=snapNow();undoBtnUpd()}
+function doUndo(){
+  if(!UNDO.length)return;
+  const d=JSON.parse(UNDO.pop());
+  UNDOSKIP=true;
+  S.songs=d.songs;S.projects=d.projects;S.templates=d.templates;
+  S.masters=d.masters;S.trash=d.trash;S.log=d.log||[];
+  logAdd("元に戻す を実行");
+  mark();
+  UNDOSKIP=false;
+  LASTSNAP=snapNow();undoBtnUpd();
+  if(cur){cur=S.songs.find(x=>x.id===cur.id)||null;
+    if(cur){head();drawSong()}else hide("sheet")}
+  render();toast("元に戻しました")}
+{const b=document.getElementById("btnUndo");if(b)b.onclick=doUndo}
+
+/* confirm() の置き換え。Promiseで答えを返す */
+function ask(msg,okText){
+  return new Promise(res=>{
+    const w=document.getElementById("cfm");
+    document.getElementById("cfmMsg").textContent=msg;
+    const ok=document.getElementById("cfmOk"),ng=document.getElementById("cfmNg");
+    ok.textContent=okText||"OK";
+    const done=v=>{w.classList.remove("on");ok.onclick=ng.onclick=null;res(v)};
+    ok.onclick=()=>done(true);ng.onclick=()=>done(false);
+    w.classList.add("on")})}
+function showText(t){
+  s3("MESSAGE","文面",'<textarea class="inp" readonly style="width:100%;min-height:180px">'+esc(t)+'</textarea>',
+    [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}])}
+
 /* ===================== AI入力バー ===================== */
 /* 画面下のバーに普通の文で書くと、Claude APIで操作に変換してプレビュー→確定で反映する */
 const AI_DEF_MODEL="claude-sonnet-4-6";
@@ -3081,8 +3202,9 @@ function aiCtx(){
       stages:stages(s).map(x=>{const g=stg(s,x.k);
         const st={k:x.k,n:x.n};if(g.done)st.done=1;if(isMulti(x))st.multi=1;
         if(g.dl)st.dl=g.dl;if(g.st)st.status=g.st;if(g.asg)st.asg=g.asg;
+        if(g.st==="req"&&g.req)st.reqAt=g.req;if(g.memo)st.memo=String(g.memo).slice(0,200);
         if(isMulti(x)){const sl=g.slots.filter(v=>v.date||v.who)
-          .map(v=>({date:v.date||"",who:v.who||"",done:v.done?1:0,wait:v.swait?1:0}));
+          .map(v=>({date:v.date||"",who:v.who||"",done:v.done?1:0,wait:v.swait?1:0,waitAt:v.swaitAt||undefined}));
           if(sl.length)st.slots=sl}
         return st})};
     const dt={};ANCHOR_KEYS.forEach(k=>{if(s.dates[k])dt[k]=s.dates[k]});
@@ -3097,6 +3219,7 @@ const AI_SYS=[
 "出力はJSONのみ。説明文やコードブロック記号は一切禁止。形式: {\"ops\":[...],\"ans\":\"\",\"note\":\"補足があれば短く（なければ空）\"}",
 "入力が質問（「〜いつ？」「〜どうなってる？」「残ってるのは？」など、情報を確認したいもの）のときは、与えたデータから読み取って ansに日本語で簡潔に答える。opsは空にする。日付には残り日数も添える（例: 9/5・あと8日）。",
 "指示と質問が混ざっていれば opsと ansの両方を出す。データに無いことは推測せず、ansで「データに無い」と伝える。",
+"連絡文・リマインド文・メール文の作成を頼まれたら、ansに文面だけを書く（丁寧なビジネス日本語。日付は M/D。宛名や締切はデータから引く）。opsは、あわせて記録の指示があるときだけ作る。",
 "",
 "opの種類（s=曲i、p=案件i、st=工程k。iとkは与えたデータのもの）:",
 "{\"t\":\"add_song\",\"title\":\"\",\"artist\":\"\",\"proj\":案件i(不明なら-1),\"director\":\"\",\"tpl\":\"single|live|show\"}  // tpl: 通常曲=single、ライブ用の曲=live、公演そのもの=show",
@@ -3231,9 +3354,10 @@ function aiApply(r){
     case "anchor":r.song.dates[op.k]=op.date||"";break;
     case "dl":stg(r.song,op.st).dl=op.date||"";break;
     case "done":stg(r.song,op.st).done=!!op.v;break;
-    case "status":stg(r.song,op.st).st=AI_STLBL[op.v||""]!==undefined?(op.v||""):"";break;
+    case "status":{const o=stg(r.song,op.st);o.st=AI_STLBL[op.v||""]!==undefined?(op.v||""):"";
+      if(o.st==="req"&&!o.req)o.req=D.today();if(o.st!=="req")o.req="";break}
     case "slot_add":stg(r.song,op.st).slots.push({date:op.date||"",who:nfc(op.who||""),
-      note:nfc(op.note||""),done:false,swait:false});break;
+      note:nfc(op.note||""),done:false,swait:false,swaitAt:""});break;
     case "slot_upd":{const o=stg(r.song,op.st),m=op.match||{};
       let v=o.slots.find(a=>(m.date?a.date===m.date:true)&&(m.who?(a.who||"").indexOf(m.who)>=0:true));
       if(!v&&o.slots.length===1)v=o.slots[0];
@@ -3243,7 +3367,7 @@ function aiApply(r){
       if(st.who!==undefined)v.who=nfc(String(st.who||""));
       if(st.note!==undefined)v.note=nfc(String(st.note||""));
       if(st.done!==undefined)v.done=!!st.done;
-      if(st.swait!==undefined)v.swait=!!st.swait;break}
+      if(st.swait!==undefined){v.swait=!!st.swait;v.swaitAt=v.swait?D.today():""}break}
     case "memo":{const o=stg(r.song,op.st);o.memo=(o.memo?o.memo+"\n":"")+nfc(op.memo||"");break}
     case "asg":stg(r.song,op.st).asg=nfc(op.name||"");break;
     case "add_proj":{const p={id:uid(),artist:nfc(op.artist||""),kind:op.live?"シングル":(op.kind||"シングル"),
@@ -3262,12 +3386,16 @@ function aiApply(r){
     default:throw new Error("未対応の操作")}}
 
 let AIPV=null;
-function aiPreview(res,msgs){
-  AIPV={list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",msgs:msgs};
+function aiPreview(res,msgs,qtxt){
+  AIPV={list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",msgs:msgs,q:qtxt||""};
+  if(AIPV.ans){const a=aiCfg();if(!a.hist)a.hist=[];
+    a.hist.unshift({q:AIPV.q.slice(0,120),a:AIPV.ans.slice(0,1500),at:Date.now()});
+    if(a.hist.length>20)a.hist.length=20;mark()}
   AIPV.list.forEach(r=>{r.on=r.ok});
   const draw=()=>{
     let h="";
-    if(AIPV.ans)h+='<div class="aians">'+esc(AIPV.ans)+'</div>';
+    if(AIPV.ans)h+='<div class="aians">'+esc(AIPV.ans)+'</div>'+
+      '<div style="margin:-4px 0 12px"><button class="btn sm" id="aiCopy">文面をコピー</button></div>';
     if(AIPV.note)h+='<p class="hint" style="margin:0 0 10px">'+esc(AIPV.note)+'</p>';
     if(!AIPV.list.length&&!AIPV.ans)h+='<p class="hint">反映できる操作はありません。</p>';
     AIPV.list.forEach((r,i)=>{
@@ -3298,6 +3426,9 @@ function aiPreview(res,msgs){
     B.querySelectorAll("[data-aif]").forEach(e=>{
       const a=e.dataset.aif.split("|");
       e.oninput=()=>aiSet(AIPV.list[+a[0]].op,a[1],e.value)});
+    const cp=document.getElementById("aiCopy");
+    if(cp)cp.onclick=()=>{if(navigator.clipboard)navigator.clipboard.writeText(AIPV.ans)
+      .then(()=>toast("コピーしました"),()=>showText(AIPV.ans));else showText(AIPV.ans)};
     const fx=document.getElementById("aiFix"),fg=document.getElementById("aiFixGo");
     const doFix=async()=>{
       const f=fx.value.trim();if(!f)return;
@@ -3305,7 +3436,7 @@ function aiPreview(res,msgs){
       const ms=AIPV.msgs.concat([{role:"user",content:
         "修正指示:\n"+f+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
       try{const r=await aiChat(ms);
-        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]))}
+        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),AIPV.q+" › "+f)}
       catch(e){toast("修正できませんでした: "+(e.message||e));
         fg.disabled=false;fx.disabled=false;fg.textContent="修正"}};
     fg.onclick=doFix;
@@ -3314,7 +3445,7 @@ function aiPreview(res,msgs){
     if(RO)return toast("閲覧のみのため反映できません");
     let n=0,bad=[];
     AIPV.list.filter(r=>r.on).forEach(r=>{
-      try{aiApply(r);n++}catch(e){bad.push(aiSummary(r)+"："+(e.message||e))}});
+      try{aiApply(r);logAdd("AI: "+aiSummary(r));n++}catch(e){bad.push(aiSummary(r)+"："+(e.message||e))}});
     if(n){harvestMasters();cleanMasters();mark();render();
       if(cur){cur=S.songs.find(x=>x.id===cur.id)||cur;head();drawSong()}}
     AIPV=null;hide("sheet3");
@@ -3323,14 +3454,32 @@ function aiPreview(res,msgs){
     if(bad.length)console.warn("AI入力の失敗:",bad)};
   draw()}
 
+function aiHistSheet(){
+  const a=aiCfg(),dr=a.drafts||[],hs=a.hist||[];
+  let h="";
+  if(dr.length){h+='<p class="hint" style="margin:0 0 6px">オフライン中の下書き（タップで入力欄へ）</p>'+
+    dr.map((d,i)=>'<button class="btn w" style="margin-bottom:6px;text-align:left" data-adr="'+i+'">'+esc(d.t)+'</button>').join("")}
+  if(hs.length){h+='<p class="hint" style="margin:'+(dr.length?14:0)+'px 0 6px">最近のAIの答え</p>'+
+    hs.map(e=>'<div class="aiop"><div class="aihd" style="color:var(--dim)">'+esc(e.q)+'</div>'+
+      '<div style="margin-top:6px;white-space:pre-wrap;font-size:13px;line-height:1.7">'+esc(e.a)+'</div></div>').join("")}
+  if(!h)h='<p class="hint">下書きも答えの履歴もまだありません。</p>';
+  s3("AI","下書きと答えの履歴",h,[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}]);
+  document.getElementById("s3Body").querySelectorAll("[data-adr]").forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.adr,a2=aiCfg();
+    document.getElementById("aiQ").value=(a2.drafts[i]||{}).t||"";
+    a2.drafts.splice(i,1);mark();hide("sheet3")})}
+
 {const q=document.getElementById("aiQ"),go=document.getElementById("aiGo");
  const run=async()=>{
-   const t=q.value.trim();if(!t)return;
+   const t=q.value.trim();
+   if(!t){aiHistSheet();return}
    if(RO)return toast("閲覧のみのため使えません");
    if(!aiCfg().key){openSettings();toast("設定の「AI入力」にAPIキーを入れてください");return}
-   if(!navigator.onLine)return toast("オフラインです。入力は残しておきます");
+   if(!navigator.onLine){const a=aiCfg();if(!a.drafts)a.drafts=[];
+     a.drafts.push({t:t,at:Date.now()});mark();q.value="";
+     toast("オフラインなので下書きに残しました");return}
    go.disabled=true;q.disabled=true;const old=go.textContent;go.textContent="…";
-   try{const r=await aiCall(t);aiPreview(r.out,r.msgs)}
+   try{const r=await aiCall(t);aiPreview(r.out,r.msgs,t)}
    catch(e){toast("解釈できませんでした: "+(e.message||e))}
    go.disabled=false;q.disabled=false;go.textContent=old};
  go.onclick=run;
@@ -3448,6 +3597,7 @@ function migrate(d){
   d=nfc(d);
   b.projects=d.projects||[];
   b.trash=d.trash||[];
+  b.log=d.log||[];
   if(d.templates&&d.templates.length){b.templates=d.templates;
     b.templates.forEach(t=>{const ref=t.id==="tpl_live"?tplLive():t.id==="tpl_single"?tplSingle():
       t.id==="tpl_show"?tplShow():null;
@@ -3674,7 +3824,7 @@ async function boot(){
   if(rec&&rec.enc){encOn=true;
     document.getElementById("lock").classList.add("on");
     const go=async()=>{try{S=migrate(await encUnpack(rec,document.getElementById("lockPin").value));
-        document.getElementById("lock").classList.remove("on");dot("");render();syStart()}
+        document.getElementById("lock").classList.remove("on");dot("");undoInit();render();syStart()}
       catch(e){const m=document.getElementById("lockMsg");m.textContent="パスコードが違います。";m.style.color="var(--late)"}};
     document.getElementById("lockGo").onclick=go;
     document.getElementById("lockPin").onkeydown=e=>{if(e.key==="Enter")go()};
@@ -3683,7 +3833,7 @@ async function boot(){
   purgeTrash();
   {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();
-  dot("");render();syStart()}
+  dot("");undoInit();render();syStart()}
 boot();
 
 /* ホーム画面アプリとして使うための登録。ファイルが無くても本体はそのまま動く */
