@@ -847,7 +847,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-h";
+const APP_VER="2026-08-28-i";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2156,12 +2156,15 @@ function wireSong(){
     /* いま打ってある日付を、カレンダーの初期値にする */
     const f=document.getElementById(e.dataset.for);
     if(!f)return;const iso=parseDate(f.value,f.dataset.ref||"");if(iso)e.value=iso});
-  b.querySelectorAll("[data-for]").forEach(e=>e.onchange=()=>{
-    const f=document.getElementById(e.dataset.for);
-    if(!f||!e.value)return;
-    f.value=fmtDate(e.value);
-    f.dispatchEvent(new Event("blur"));
-    if(f.onblur)f.onblur()});
+  b.querySelectorAll("[data-for]").forEach(e=>{
+    e.onchange=()=>{e._pv=e.value};
+    e.onblur=()=>{
+      const v=e._pv;e._pv=null;
+      const f=document.getElementById(e.dataset.for);
+      if(!f||!v)return;
+      f.value=fmtDate(v);
+      f.dispatchEvent(new Event("blur"));
+      if(f.onblur)f.onblur()}});
   b.querySelectorAll("[data-rs]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.rs);
     o.st=o.st==="studio"?"":"studio";mark();drawSong();rf()});
   b.querySelectorAll("[data-ro]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ro);
@@ -2221,18 +2224,21 @@ function wireSong(){
     const a=e.dataset.ss2.split("|"),o=stg(s,a[0]);
     o.st=a[1];if(o.st!=="req")o.req="";
     syncOrder(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-qd]").forEach(e=>e.onchange=()=>{
-    if(!e.value)return;
-    const k=e.dataset.qd,xx=s.stageList[ix(k)],o=stg(s,k);
-    if(xx&&isMulti(xx)){
-      /* 日程を持つ工程は、その日を1本足す */
-      if(!o.slots)o.slots=[];
-      if(!o.slots.some(v=>v.date===e.value))
-        o.slots.push({date:e.value,note:"",who:"",swait:false,done:false});
-      o.slots.sort((a,z)=>String(a.date).localeCompare(String(z.date)));
-      o.st="";syncInstKids(s)}
-    else o.dl=e.value;
-    mark();drawSong();rf()});
+  b.querySelectorAll("[data-qd]").forEach(e=>{
+    /* iOSのホイールは回すたびchangeが飛ぶので、閉じてから一度だけ確定する */
+    e.onchange=()=>{e._pv=e.value};
+    e.onblur=()=>{
+      const v=e._pv;e._pv=null;
+      if(!v)return;
+      const k=e.dataset.qd,xx=s.stageList[ix(k)],o=stg(s,k);
+      if(xx&&isMulti(xx)){
+        if(!o.slots)o.slots=[];
+        if(!o.slots.some(z=>z.date===v))
+          o.slots.push({date:v,note:"",who:"",swait:false,done:false});
+        o.slots.sort((a,z)=>String(a.date).localeCompare(String(z.date)));
+        o.st="";syncInstKids(s)}
+      else o.dl=v;
+      mark();drawSong();rf()}});
   b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
     const xx=s.stageList[ix(e.dataset.bt)];
     /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
@@ -3489,6 +3495,7 @@ const AI_SYS=[
 "- 推測で埋めた値があるopには \"g\":[\"そのキー名\"] を付ける。",
 "- open_songが開いている曲。曲名が書かれていない指示はその曲のことが多い。",
 "- 依頼・返事待ちの記録: multi工程はslot_add/slot_updのswait、それ以外はstatusを\"req\"にし、あわせて {\"t\":\"memo\"} で「M/D 相手 手段(LINE/メール) 依頼」の形の1行を残す。返事が来たら該当を解消し「M/D 返事あり」をmemoで残す。",
+"- 工程を完了にする指示では、その工程の前提として先に終わっているはずの未完了工程も、それぞれ別のopで完了にする（例:『コーラスエディット完了』→ ChoDB（コーラスダビング）が未完了なら完了にする。エディットが済んだなら録りは終わっている、という作業の流れで判断）。同じ流れにない並行工程（別系統の録り、歌詞・MVなど）は含めない。未完了へ戻す指示は、指示された工程だけ。",
 "- 1文に複数の操作があれば複数opにする。意味が取れない・対象を特定できない部分は無理にopにせず、noteで短く伝える。",
 "- 対応するopが無い指示（案件やゴミ箱の削除、テンプレート編集など）はopにせず、noteで「アプリの設定から操作してください」と伝える。"
 ].join("\n");
