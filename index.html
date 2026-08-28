@@ -252,6 +252,9 @@ main>.artist:first-child{margin-top:2px}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 .aifix{display:flex;gap:8px;margin:12px 0 2px}
+.sec.fold{cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none}
+.sec.fold .cv{font-style:normal;color:var(--dim2);width:12px;flex-shrink:0}
+.secbody.off{display:none}
 .todaybar{display:flex;gap:6px;align-items:center;overflow-x:auto;padding:6px 14px 8px;-webkit-overflow-scrolling:touch}
 .todaybar::-webkit-scrollbar{display:none}
 .todaybar b{font-size:10.5px;font-family:var(--mono);letter-spacing:.1em;color:var(--warn);flex-shrink:0}
@@ -771,7 +774,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-d";
+const APP_VER="2026-08-28-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -991,36 +994,35 @@ function slotKey(v,i){
   return "sl_"+(t||"x")+"_"+i}
 function syncInstKids(s){
   const L=s.stageList||[];
+  let ch=false;
+  /* sl_子工程をいったん全部外す。重複や迷子（過去の不具合で末尾に溜まったもの）はここで消える */
+  const had=L.filter(x=>/^sl_/.test(x.k));
+  const seen={};let strays=false;
+  had.forEach(x=>{if(seen[x.k])strays=true;seen[x.k]=1});
+  for(let j=L.length-1;j>=0;j--)if(/^sl_/.test(L[j].k))L.splice(j,1);
   const ip=L.findIndex(x=>x.k==="instrec"),dp=L.findIndex(x=>x.k==="instdb");
-  if(ip<0||dp<0)return false;
+  if(ip<0||dp<0)return had.length>0;
+  const par=L[dp];
   const slots=(stg(s,"instrec").slots||[]).filter(v=>v.note||v.who||v.date);
-  const par=L[dp],old=[];
-  for(let j=dp+1;j<L.length&&L[j].d===1;j++)old.push(L[j]);
-  /* 自分で足した子工程はそのまま残す */
-  const mine=old.filter(x=>!/^sl_/.test(x.k));
   const want=slots.map((v,i)=>{
     const k=slotKey(v,i);
-    const nm=v.note||"パート未定";
-    const was=old.find(x=>x.k===k);
-    return Object.assign(was||{},{k:k,n:nm,role:par.role,gp:par.gp,d:1,
+    const was=had.find(x=>x.k===k);
+    return Object.assign(was||{},{k:k,n:v.note||"パート未定",role:par.role,gp:par.gp,d:1,
       anchor:par.anchor,off:par.off,unit:par.unit,fb:par.fb,t:"",lead:par.lead==null?14:par.lead})});
-  const next=want.concat(mine);
-  let ch=false;
-  if(old.map(x=>x.k+x.n).join()!==next.map(x=>x.k+x.n).join()){
-    L.splice(dp+1,old.length,...next);
-    /* 中で1本ずつに分かれるので、親にまとめた名前は置かない */
-    if(next.length&&stg(s,par.k).asg){stg(s,par.k).asg=""}
-    /* 使わなくなった子工程の記録は捨てる */
-    old.forEach(x=>{if(!next.some(z=>z.k===x.k))delete s.stages[x.k]});
-    ch=true}
+  L.splice(dp+1,0,...want);
+  if(strays||had.map(x=>x.k).join()!==want.map(x=>x.k).join())ch=true;
+  /* 使わなくなった子工程の記録は捨てる */
+  had.forEach(x=>{if(!want.some(z=>z.k===x.k))delete s.stages[x.k]});
+  /* 中で1本ずつに分かれるので、親にまとめた名前は置かない */
+  if(want.length&&stg(s,par.k).asg){stg(s,par.k).asg="";ch=true}
   /* 日付・演奏者・済みを引き継ぐ */
   slots.forEach((v,i)=>{const o=stg(s,slotKey(v,i));
     if(o.dl!==(v.date||"")){o.dl=v.date||"";ch=true}
     if(!!v.done!==!!o.done){o.done=!!v.done;o.date=v.done?(v.date||D.today()):"";ch=true}
     const who=(v.who||"").trim();
     if(o.asg!==who){o.asg=who;ch=true}});
-  if(next.length&&stg(s,par.k).asg){stg(s,par.k).asg="";ch=true}
   return ch}
+
 function syncSlotAssign(s){
   const back={};Object.keys(RECMIRROR).forEach(k=>{back[RECMIRROR[k]]=k});
   stages(s).forEach(x=>{if(!isMulti(x))return;
@@ -1259,6 +1261,10 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 
 /* ===================== view state ===================== */
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
+try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
+  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+function viewSave(){try{localStorage.setItem("shinkou_view",
+  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -1466,6 +1472,7 @@ function renderToday(){
     esc(e.x.n)+'<u>'+esc(e.s.title||"（無題）")+'</u></button>').join("");
   el.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song))}
 function render(){
+  viewSave();
   renderDirs();renderUse();syncLists();renderToday();
   const m=document.getElementById("main");
   if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
@@ -1803,7 +1810,41 @@ function drawSong(){
     '<p class="hint">1行＝1人。パートは英語表記。⠿ で並び替え。</p>';
   h+='<div class="fg" style="margin-top:18px"><span class="lbl">メモ・申し送り</span>'+
     '<textarea class="inp" data-f="note" placeholder="仕様、注意点">'+esc(s.note)+'</textarea></div>';
-  b.innerHTML=h;wireSong()}
+  b.innerHTML=h;foldSecs(b);wireSong()}
+
+
+/* 曲シートのセクションを折りたたみ式にし、工程を先頭に出す */
+let SECOPEN=null;
+function secLoad(){if(SECOPEN)return SECOPEN;
+  try{SECOPEN=JSON.parse(localStorage.getItem("shinkou_secs")||"null")}catch(e){}
+  if(!SECOPEN||typeof SECOPEN!=="object")SECOPEN={};
+  return SECOPEN}
+function secSave(){try{localStorage.setItem("shinkou_secs",JSON.stringify(SECOPEN))}catch(e){}}
+function foldSecs(b){
+  const so=secLoad();
+  const kids=[...b.childNodes];
+  const groups=[];let g=null;
+  kids.forEach(n=>{
+    if(n.nodeType===1&&n.classList&&n.classList.contains("sec")){g={sec:n,items:[]};groups.push(g)}
+    else if(g)g.items.push(n)});
+  if(!groups.length)return;
+  const first=["工程"];
+  groups.sort((a,b2)=>{
+    const ai=first.indexOf(a.sec.textContent.trim()),bi=first.indexOf(b2.sec.textContent.trim());
+    return (ai<0?99:ai)-(bi<0?99:bi)});
+  groups.forEach(gr=>{
+    const name=gr.sec.textContent.trim();
+    const open=so[name]!==undefined?!!so[name]:name==="工程";
+    const wrap=document.createElement("div");
+    wrap.className="secbody"+(open?"":" off");
+    gr.items.forEach(n=>wrap.appendChild(n));
+    gr.sec.classList.add("fold");
+    gr.sec.innerHTML='<i class="cv">'+(open?"▾":"▸")+'</i>'+esc(name);
+    b.appendChild(gr.sec);b.appendChild(wrap);
+    gr.sec.onclick=()=>{
+      const hid=wrap.classList.toggle("off");
+      so[name]=!hid;secSave();
+      gr.sec.querySelector(".cv").textContent=hid?"▸":"▾"}})}
 
 function crRows(s,grp){
   const list=(s.credits||[]).filter(c=>c.g===grp);
@@ -3080,6 +3121,10 @@ document.addEventListener("keydown",e=>{if(e.key==="Escape"){
 function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("on");
   clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),1900)}
 
+{document.getElementById("grpSel").value=V.grp;
+ document.getElementById("finSel").value=V.fin;
+ document.getElementById("whoSel").value=V.who;
+ document.getElementById("denseBtn").setAttribute("aria-pressed",V.dense)}
 document.getElementById("q").oninput=e=>{V.q=e.target.value;render()};
 document.getElementById("grpSel").onchange=e=>{V.grp=e.target.value;render()};
 document.getElementById("finSel").onchange=e=>{V.fin=e.target.value;render()};
