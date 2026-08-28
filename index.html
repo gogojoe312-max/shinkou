@@ -847,7 +847,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-i";
+const APP_VER="2026-08-28-j";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1527,7 +1527,7 @@ function calMove(ref,iso){
     v.date=iso;syncInstKids(s)}
   else stg(s,a[1]).dl=iso;
   logAdd("日程移動: "+songTitle(s)+" "+x.n+" "+D.md(a[3])+"→"+D.md(iso));
-  mark();render();toast(D.md(iso)+"へ移動しました（↺で戻せます）")}
+  fixDeps(s);mark();render();toast(D.md(iso)+"へ移動しました（↺で戻せます）")}
 
 function calBind(m,mode){
   m.querySelectorAll("[data-cn]").forEach(b=>b.onclick=()=>{
@@ -2238,7 +2238,7 @@ function wireSong(){
         o.slots.sort((a,z)=>String(a.date).localeCompare(String(z.date)));
         o.st="";syncInstKids(s)}
       else o.dl=v;
-      mark();drawSong();rf()}});
+      fixDeps(s);mark();drawSong();rf()}});
   b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
     const xx=s.stageList[ix(e.dataset.bt)];
     /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
@@ -2908,7 +2908,9 @@ async function syncNow(reason){
       else merged=mergeState(base,S,got.json);
       merged.settings=S.settings}   /* 設定は端末ごと。取り込みで消さない */
     const changed=JSON.stringify(syncable(merged))!==JSON.stringify(syncable(S));
-    if(changed){S=migrate(merged);harvestMasters();cleanMasters();dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
+    if(changed){S=migrate(merged);harvestMasters();cleanMasters();
+      {let fx=false;S.songs.forEach(x=>{if(fixDeps(x))fx=true});if(fx)chg++}
+      dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
     const payload=syncable(S);
     const same=got.json&&JSON.stringify(syncable(got.json))===JSON.stringify(payload);
     if(!same){
@@ -3433,6 +3435,41 @@ function showText(t){
   s3("MESSAGE","文面",'<textarea class="inp" readonly style="width:100%;min-height:180px">'+esc(t)+'</textarea>',
     [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}])}
 
+
+/* ===================== 依存整合の自動補正 ===================== */
+/* 作業日程（〜スケジュール）より前に、その中身の締切が残っていたら後ろへずらす。
+   間隔は保ったまま、最初の締切が日程の翌日に来るように平行移動する。 */
+const DEPFIX=[
+  {s:"voes", d:["rhythm","tsunagi","pitch"]},
+  {s:"choes", d:["choed"]},
+  {s:"revoes", d:["revoR","revoT","revoP"]},
+  {s:"vo", d:["vodb"]},
+  {s:"cho", d:["chodb"]},
+  {s:"revo", d:["revodb"]},
+  {s:"instrec", d:["instdb"]}
+];
+function dAdd(iso,n){const a=iso.split("-").map(Number);
+  const t=new Date(a[0],a[1]-1,a[2]);t.setDate(t.getDate()+n);return D.s(t)}
+function dDiff(a,b){return Math.round((new Date(b+"T00:00:00")-new Date(a+"T00:00:00"))/86400000)}
+function fixDeps(s){
+  let ch=false;
+  const have=k=>(s.stageList||[]).some(x=>x.k===k);
+  DEPFIX.forEach(p=>{
+    if(!have(p.s))return;
+    const o=stg(s,p.s);
+    const dates=(o.slots||[]).filter(v=>v.date).map(v=>v.date).sort();
+    if(!dates.length)return;
+    const last=dates[dates.length-1];
+    const deps=p.d.filter(k=>have(k)).map(k=>stg(s,k)).filter(g=>!g.done&&g.dl);
+    if(!deps.length)return;
+    const min=deps.map(g=>g.dl).sort()[0];
+    if(min>last)return;
+    const delta=dDiff(min,last)+1;
+    deps.forEach(g=>{g.dl=dAdd(g.dl,delta)});
+    logAdd("締切を補正: "+songTitle(s)+"（"+p.s+"の日程 "+D.md(last)+" に合わせて+"+delta+"日）");
+    ch=true});
+  return ch}
+
 /* ===================== AI入力バー ===================== */
 /* 画面下のバーに普通の文で書くと、Claude APIで操作に変換してプレビュー→確定で反映する */
 const AI_DEF_MODEL="claude-sonnet-4-6";
@@ -3699,7 +3736,7 @@ function aiPreview(res,msgs,qtxt){
     let n=0,bad=[];
     AIPV.list.filter(r=>r.on).forEach(r=>{
       try{aiApply(r);logAdd("AI: "+aiSummary(r));n++}catch(e){bad.push(aiSummary(r)+"："+(e.message||e))}});
-    if(n){harvestMasters();cleanMasters();mark();render();
+    if(n){S.songs.forEach(fixDeps);harvestMasters();cleanMasters();mark();render();
       if(cur){cur=S.songs.find(x=>x.id===cur.id)||cur;head();drawSong()}}
     AIPV=null;hide("sheet3");
     const q=document.getElementById("aiQ");if(q&&n)q.value="";
@@ -4084,7 +4121,7 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   purgeTrash();
-  {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true});if(ch)mark()}
+  {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true;if(fixDeps(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();
   dot("");undoInit();render();syStart()}
 boot();
