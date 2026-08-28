@@ -252,6 +252,22 @@ main>.artist:first-child{margin-top:2px}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 .aifix{display:flex;gap:8px;margin:12px 0 2px}
+/* ホーム 1行＋展開 */
+.card.c2{padding:10px 12px 12px}
+.c2h{display:flex;align-items:baseline;gap:8px;width:100%;text-align:left;min-width:0}
+.c2h .ct{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.c2s{font-size:11px;color:var(--dim2);flex-shrink:0;white-space:nowrap;max-width:34%;overflow:hidden;text-overflow:ellipsis}
+.c2s.ok{color:var(--me)}
+.c2h .dl{margin-left:auto;flex-shrink:0;font-family:var(--mono);font-size:10.5px;color:var(--dim2);display:flex;align-items:baseline;gap:5px}
+.c2h .dl .dln{font-size:13px;font-weight:700;font-style:normal;color:var(--dim)}
+.c2h .dl.warn .dln{color:var(--warn)}
+.c2h .dl.late .dln{color:var(--late)}
+.c2h .dl .dld{font-size:10px;color:var(--dim2)}
+.rbar{height:3px;border-radius:2px;background:var(--line);margin-top:9px;overflow:hidden}
+.rbar i{display:block;height:100%;background:var(--me)}
+.card.fin .rbar i{background:var(--line2)}
+.c2x{display:none}
+.card.xp .c2x{display:block}
 /* 工程タイムライン（路線図風） */
 #stList{position:relative;padding-left:4px}
 #stList::before{content:"";position:absolute;left:22px;top:12px;bottom:12px;width:2px;background:var(--line2)}
@@ -270,9 +286,8 @@ main>.artist:first-child{margin-top:2px}
 #stList .st.kid .chk{left:32px;background:var(--bg)}
 #stList .st .grip{order:9;flex:0 0 20px;opacity:.3}
 /* カレンダービュー */
-.calseg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-bottom:12px;width:max-content}
-.calseg button{padding:6px 16px;font-size:12px;color:var(--dim)}
-.calseg button[aria-pressed="true"]{background:var(--panel2);color:var(--ink);font-weight:700}
+#calSeg{width:max-content;margin-bottom:12px}
+#calSeg button{flex:0 0 auto;padding:6px 18px}
 .calnav{display:flex;gap:6px;align-items:center;margin-bottom:8px}
 .calnav b{font-family:var(--disp);font-weight:900;font-size:16px}
 .cw{display:grid;grid-template-columns:repeat(7,1fr);font-family:var(--mono);font-size:9px;color:var(--dim2);text-align:center;margin-bottom:4px}
@@ -525,7 +540,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
       <option value="artist" selected>グループ別</option>
       <option value="flat">期限順（全曲）</option>
     </select>
-    <button class="sel" id="denseBtn" title="表示の細かさ">≡</button>
+    
     <select class="sel" id="whoSel">
       <option value="all">全部</option>
       <option value="me">自分の番</option>
@@ -543,7 +558,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 <main id="main"></main>
 <button class="fab" id="fab">＋ 楽曲</button>
 <div class="aibar" id="aiBar">
-  <input class="inp" id="aiQ" placeholder="AIに書く・聞く（例: 歌録りいつだっけ？）" autocomplete="off">
+  <input class="inp" id="aiQ" placeholder="AIに書く・聞く" autocomplete="off">
   <button class="btn pri" id="aiGo">AI</button>
 </div>
 <div class="scrim" id="scrim"></div>
@@ -830,7 +845,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-f";
+const APP_VER="2026-08-28-g";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1403,7 +1418,7 @@ function agendaBucket(d){
   return{k:"later",t:"それより先"}}
 function renderAgenda(m){
   const mode=V.calmode||"list";
-  let h='<div class="calseg" id="calSeg">'+
+  let h='<div class="seg2" id="calSeg">'+
     '<button data-cm="list" aria-pressed="'+(mode==="list")+'">リスト</button>'+
     '<button data-cm="week" aria-pressed="'+(mode==="week")+'">週</button>'+
     '<button data-cm="month" aria-pressed="'+(mode==="month")+'">月</button></div>';
@@ -1498,7 +1513,7 @@ function calHTML(mode){
         '<span class="wke">'+(list.length?list.map(e=>
           '<span class="'+evClass(e)+'" data-ev="'+esc(evRef(e))+'" data-song2="'+e.s.id+'">'+esc(evLabel(e))+' <u>'+esc((e.s.title||"").slice(0,10))+'</u></span>').join("")
         :'<span class="wknone">—</span>')+'</span></div>'}}
-  h+='<p class="hint" style="margin-top:10px">予定を長押しして別の日へドラッグで移動できます。</p>';
+  h+='';
   return h}
 
 function calMove(ref,iso){
@@ -1626,23 +1641,31 @@ function cardHTML(s,rank){
     const n=nx?D.to(nx):null;
     kd.push('<span class="k5"><em>'+esc(x.n)+'</em><b>'+esc(sl)+'</b>'+
       (n===null?"":'<u class="'+(n<=14?"soon":"")+'">'+(n===0?"本日":"あと"+n+"日")+'</u>')+'</span>');break}
-  return'<button class="card '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
-    '<div class="cardtop">'+(rank?'<span class="rank">'+rank+'</span>':"")+
-    '<span class="ct">'+esc(songTitle(s))+'</span>'+
-    ((s.use||"master")==="live"&&s.ltype&&s.ltype!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype)+'</span>':"")+
-    ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
-    (fin?'<span class="ball fin"><i></i><span>完了</span></span>':"")+'</div>'+
-    (fin?'<div class="now"><b class="okt">全工程 完了</b></div>'
-        :'<div class="now">現在 <b>'+(par?'<span class="pp">'+esc(par)+' ▸ </span>':"")+esc(stage)+'</b>'+
-         '<span class="dl '+dc+'">'+dl+'</span></div>')+
-    (fin?"":'<div class="balls">'+ballsOf(s).map(w=>
-      '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span>'+
-      (w.g?'<u>'+esc(w.g)+'</u>':"")+'</span>').join("")+'</div>')+
-    (fin?"":chips)+memoHTML+
-    (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+'</button>'}
+  const _L=stages(s),_dn=_L.filter((z,zi)=>doneOf(s,_L,zi)).length,
+    _p=_L.length?Math.round(_dn*100/_L.length):0,xp=!!AEXP[s.id];
+  return'<div class="card c2 '+(fin?"fin":st.k)+(xp?" xp":"")+'">'+
+    '<button class="c2h" data-cx="'+s.id+'">'+
+      (rank?'<span class="rank">'+rank+'</span>':"")+
+      '<span class="ct">'+esc(songTitle(s))+'</span>'+
+      (fin?'<span class="c2s ok">完了</span>'
+          :'<span class="c2s">'+esc(stage)+'</span><span class="dl '+dc+'">'+dl+'</span>')+
+    '</button>'+
+    '<div class="rbar"><i style="width:'+(fin?100:_p)+'%"></i></div>'+
+    '<div class="c2x">'+
+      '<div class="cardtop" style="margin:10px 0 6px">'+
+      ((s.use||"master")==="live"&&s.ltype&&s.ltype!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype)+'</span>':"")+
+      ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
+      (par?'<span class="sgl">'+esc(par)+'</span>':"")+'</div>'+
+      (fin?"":'<div class="balls">'+ballsOf(s).map(w=>
+        '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span>'+
+        (w.g?'<u>'+esc(w.g)+'</u>':"")+'</span>').join("")+'</div>')+
+      (fin?"":chips)+memoHTML+
+      (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+
+      '<button class="btn sm w" style="margin-top:10px" data-song="'+s.id+'">開く ▸</button>'+
+    '</div></div>'}
 
-/* 表示の細かさに合わせて、カードか細い行かを選ぶ */
-const item=(s,rank)=>V.dense?slimHTML(s,rank):cardHTML(s,rank);
+let AEXP={};
+const item=(s,rank)=>cardHTML(s,rank);
 function renderToday(){
   const el=document.getElementById("todayBar");if(!el)return;
   const a=agenda().filter(e=>!e.done&&D.to(e.d)<=0);
@@ -1737,6 +1760,8 @@ function songDrag(box){
     mark();render();toast("並び順を保存しました")})}
 function bind(m){
   m.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song));
+  m.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{
+    AEXP[b.dataset.cx]=!AEXP[b.dataset.cx];render()});
   m.querySelectorAll("[data-pl]").forEach(box=>songDrag(box));
   m.querySelectorAll("[data-c]").forEach(b=>{
     b.onclick=()=>{V.collapsed[b.dataset.c]=!V.collapsed[b.dataset.c];render()};
@@ -1861,7 +1886,7 @@ function drawSong(){
           ' <button class="btn sm" id="dateCfg">変更</button></p></div>'}
     else hI+='<div class="fg"><span class="lbl">'+esc(anchorLabel(s,k))+'</span>'+dtIn("data-d",k,s.dates[k]||"",relOf(s))+'</div>'});
   hI+='<div class="fg"><button class="btn sm" id="dateAdd">＋ 基準日を増やす</button></div>'+
-    '<p class="hint">日付は数字だけで入ります。0911 → 9/11</p>';
+    '';
 
   let h='<div class="sec">工程</div><div class="stlist" id="stList">';
   const ci=curIdx(s),L=stages(s);let curGp="",gpShow=true;
@@ -1988,7 +2013,7 @@ function drawSong(){
     '<div class="sec">ミュージシャンクレジット<span class="r"><button class="btn sm" id="expCr">書き出し</button></span></div>'+
     '<div id="crM">'+crRows(s,"mus")+'</div>'+
     '<div class="fg"><button class="btn sm w" data-add="mus">＋ 人を追加</button></div>'+
-    '<p class="hint">1行＝1人。パートは英語表記。⠿ で並び替え。</p>';
+    '';
   h+='<div class="fg" style="margin-top:18px"><span class="lbl">メモ・申し送り</span>'+
     '<textarea class="inp" data-f="note" placeholder="仕様、注意点">'+esc(s.note)+'</textarea></div>';
   b.innerHTML=h;foldSecs(b);wireSong()}
@@ -2339,7 +2364,7 @@ function dateCfg(s){
       '</select></div><div style="flex:.6"><span class="lbl">ずらす</span><input type="number" class="inp" id="mO" value="'+s.tplMastering.off+'"></div>'+
       '<div style="flex:.6"><span class="lbl">単位</span><select class="inp" id="mU"><option value="d" '+(s.tplMastering.unit==="d"?"selected":"")+'>日</option>'+
       '<option value="m" '+(s.tplMastering.unit==="m"?"selected":"")+'>ヶ月</option></select></div></div>':
-      '<p class="hint">ライブ曲のように収録が後で決まる場合は手入力に。マスタリング基準の工程は日付を入れるまで「期限 未設定」になります。</p>'),
+      ''),
     [{sp:1},{t:"閉じる",c:"btn pri",f:()=>{hide("sheet3");drawSong();render()}}]);
   const B=document.getElementById("s3Body");
   B.querySelectorAll("[data-dk]").forEach(e=>e.onchange=()=>{const k=e.dataset.dk;
@@ -2474,7 +2499,7 @@ function creditSheet(s){
         '<textarea class="inp" id="crT2" style="min-height:190px" readonly>'+esc(head+"\n\n"+creditText(sib,opt))+'</textarea></div>'+
         '<div class="row fg"><button class="btn" id="crCopy2">コピー</button>'+
         '<button class="btn pri" id="crDocP">Wordで書き出す（全'+sib.length+'曲）</button></div>':"")+
-      '<p class="hint">同じ人の単独パートは1行にまとまります。並び順は画面のまま出ます。</p>';
+      '';
     const B=document.getElementById("s3Body");
     B.querySelector("#crMode").onclick=e=>{const x=e.target.closest("[data-cw]");if(!x)return;
       crWork=x.dataset.cw==="1";draw()};
@@ -2536,7 +2561,7 @@ function staffSheet(p){
     const rows=staffRows(p);
     document.getElementById("s3Body").innerHTML=
       '<div class="fg"><span class="lbl">見出し</span><div class="inp" style="color:var(--dim)">'+esc(staffHead(p))+'</div>'+
-        '<p class="hint">案件の発売日・グループ・種別・案件名から作ります。</p></div>'+
+        '</div>'+
       '<div class="row fg"><button class="btn sm" id="stPull">曲のクレジットから取り込む</button>'+
         '<button class="btn sm" id="stAdd">＋ 項目を追加</button></div>'+
       rows.map(r=>'<div class="cr"><div class="crtop">'+
@@ -2594,18 +2619,18 @@ function editProject(id,after){
          '<input class="inp dt" id="pRh" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0910" value="'+esc(fmtDate(p.rehearsal||""))+'"></div>'+
        '<div><span class="lbl">公演数</span><input class="inp" id="pDays" inputmode="numeric" value="'+esc(p.days||"")+'" placeholder="例 12"></div></div>'+
        '<div class="fg"><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div>'+
-       '<p class="hint">初日から逆算して締切が入ります。</p>'+
+       ''+
        '<div class="sec">制作するもの</div>'+
        '<div class="qadd" id="pItems">'+LTYPES.map(t=>{
          const hv=S.songs.find(z=>z.projectId===p.id&&(z.use||"")==="live"&&z.ltype===t);
          const st=hv?showStat(hv):null;
          return '<button class="qc'+(hv?" on":"")+'" data-plt="'+esc(t)+'">'+esc(t)+
            (st?'<u style="text-decoration:none;font-family:var(--mono);opacity:.7;margin-left:5px">'+st+'</u>':"")+'</button>'}).join("")+'</div>'+
-       '<p class="hint">押すとその制作物が公演の中に作られます。もう一度押すと外れます。</p>'
+       ''
      :'<div class="fg"><div class="seg2" id="pS">'+
        '<button data-so="0" aria-pressed="'+(!isSolo(p.artist))+'">グループ</button>'+
        '<button data-so="1" aria-pressed="'+isSolo(p.artist)+'">ソロ</button></div>'+
-       '<p class="hint">ソロは歌割の工程が外れます。</p></div>'+
+       '</div>'+
      '<div class="row fg"><div style="flex:1.3"><span class="lbl">種別</span><select class="inp" id="pK">'+
        KINDS.map(k=>'<option '+(k===p.kind?"selected":"")+'>'+k+'</option>').join("")+'</select></div>'+
      '<div style="flex:1"><span class="lbl">通算</span><div class="stepper">'+
@@ -2617,9 +2642,9 @@ function editProject(id,after){
      '<div class="row fg"><div><span class="lbl">発売日</span>'+
        '<input class="inp dt" id="pR" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="例 0911" value="'+esc(fmtDate(p.release))+'"></div>'+
      '<div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" id="pD" value="'+esc(p.director)+'"></div></div>'+
-     '<p class="hint">発売日は全曲に自動反映されます。</p>')+
+     '')+
      (isShow(p)?"":'<div class="fg"><button class="btn w" id="pSC">スタッフクレジット</button>'+
-       '<p class="hint">アルバム用。エンジニアはここに入ります。</p></div>')+
+       '</div>')+
      '<div class="fg" style="margin-top:11px"><span class="lbl">メモ</span><textarea class="inp" id="pM2">'+esc(p.note)+'</textarea></div>';
     const B=document.getElementById("s2Body"),g=i=>document.getElementById(i);
     const q=i=>document.getElementById(i);
@@ -2705,7 +2730,7 @@ function tplList(){
       '<button class="btn sm" data-et="'+t.id+'">編集</button>'+
       '<button class="btn sm" data-ct="'+t.id+'">複製</button></div>').join("")+
     '<div class="fg" style="margin-top:14px"><button class="btn w" id="tNew">＋ テンプレートを追加</button></div>'+
-    '<p class="hint">ここはあくまで新規曲の初期値です。各曲の工程は、曲の画面で個別に編集できます。</p>',
+    '',
     [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
   const B=document.getElementById("s2Body");
   B.querySelectorAll("[data-et]").forEach(b=>b.onclick=()=>editTemplate(b.dataset.et));
@@ -2775,7 +2800,7 @@ function masterSheet(){
         '<button data-mk="'+k[0]+'" data-mi="'+i+'">✕</button></span>').join("")||'<p class="hint">まだ登録がありません。</p>')+
       '</div><div class="fg"><input class="inp" data-ak="'+k[0]+'" placeholder="追加して Enter"></div>').join("")+
       '<div class="fg" style="margin-top:16px"><button class="btn w" id="mClean">使っていない候補を整理する</button></div>'+
-      '<p class="hint">入力欄で確定した名前が貯まります。</p>';
+      '';
     const B=document.getElementById("s2Body");
     B.querySelectorAll("[data-mk]").forEach(b=>b.onclick=()=>{
       S.masters[b.dataset.mk].splice(+b.dataset.mi,1);mark();draw();syncLists()});
@@ -2994,7 +3019,7 @@ function openSettings(){
       const ms=S.projects.filter(p=>!isShow(p))
         .filter(p=>S.songs.some(z=>z.projectId===p.id))
         .sort((a,b)=>(b.release||"").localeCompare(a.release||""));
-      return '<p class="hint" style="margin:0 0 8px">案件ごとに、収録曲すべてのミュージシャンクレジットを出します。</p>'+
+      return ''+
         '<div class="fg"><div class="seg2" id="crMode2">'+
           '<button data-cw2="0" aria-pressed="'+(!crWork)+'">演奏のみ</button>'+
           '<button data-cw2="1" aria-pressed="'+crWork+'">作詞作曲編曲も入れる</button></div></div>'+
@@ -3007,8 +3032,7 @@ function openSettings(){
         '<div class="fg" style="margin-top:12px"><button class="btn w" id="crAll">すべての曲をWordで書き出す</button></div>'}},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領状況</button></div>'},
     {id:"sync",t:"端末間の同期",h:()=>
-      '<p class="hint" style="margin:0 0 10px">iPhone とパソコンで同じデータを使うための設定です。'+
-        (syOk()?'<br><b style="color:var(--ok)">設定済み。変更するたびに自動で同期します。</b>':'')+'</p>'+
+      ''+
       '<div class="fg"><div class="seg2" id="syOn">'+
         '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
         '<button data-sy="1" aria-pressed="'+(!!syCfg().on)+'">同期する</button></div></div>'+
@@ -3019,29 +3043,26 @@ function openSettings(){
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
         '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
-    {id:"ai",t:"AI入力",h:()=>'<p class="hint" style="margin:0 0 10px">画面下のバーに普通の文で書くと、内容を読み取って日程や状態を入力します。'+'Anthropic APIキーが必要です。キーはこの端末だけに保存され、同期・書き出しには含まれません。</p>'+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="fg"><span class="lbl">記名（作業ログに残す名前・任意）</span><input class="inp" id="aiN" value="'+esc(aiCfg().name||"")+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button><button class="btn" id="mLog">作業ログ</button></div>'+'<p class="hint" id="aiLog"></p>'},
+    {id:"ai",t:"AI入力",h:()=>''+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル（通常は変更不要）</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="fg"><span class="lbl">記名（任意）</span><input class="inp" id="aiN" value="'+esc(aiCfg().name||"")+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button><button class="btn" id="mLog">作業ログ</button></div>'+'<p class="hint" id="aiLog"></p>'},
      {id:"cal",t:"カレンダーから取り込む",h:()=>
-      '<p class="hint" style="margin:0 0 10px">Googleカレンダーの予定を、日程と締切に取り込みます。'+
-      '毎朝も自動で走りますが、ここから今すぐ走らせられます。</p>'+
+      ''+
       '<div class="fg"><span class="lbl">取り込み用のURL</span>'+
         '<input class="inp" id="calU" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(calUrl())+'"></div>'+
       '<div class="row fg"><button class="btn" id="calDry">下見（書き込まない）</button>'+
         '<button class="btn pri" id="calGo">いま取り込む</button></div>'+
       '<div class="fg"><button class="btn w" id="calOut">カレンダーへ書き出す（.ics）</button></div>'+
-      '<p class="hint" style="margin:-4px 0 0">出したファイルを開くと、締切と録り日がカレンダーに入ります。</p>'+
+      ''+
       '<pre class="callog" id="calLog"></pre>'},
     {id:"save",t:"保存とバックアップ",h:()=>
       (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
-        ? '<p class="hint" style="margin:0 0 10px">入力のたび自動保存し、10分ごとの世代バックアップと1日1回の日次バックアップを取っています。'+
-          (syOk()?'同期先にも毎日スナップショットを残しています。':'')+
-          '最後の書き出しは '+new Date(S.settings.lastExport).toLocaleDateString("ja-JP")+' です。</p>'
+        ? ''
         : '<div class="warnbox">端末が壊れるとブラウザ内のデータは戻せません。月に一度はJSONを書き出して、別の場所に控えてください。</div>')+
       '<div class="row fg"><button class="btn" id="exJ">JSONを書き出す</button><button class="btn" id="imJ">JSONを読み込む</button></div>'+
       '<div class="row fg"><button class="btn" id="exC">CSV（Excel用）</button><button class="btn" id="rest">バックアップから復元</button></div>'+
       '<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'},
     {id:"sec",t:"セキュリティ",h:()=>
       '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
-      '<p class="hint">端末に保存されるデータをAES-GCMで暗号化し、起動時にパスコードを求めます。忘れると復号できません。</p>'},
+      '<p class="hint">パスコードを忘れると復号できません。</p>'},
     {id:"share",t:"閲覧専用リンク",h:()=>
       '<div class="warnbox">公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
       '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
@@ -3081,7 +3102,7 @@ function wireSettings(B){
     if(!aiCfg().key&&q("#aiK"))aiCfg().key=q("#aiK").value.trim();
     if(!aiCfg().key){if(box)box.textContent="APIキーを入れてください";return}
     if(box)box.textContent="確認中…";
-    try{await aiPing();if(box)box.textContent="OK。使えます。"}
+    try{await aiPing();if(box)box.textContent="OK"}
     catch(e){if(box)box.textContent="失敗: "+(e.message||e)}});
   {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
   const calRun=async dry=>{
@@ -3152,7 +3173,7 @@ function pinSheet(){
     (encOn?'<div class="fg"><span class="lbl">現在のパスコード</span><input type="password" class="inp" id="p0"></div>':"")+
     '<div class="fg"><span class="lbl">新しいパスコード（空にすると解除）</span><input type="password" class="inp" id="p1"></div>'+
     '<div class="fg"><span class="lbl">確認</span><input type="password" class="inp" id="p2"></div>'+
-    '<p class="hint">忘れると復元できません。先にJSONを書き出して控えておくことを勧めます。</p>',
+    '<p class="hint">忘れると復元できません。</p>',
     [{sp:1},{t:"適用",c:"btn pri",f:async()=>{
       if(!crypto.subtle)return toast("この環境では暗号化を使えません");
       const n=gv("p1"),c=gv("p2");
@@ -3304,15 +3325,11 @@ function toast(t){const e=document.getElementById("toast");e.textContent=t;e.cla
 
 {document.getElementById("grpSel").value=V.grp;
  document.getElementById("finSel").value=V.fin;
- document.getElementById("whoSel").value=V.who;
- document.getElementById("denseBtn").setAttribute("aria-pressed",V.dense)}
+ document.getElementById("whoSel").value=V.who}
 document.getElementById("q").oninput=e=>{V.q=e.target.value;render()};
 document.getElementById("grpSel").onchange=e=>{V.grp=e.target.value;render()};
 document.getElementById("finSel").onchange=e=>{V.fin=e.target.value;render()};
 document.getElementById("whoSel").onchange=e=>{V.who=e.target.value;render()};
-document.getElementById("denseBtn").onclick=()=>{V.dense=!V.dense;
-  document.getElementById("denseBtn").setAttribute("aria-pressed",V.dense);
-  render();toast(V.dense?"1曲1行にしました":"カード表示に戻しました")};
 document.getElementById("btnSet").onclick=openSettings;
 document.getElementById("btnSort").onclick=()=>{
   if(RO)return;
@@ -3621,7 +3638,7 @@ function aiPreview(res,msgs,qtxt){
   const draw=()=>{
     let h="";
     if(AIPV.ans)h+='<div class="aians">'+esc(AIPV.ans)+'</div>'+
-      '<div style="margin:-4px 0 12px"><button class="btn sm" id="aiCopy">文面をコピー</button></div>';
+      '<div style="margin:-4px 0 12px"><button class="btn sm" id="aiCopy">コピー</button></div>';
     if(AIPV.note)h+='<p class="hint" style="margin:0 0 10px">'+esc(AIPV.note)+'</p>';
     if(!AIPV.list.length&&!AIPV.ans)h+='<p class="hint">反映できる操作はありません。</p>';
     AIPV.list.forEach((r,i)=>{
@@ -3635,7 +3652,7 @@ function aiPreview(res,msgs,qtxt){
           '<label class="aif"><span>'+esc(f.l)+'</span>'
           +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
       h+='</div>'});
-    h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="続けて聞く・直しを伝える" autocomplete="off">'
+    h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="続けて直す・聞く" autocomplete="off">'
       +'<button class="btn" id="aiFixGo">修正</button></div>';
     const n=AIPV.list.filter(r=>r.on).length;
     const btns=AIPV.list.length?
@@ -3643,7 +3660,7 @@ function aiPreview(res,msgs,qtxt){
        {t:n+"件を反映",c:"btn pri",f:apply}]:
       [{sp:1},{t:"閉じる",c:"btn pri",f:()=>{AIPV=null;hide("sheet3");
         const q=document.getElementById("aiQ");if(q)q.value=""}}];
-    s3("AI",AIPV.list.length?"この内容で反映しますか":"AIの答え",h,btns);
+    s3("AI",AIPV.list.length?"反映する内容":"答え",h,btns);
     const B=document.getElementById("s3Body");
     B.querySelectorAll("[data-aion]").forEach(e=>e.onchange=()=>{
       AIPV.list[+e.dataset.aion].on=e.checked;
@@ -3683,13 +3700,13 @@ function aiPreview(res,msgs,qtxt){
 function aiHistSheet(){
   const a=aiCfg(),dr=a.drafts||[],hs=a.hist||[];
   let h="";
-  if(dr.length){h+='<p class="hint" style="margin:0 0 6px">オフライン中の下書き（タップで入力欄へ）</p>'+
+  if(dr.length){h+='<p class="hint" style="margin:0 0 6px">下書き</p>'+
     dr.map((d,i)=>'<button class="btn w" style="margin-bottom:6px;text-align:left" data-adr="'+i+'">'+esc(d.t)+'</button>').join("")}
-  if(hs.length){h+='<p class="hint" style="margin:'+(dr.length?14:0)+'px 0 6px">最近のAIの答え</p>'+
+  if(hs.length){h+='<p class="hint" style="margin:'+(dr.length?14:0)+'px 0 6px">答えの履歴</p>'+
     hs.map(e=>'<div class="aiop"><div class="aihd" style="color:var(--dim)">'+esc(e.q)+'</div>'+
       '<div style="margin-top:6px;white-space:pre-wrap;font-size:13px;line-height:1.7">'+esc(e.a)+'</div></div>').join("")}
   if(!h)h='<p class="hint">下書きも答えの履歴もまだありません。</p>';
-  s3("AI","下書きと答えの履歴",h,[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}]);
+  s3("AI","AI履歴",h,[{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet3")}]);
   document.getElementById("s3Body").querySelectorAll("[data-adr]").forEach(b=>b.onclick=()=>{
     const i=+b.dataset.adr,a2=aiCfg();
     document.getElementById("aiQ").value=(a2.drafts[i]||{}).t||"";
