@@ -252,6 +252,62 @@ main>.artist:first-child{margin-top:2px}
 .aif span{min-width:88px}
 .aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
 .aifix{display:flex;gap:8px;margin:12px 0 2px}
+/* 工程タイムライン（路線図風） */
+#stList{position:relative;padding-left:4px}
+#stList::before{content:"";position:absolute;left:22px;top:12px;bottom:12px;width:2px;background:var(--line2)}
+#stList .gph{position:relative;z-index:1;background:var(--bg);margin:12px 0 3px;border-bottom:0;padding:6px 2px 4px}
+#stList .st{position:relative;padding:8px 6px 8px 40px;margin:0;background:transparent}
+#stList .st .chk{position:absolute;left:14px;top:50%;transform:translateY(-50%);z-index:1;
+  width:17px;height:17px;border-radius:50%;border:2px solid var(--ghost);background:var(--bg);color:transparent;font-size:9px}
+#stList .st .chk[aria-checked="true"]{background:var(--me);border-color:var(--me);color:#16171B}
+#stList .st.cur{background:linear-gradient(90deg,rgba(47,192,138,.10),transparent);border-radius:9px}
+#stList .st.cur .chk{width:21px;height:21px;left:12px;border:3px solid var(--me);background:var(--bg);
+  box-shadow:0 0 0 4px rgba(47,192,138,.14)}
+#stList .st.cur .nm .t{font-weight:900;font-size:15px}
+#stList .st.cur .nm .s{color:var(--dim)}
+#stList .st.on .nm .t{text-decoration:line-through;text-decoration-color:var(--line2)}
+#stList .st.kid{padding-left:56px}
+#stList .st.kid .chk{left:32px;background:var(--bg)}
+#stList .st .grip{order:9;flex:0 0 20px;opacity:.3}
+/* カレンダービュー */
+.calseg{display:flex;border:1px solid var(--line2);border-radius:10px;overflow:hidden;margin-bottom:12px;width:max-content}
+.calseg button{padding:6px 16px;font-size:12px;color:var(--dim)}
+.calseg button[aria-pressed="true"]{background:var(--panel2);color:var(--ink);font-weight:700}
+.calnav{display:flex;gap:6px;align-items:center;margin-bottom:8px}
+.calnav b{font-family:var(--disp);font-weight:900;font-size:16px}
+.cw{display:grid;grid-template-columns:repeat(7,1fr);font-family:var(--mono);font-size:9px;color:var(--dim2);text-align:center;margin-bottom:4px}
+.cg{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cd{min-height:58px;background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:3px 3px;font-family:var(--mono);font-size:9.5px;color:var(--dim2);overflow:hidden}
+.cd.out{opacity:.4}
+.cd.tdy{border-color:var(--warn)}
+.cd.tdy>i{color:var(--warn);font-weight:700}
+.cd.sel{border-color:var(--me)}
+.cd i{font-style:normal}
+.cd.hovtg,.wkr.hovtg{outline:2px solid var(--me);outline-offset:-1px;background:rgba(47,192,138,.08)}
+.ev{display:block;margin-top:2px;padding:1.5px 4px;border-radius:4px;font-family:var(--jp);font-size:8.5px;line-height:1.35;
+  background:rgba(47,192,138,.16);color:var(--me);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.rec{background:rgba(232,163,61,.16);color:var(--warn)}
+.ev.late{background:rgba(255,107,107,.16);color:var(--late)}
+.ev.dn{background:var(--panel2);color:var(--ghost);text-decoration:line-through}
+.ev.more{background:none;color:var(--ghost)}
+.ev.lift{opacity:.35}
+.evghost{position:fixed;z-index:80;pointer-events:none;background:var(--panel2);border:1px solid var(--me);
+  border-radius:7px;padding:4px 10px;font-size:11px;color:var(--ink);box-shadow:0 8px 22px rgba(0,0,0,.55)}
+.drw{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.drh{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--dim2);margin-bottom:5px}
+.dr{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:7px 4px;border-bottom:1px solid var(--line);font-size:12.5px}
+.dr .ev{display:inline-block;margin:0;font-size:10px;flex-shrink:0;max-width:110px}
+.drt{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.drt u{text-decoration:none;color:var(--dim2);font-size:11px}
+.wkr{display:flex;gap:10px;align-items:flex-start;padding:8px 2px;border-bottom:1px solid var(--line)}
+.wkr.tdy .wkd b{color:var(--warn)}
+.wkd{flex:0 0 34px;text-align:center}
+.wkd b{display:block;font-family:var(--mono);font-size:15px;font-weight:500}
+.wkd u{text-decoration:none;font-family:var(--mono);font-size:9px;color:var(--dim2)}
+.wke{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.wke .ev{font-size:11px;padding:4px 8px}
+.wke .ev u{text-decoration:none;color:var(--dim2);font-size:10px}
+.wknone{color:var(--ghost);font-size:11px}
 .sec.fold{cursor:pointer;display:flex;align-items:center;gap:8px;user-select:none}
 .sec.fold .cv{font-style:normal;color:var(--dim2);width:12px;flex-shrink:0}
 .secbody.off{display:none}
@@ -774,7 +830,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-e";
+const APP_VER="2026-08-28-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1262,9 +1318,9 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 /* ===================== view state ===================== */
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
-  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
 function viewSave(){try{localStorage.setItem("shinkou_view",
-  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense}))}catch(e){}}
+  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -1346,9 +1402,21 @@ function agendaBucket(d){
   if(n<=30)return{k:"month",t:"1ヶ月以内"};
   return{k:"later",t:"それより先"}}
 function renderAgenda(m){
+  const mode=V.calmode||"list";
+  let h='<div class="calseg" id="calSeg">'+
+    '<button data-cm="list" aria-pressed="'+(mode==="list")+'">リスト</button>'+
+    '<button data-cm="week" aria-pressed="'+(mode==="week")+'">週</button>'+
+    '<button data-cm="month" aria-pressed="'+(mode==="month")+'">月</button></div>';
+  if(mode==="list")h+=agListHTML();
+  else h+=calHTML(mode);
+  m.innerHTML=h;
+  m.querySelectorAll("[data-cm]").forEach(b=>b.onclick=()=>{V.calmode=b.dataset.cm;render()});
+  if(mode==="list")agListBind(m);else calBind(m,mode)}
+
+function agListHTML(){
   const a=agenda().filter(e=>!(e.done&&D.to(e.d)<0));
-  if(!a.length){m.innerHTML='<div class="empty"><h3>予定がありません</h3>'+
-    '<p>工程に日付を入れると、ここに日付順で並びます。</p></div>';return}
+  if(!a.length)return '<div class="empty"><h3>予定がありません</h3>'+
+    '<p>工程に日付を入れると、ここに日付順で並びます。</p></div>';
   let cur="",h="";
   a.forEach(e=>{
     const b=agendaBucket(e.d);
@@ -1360,8 +1428,11 @@ function renderAgenda(m){
         (e.note?' <span class="sub">'+esc(e.note)+'</span>':"")+'</span>'+
         '<span class="s">'+esc(e.s.title||"（無題）")+' · '+esc(e.s.artist||"")+'</span></span>'+
       '<span class="agl">'+esc(left)+'</span></button>'});
-  m.innerHTML=h;
+  return h}
+
+function agListBind(m){
   m.querySelectorAll("[data-song]").forEach(b=>{
+    if(!b.classList.contains("ag"))return;
     b.onclick=()=>{if(b._swiped){b._swiped=false;return}openSong(b.dataset.song)};
     b.addEventListener("touchstart",ev=>{const t=ev.touches[0];b._tx=t.clientX;b._ty=t.clientY},{passive:true});
     b.addEventListener("touchend",ev=>{
@@ -1377,7 +1448,117 @@ function renderAgenda(m){
         v.done=!v.done;now=v.done;syncSlotDone(s,x);syncInstKids(s)}
       else{const o=stg(s,x.k);o.done=!o.done;now=o.done}
       mark();render();
-      toast(now?"完了にしました（↺で戻せます）":"未完了に戻しました")},{passive:true})})}
+      toast(now?"完了にしました（↺で戻せます)":"未完了に戻しました")},{passive:true})})}
+
+/* ===================== カレンダー（週・月） ===================== */
+let CALM=0,CALW=0,CALSEL=D.today();
+const evRef=e=>e.s.id+"|"+e.x.k+"|"+e.k+"|"+e.d;
+function evLabel(e){return e.x.n+(e.k==="rec"&&e.note?" "+e.note:"")}
+function evClass(e){return "ev"+(e.k==="rec"?" rec":"")+(e.done?" dn":(D.to(e.d)<0?" late":""))}
+function evByDay(){const by={};agenda().forEach(e=>{(by[e.d]=by[e.d]||[]).push(e)});return by}
+
+function calHTML(mode){
+  const by=evByDay(),today=D.today();
+  const WD=["月","火","水","木","金","土","日"];
+  let h="";
+  if(mode==="month"){
+    const t=new Date();t.setDate(1);t.setMonth(t.getMonth()+CALM);
+    const y=t.getFullYear(),mo=t.getMonth();
+    h+='<div class="calnav"><b>'+y+'年'+(mo+1)+'月</b><span style="flex:1"></span>'+
+      '<button class="btn sm" data-cn="-1">‹</button><button class="btn sm" data-cn="0">今日</button>'+
+      '<button class="btn sm" data-cn="1">›</button></div>';
+    h+='<div class="cw">'+WD.map(w=>'<span>'+w+'</span>').join("")+'</div><div class="cg">';
+    const first=new Date(y,mo,1),lead=(first.getDay()+6)%7,days=new Date(y,mo+1,0).getDate();
+    const total=Math.ceil((lead+days)/7)*7;
+    for(let c=0;c<total;c++){
+      const dt=new Date(y,mo,c-lead+1),iso=D.s(dt),out=dt.getMonth()!==mo;
+      const list=by[iso]||[];
+      let chips=list.slice(0,3).map(e=>'<span class="'+evClass(e)+'" data-ev="'+esc(evRef(e))+'">'+esc(evLabel(e))+'</span>').join("");
+      if(list.length>3)chips+='<span class="ev more">+'+(list.length-3)+'</span>';
+      h+='<div class="cd'+(iso===today?" tdy":"")+(out?" out":"")+(iso===CALSEL?" sel":"")+'" data-day="'+iso+'">'+
+        '<i>'+dt.getDate()+'</i>'+chips+'</div>'}
+    h+='</div>';
+    const sel=by[CALSEL]||[];
+    h+='<div class="drw"><div class="drh">'+esc(D.md(CALSEL))+'（'+WD[(new Date(CALSEL+"T00:00:00").getDay()+6)%7]+'）</div>'+
+      (sel.length?sel.map(e=>'<button class="dr" data-song="'+e.s.id+'">'+
+        '<span class="'+evClass(e)+'">'+esc(e.x.n)+'</span>'+
+        '<span class="drt">'+esc(e.s.title||"（無題）")+(e.note?' <u>'+esc(e.note)+'</u>':"")+'</span></button>').join("")
+      :'<p class="hint">この日の予定はありません。</p>')+'</div>'}
+  else{
+    const base=new Date();base.setDate(base.getDate()-((base.getDay()+6)%7)+CALW*7);
+    const end=new Date(base);end.setDate(end.getDate()+6);
+    h+='<div class="calnav"><b>'+D.md(D.s(base))+' – '+D.md(D.s(end))+'</b><span style="flex:1"></span>'+
+      '<button class="btn sm" data-cn="-1">‹</button><button class="btn sm" data-cn="0">今日</button>'+
+      '<button class="btn sm" data-cn="1">›</button></div>';
+    for(let c=0;c<7;c++){
+      const dt=new Date(base);dt.setDate(dt.getDate()+c);const iso=D.s(dt);
+      const list=(evByDay()[iso])||(by[iso]||[]);
+      h+='<div class="wkr'+(iso===today?" tdy":"")+'" data-day="'+iso+'">'+
+        '<span class="wkd"><b>'+dt.getDate()+'</b><u>'+WD[c]+'</u></span>'+
+        '<span class="wke">'+(list.length?list.map(e=>
+          '<span class="'+evClass(e)+'" data-ev="'+esc(evRef(e))+'" data-song2="'+e.s.id+'">'+esc(evLabel(e))+' <u>'+esc((e.s.title||"").slice(0,10))+'</u></span>').join("")
+        :'<span class="wknone">—</span>')+'</span></div>'}}
+  h+='<p class="hint" style="margin-top:10px">予定を長押しして別の日へドラッグで移動できます。</p>';
+  return h}
+
+function calMove(ref,iso){
+  if(RO)return;
+  const a=ref.split("|"),s=S.songs.find(z=>z.id===a[0]);if(!s)return;
+  const x=stages(s).find(z=>z.k===a[1]);if(!x)return;
+  if(a[2]==="rec"){const o=stg(s,a[1]);const v=o.slots.find(z=>z.date===a[3]);if(!v)return;
+    v.date=iso;syncInstKids(s)}
+  else stg(s,a[1]).dl=iso;
+  logAdd("日程移動: "+songTitle(s)+" "+x.n+" "+D.md(a[3])+"→"+D.md(iso));
+  mark();render();toast(D.md(iso)+"へ移動しました（↺で戻せます）")}
+
+function calBind(m,mode){
+  m.querySelectorAll("[data-cn]").forEach(b=>b.onclick=()=>{
+    const n=+b.dataset.cn;
+    if(mode==="month")CALM=n===0?0:CALM+n;else CALW=n===0?0:CALW+n;
+    if(n===0)CALSEL=D.today();
+    render()});
+  m.querySelectorAll(".cd[data-day]").forEach(c=>c.onclick=()=>{CALSEL=c.dataset.day;render()});
+  m.querySelectorAll(".drw [data-song]").forEach(b=>b.onclick=e=>{e.stopPropagation();openSong(b.dataset.song)});
+  /* チップ：タップで曲を開く（週）、長押しドラッグで日付移動（週・月） */
+  let ghost=null;
+  m.querySelectorAll("[data-ev]").forEach(ch=>{
+    ch.addEventListener("touchstart",ev=>{
+      const t=ev.touches[0];
+      ch._sx=t.clientX;ch._sy=t.clientY;ch._drag=false;
+      ch._tm=setTimeout(()=>{
+        ch._drag=true;
+        ghost=document.createElement("div");ghost.className="evghost";ghost.textContent=ch.textContent;
+        document.body.appendChild(ghost);
+        ghost.style.left=(t.clientX+10)+"px";ghost.style.top=(t.clientY-30)+"px";
+        ch.classList.add("lift")},320)},{passive:true});
+    ch.addEventListener("touchmove",ev=>{
+      const t=ev.touches[0];
+      if(!ch._drag){
+        if(Math.abs(t.clientX-ch._sx)>10||Math.abs(t.clientY-ch._sy)>10)clearTimeout(ch._tm);
+        return}
+      ev.preventDefault();
+      ghost.style.left=(t.clientX+10)+"px";ghost.style.top=(t.clientY-30)+"px";
+      m.querySelectorAll(".hovtg").forEach(x=>x.classList.remove("hovtg"));
+      const el=document.elementFromPoint(t.clientX,t.clientY);
+      const cell=el&&el.closest?el.closest("[data-day]"):null;
+      if(cell)cell.classList.add("hovtg")},{passive:false});
+    ch.addEventListener("touchend",ev=>{
+      clearTimeout(ch._tm);
+      if(ch._drag){
+        ch._drag=false;ch.classList.remove("lift");
+        if(ghost){ghost.remove();ghost=null}
+        const t=ev.changedTouches[0];
+        const el=document.elementFromPoint(t.clientX,t.clientY);
+        const cell=el&&el.closest?el.closest("[data-day]"):null;
+        m.querySelectorAll(".hovtg").forEach(x=>x.classList.remove("hovtg"));
+        const ref=ch.dataset.ev;
+        if(cell&&ref&&cell.dataset.day!==ref.split("|")[3])calMove(ref,cell.dataset.day);
+        ev.preventDefault();return}
+      if(ch.dataset.song2){ev.preventDefault();ev.stopPropagation();openSong(ch.dataset.song2)}},{passive:false});
+    ch.addEventListener("touchcancel",()=>{clearTimeout(ch._tm);ch._drag=false;ch.classList.remove("lift");
+      if(ghost){ghost.remove();ghost=null}
+      m.querySelectorAll(".hovtg").forEach(x=>x.classList.remove("hovtg"))},{passive:true})})}
+
 function renderDirs(){
   const map=new Map();let all=0;
   S.songs.forEach(s=>{if(isFin(s))return;all++;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
