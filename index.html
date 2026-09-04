@@ -75,8 +75,8 @@ button{cursor:pointer;background:none;border:none;padding:0}
 .chip[aria-pressed="true"] b{color:#16171B;opacity:.6}
 
 .tools{display:flex;gap:8px;margin-top:10px}
-.tools:focus-within select.sel{display:none}
-.tools:focus-within .field{flex:1 1 100%}
+.tools .field:focus-within ~ select.sel{display:none}
+.tools .field:focus-within{flex:1 1 100%}
 .field{flex:1;min-width:0;display:flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:var(--r);padding:0 9px;background:var(--panel)}
 .field input{flex:1;min-width:0;background:none;border:none;padding:8px 0;font-size:13px}
 .field input::placeholder{color:var(--dim2)}
@@ -847,7 +847,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-08-28-k";
+const APP_VER="2026-09-04-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
