@@ -847,7 +847,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-04-a";
+const APP_VER="2026-09-04-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -3560,7 +3560,7 @@ async function aiFetch(body){
   if(!r.ok){let m="";try{const j=await r.json();m=(j.error&&j.error.message)||""}catch(_){}
     throw new Error(r.status===401?"APIキーが違います（設定 → AI入力）":
       r.status===400&&/model/i.test(m)?"モデル名が違います："+a.model:
-      r.status===429?"利用上限に達しています":(r.status+" "+m).trim())}
+      r.status===429?"利用上限に達しています":/credit balance/i.test(m)?"APIの残高が足りません。console.anthropic.com の Plans & Billing でクレジットを購入してください":(r.status+" "+m).trim())}
   return r.json()}
 
 async function aiPing(){
