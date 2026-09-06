@@ -27,6 +27,8 @@ var CFG = {
   tz: 'Asia/Tokyo'
 };
 
+var SYNC_CUT = 0;  /* 前回同期より後に動いた予定だけ取り込む */
+
 /* 予定名に出てくる曲の呼び名 → アプリの曲名。
    ここに無くても、曲名の頭から2文字以上が一致すれば拾います。 */
 var SONG_ALIAS = {
@@ -65,13 +67,13 @@ var ARTIST_ALIAS = {
 var STAGE_RULES = [
   { words: ['ライブTD', 'LiveTD', 'Live TD', 'ライブミックス', 'ライブ用ミックス'], key: 'livemix' },
   { words: ['ChoEDIT', 'コーラスEDIT', 'ChoEdit'],  key: 'choes',  sched: true },
-  { words: ['ReVoEDIT', 'ReVoEdit'],                key: 'revoes', sched: true },
+  { words: ['ReVoEDIT', 'ReVoEdit', 'ReEDIT', 'ReEdit', 'リボーカルエディット'], key: 'revoes', sched: true },
   { words: ['VoEDIT', 'VoEdit'],                    key: 'voes',   sched: true },
   { words: ['ChoDB', 'コーラスDB', 'コーラス録り'],    key: 'cho',    sched: true },
   { words: ['ReVoDB', 'リボーカル'],                 key: 'revo',   sched: true },
   { words: ['BUVo', 'バックボーカル'],                key: 'lrecS',  sched: true },
   { words: ['VoDB', '歌録り'],                       key: 'vo',     sched: true },
-  { words: ['楽器DB', 'オケDB', '楽器録り'],          key: 'instrec', sched: true },
+  { words: ['楽器DB', 'オケDB', '楽器録り', 'AGDB', 'アコギDB', 'アコギダビング', 'アコギ録り', 'BassDB', 'ベースDB', 'ベースダビング', 'ベース録り'], key: 'instrec', sched: true },
   { words: ['歌割'],                                 key: 'warigo' },
   { words: ['リズムエディット', 'リズム'],             key: 'rhythm' },
   { words: ['繋ぎ', 'つなぎ'],                        key: 'tsunagi' },
@@ -97,35 +99,17 @@ var IGNORE = ['リハ', 'ライブ', 'ハロコン', '会議', '準備', 'GP', '
 /* ===================== 入口 ===================== */
 
 /** 実際に書き込む */
-function sync() { run_(false); }
+function sync() { return withSyncLock_(function(){return run_(false)}); }
 
 /** 書き込まずに、何が起きるかだけ見る */
-function dryRun() { diag_(); run_(true); }
-
-/* ===================== アプリから呼ぶ入口 ===================== */
-/**
- * ウェブアプリとして配置すると、進行アプリの「カレンダーを取り込む」から呼べます。
- * デプロイ → 新しいデプロイ → 種類「ウェブアプリ」
- *   次のユーザーとして実行：自分
- *   アクセスできるユーザー：全員
- * 出てきたURLを、進行アプリの設定に貼ってください。
- */
-function doGet(e) {
-  var out;
-  try {
-    var dry = !!(e && e.parameter && e.parameter.dry);
-    out = { ok: true, text: run_(dry) };
-  } catch (err) {
-    out = { ok: false, text: String(err) };
-  }
-  return ContentService.createTextOutput(JSON.stringify(out))
-    .setMimeType(ContentService.MimeType.JSON);
-}
+function dryRun() { return withSyncLock_(function(){return run_(true)}); }
 
 function run_(dry) {
   var data = ghGet_();
+  var started = Date.now();
   var events = readEvents_();
   var res = apply_(data.json, events);
+
 
   var log = [];
   log.push(dry ? '── 下見（書き込みません）' : '── 反映');
@@ -139,6 +123,7 @@ function run_(dry) {
   }
 
   if (!dry && res.changed) ghPut_(data.sha, res.data);
+  if (!dry) PropertiesService.getScriptProperties().setProperty("SYNC_LAST", String(started));
   if (!dry && !res.changed) log.push('', '  変わりはありませんでした。');
 
   Logger.log(log.join('\n'));
@@ -173,6 +158,7 @@ function diag_() {
 /* ===================== カレンダー ===================== */
 
 function readEvents_() {
+  SYNC_CUT=+(PropertiesService.getScriptProperties().getProperty("SYNC_LAST")||0);
   var cal = CFG.calendarId ? CalendarApp.getCalendarById(CFG.calendarId)
                            : CalendarApp.getDefaultCalendar();
   if (!cal) throw new Error('カレンダーが見つかりません: ' + CFG.calendarId);
@@ -182,6 +168,7 @@ function readEvents_() {
 
   return cal.getEvents(from, to).map(function (e) {
     return {
+      updated: e.getLastUpdated().getTime() >= SYNC_CUT - 600000,
       id:    e.getId(),
       title: (e.getTitle() || '').trim(),
       date:  Utilities.formatDate(e.getStartTime(), CFG.tz, 'yyyy-MM-dd'),
@@ -279,9 +266,20 @@ function findArtist_(title) {
 function apply_(data, events) {
   var songs = (data.songs || []).filter(function (s) { return (s.use || 'master') !== 'live'; });
   var hit = [], miss = [], seen = {}, changed = false;
+  var before = {};
+  (data.songs || []).forEach(function(s){
+    Object.keys(s.stages||{}).forEach(function(k){(s.stages[k].slots||[]).forEach(function(v,i){
+      if(!v.slotId)v.slotId="legacy:"+s.id+":"+k+":"+i;
+      if(v.calRef===undefined)v.calRef=String(i);
+    })});
+    before[s.id]=JSON.stringify(s);
+  });
+  var projectBefore = {};
+  (data.projects || []).forEach(function(p){projectBefore[p.id]=JSON.stringify(p)});
+  events.forEach(function(ev){seen[ev.id]=true});
 
   events.forEach(function (ev) {
-    if (!ev.title) return;
+    if (ev.updated === false || !ev.title) return;
 
     var rule = findStage_(ev.title);
     if (!rule) {
@@ -295,6 +293,7 @@ function apply_(data, events) {
     var targets = findTargets_(ev, rule, songs, miss);
     targets.forEach(function (song) {
       seen[ev.id] = true;
+      if (!activeStageKeys_(song)[rule.key]) return;
       if (!song.stages) song.stages = {};
       var o = song.stages[rule.key] || (song.stages[rule.key] = blank_());
       var name = stageName_(song, rule.key);
@@ -331,22 +330,26 @@ function apply_(data, events) {
     Object.keys(s.stages || {}).forEach(function (k) {
       var o = s.stages[k];
       if (o.slots) {
-        var keep = o.slots.filter(function (v) { return !v.cal || seen[v.cal]; });
+        var keep = o.slots.filter(function (v) { return !v.cal || seen[v.cal] || !(events.confirmedDeleted || {})[v.cal]; });
         if (keep.length !== o.slots.length) {
           hit.push('－  ' + s.title + ' / ' + stageName_(s, k) + '  予定が消えたので日程を外しました');
           o.slots = keep; changed = true;
         }
       }
-      if (o.calDl && !seen[o.calDl]) {
+      if (o.calDl && (events.confirmedDeleted || {})[o.calDl]) {
         hit.push('－  ' + s.title + ' / ' + stageName_(s, k) + '  予定が消えたので締切を自動に戻しました');
         o.dl = ''; delete o.calDl; changed = true;
       }
     });
   });
 
-  if (applyShows_(data, events, hit, miss)) changed = true;
+  if (applyShows_(data, events.filter(function(e){return e.updated!==false}), hit, miss)) changed = true;
 
-  if (changed) data.at = new Date().toISOString();
+  if (changed) {
+    (data.songs || []).forEach(function(s){if(before[s.id]!==JSON.stringify(s)){s.mtime=Date.now();ensureSlots_(s)}});
+    (data.projects || []).forEach(function(p){if(projectBefore[p.id]!==JSON.stringify(p))p.mtime=Date.now()});
+    data.at = new Date().toISOString();
+  }
   return { data: data, hit: hit, miss: miss, changed: changed };
 }
 
@@ -582,4 +585,146 @@ function トリガーを作る() {
   ScriptApp.newTrigger('sync').timeBased().atHour(7).everyDays(1)
     .inTimezone(CFG.tz).create();
   Logger.log('毎朝7時に動かします');
+}
+
+
+/* ==================== 進行 ⇄ Googleカレンダー（差分同期） ====================
+ * 「進行」カレンダーに締切・録り日程を反映。予定にref/d0タグを持たせ、
+ * カレンダー側で日付を動かされたらアプリ（shinkou-data）へ書き戻す。
+ * 予定の追加・削除はアプリが正。カレンダーで消しても次回復活する。 */
+
+const EXP_CAL_NAME = "進行";
+const EXP_PAST = 30, EXP_FUTURE = 180;
+
+function syncShinkouCal() { return withSyncLock_(exportCalendar_); }
+function exportCalendar_() {
+  const got = ghGet_();
+  const data = got.json;
+  const cal = expCal_();
+  const from = expShift_(new Date(), -EXP_PAST);
+  const to = expShift_(new Date(), EXP_FUTURE);
+
+  const want = {};
+  expItems_(data).forEach(function(it){ want[it.ref] = it; });
+
+  const seen = {};
+  let dirty = false, made = 0, moved = 0, backed = 0, killed = 0;
+  const acknowledge = [];
+
+  cal.getEvents(from, to).forEach(function(ev){
+    const ref = ev.getTag("ref");
+    if (!ref) return;
+    if (!want[ref] || seen[ref]) { ev.deleteEvent(); killed++; return }
+    seen[ref] = true;
+    const it = want[ref];
+    const evDate = expIso_(ev.getAllDayStartDate());
+    const d0 = ev.getTag("d0") || evDate;
+    if (evDate !== d0) {
+      /* カレンダー側で動かされた → アプリへ書き戻す */
+      it.apply(evDate); it.date = evDate; dirty = true; backed++;
+      if(!data.log)data.log=[];
+      data.log.unshift({id:Utilities.getUuid(),at:Date.now(),by:"カレンダー",t:"書き戻し: "+it.title+" "+d0+"→"+evDate});
+      if(data.log.length>500)data.log.length=500;
+      console.log("書き戻し: " + it.title + " → " + evDate);
+    }
+    if (it.date !== evDate) {
+      /* アプリ側で動いた → 予定を置き直す */
+      ev.deleteEvent(); expMk_(cal, it); moved++;
+    } else {
+      if (ev.getTitle() !== it.title) ev.setTitle(it.title);
+      if(evDate !== d0) acknowledge.push(function(){ev.setTag("d0",it.date)});
+      else ev.setTag("d0", it.date);
+    }
+  });
+
+  Object.keys(want).forEach(function(ref){
+    if (seen[ref]) return;
+    const d = expDate_(want[ref].date);
+    if (!d || d < from || d > to) return;
+    expMk_(cal, want[ref]); made++;
+  });
+
+  if (dirty) ghPut_(got.sha, data);
+  acknowledge.forEach(function(fn){fn()});
+  console.log("進行カレンダー: 追加" + made + " 移動" + moved + " 書き戻し" + backed + " 整理" + killed);
+}
+
+function expMk_(cal, it) {
+  const ev = cal.createAllDayEvent(it.title, expDate_(it.date), { description: it.desc || "" });
+  ev.setTag("ref", it.ref);
+  ev.setTag("d0", it.date);
+}
+
+function expItems_(data) {
+  const out = [];
+  (data.songs || []).forEach(function(s){
+    const title = s.title || "（無題）";
+    const st = s.stages || {};
+    const active = activeStageKeys_(s);
+    (s.stageList || []).forEach(function(x){
+      const o = st[x.k] || {};
+      if (o.done || !active[x.k]) return;
+      const slots = o.slots || [];
+      if (slots.length) {
+        slots.forEach(function(v, i){
+          if (!v.date || v.done) return;
+          out.push({ ref: s.id + "|" + x.k + "|s" + (v.calRef === undefined ? i : v.calRef), date: v.date,
+            title: "🎙 " + x.n + (v.note ? " " + v.note : "") + " — " + title,
+            desc: [v.who ? "相手: " + v.who : "", s.artist || ""].filter(String).join("\n"),
+            apply: function(d){ v.date = d; s.mtime=Date.now() } });
+        });
+      } else if (o.dl) {
+        out.push({ ref: s.id + "|" + x.k + "|dl", date: o.dl,
+          title: "〆 " + x.n + " — " + title,
+          desc: s.artist || "",
+          apply: function(d){ o.dl = d; s.mtime=Date.now() } });
+      }
+    });
+  });
+  return out;
+}
+
+function expCal_() {
+  const props = PropertiesService.getScriptProperties();
+  let id = props.getProperty("SHINKOU_CAL_ID");
+  if (id) { const c = CalendarApp.getCalendarById(id); if (c) return c; }
+  const found = CalendarApp.getCalendarsByName(EXP_CAL_NAME);
+  const cal = found.length ? found[0] : CalendarApp.createCalendar(EXP_CAL_NAME, { color: CalendarApp.Color.GREEN });
+  props.setProperty("SHINKOU_CAL_ID", cal.getId());
+  return cal;
+}
+
+function expIso_(d) { return Utilities.formatDate(d, "Asia/Tokyo", "yyyy-MM-dd") }
+function expDate_(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return null;
+  const a = s.split("-");
+  return new Date(+a[0], +a[1] - 1, +a[2]);
+}
+function expShift_(d, n) {
+  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  r.setDate(r.getDate() + n);
+  return r;
+}
+
+/* 同一GASの取り込み・書き出しを直列化する。端末との競合はGitHubのSHAで検出。 */
+function withSyncLock_(fn){
+  var lock=LockService.getScriptLock();
+  if(!lock.tryLock(1000)){Logger.log("別の同期が実行中です。次回に再試行します。");return}
+  try{return fn()}finally{lock.releaseLock()}
+}
+function activeStageKeys_(song){
+  var out={},parentExcluded=false;
+  (song.stageList||[]).forEach(function(x){
+    var o=(song.stages||{})[x.k]||{};
+    if(x.d!==1)parentExcluded=!!o.excluded;
+    if(!parentExcluded&&!o.excluded)out[x.k]=true;
+  });return out;
+}
+function ensureSlots_(song){
+  Object.keys(song.stages||{}).forEach(function(k){
+    (song.stages[k].slots||[]).forEach(function(v){
+      if(!v.slotId)v.slotId=Utilities.getUuid();
+      if(v.calRef===undefined)v.calRef=v.slotId;
+    });
+  });
 }
