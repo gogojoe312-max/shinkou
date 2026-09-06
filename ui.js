@@ -71,16 +71,43 @@ function drawSongPage(){
   if(V.mode==='desk'||RO){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
   document.getElementById('shDel').style.display=V.mode==='desk'||RO?'none':'';
 }
+function directorSongDraft(director,templateId,title){
+  const s=newSong({director:director.trim(),templateId,title:(title||'').trim()});
+  applyDirectorPreset(s);
+  return s;
+}
+function newDirectorSong(){
+  const names=[...new Set([...(S.masters.director||[]),...S.songs.map(s=>s.director),...S.templates.filter(t=>t.directorPreset).map(t=>t.director)].filter(Boolean))];
+  const initial=V.dir&&V.dir!=='__all'?V.dir:(names.length===1?names[0]:'');
+  const base=V.use==='live'?'tpl_show':'tpl_single';
+  const h='<div class="new-song-intro">ディレクターの標準工程で始めます。</div><label class="new-song-field">ディレクター<input id="newDirector" class="inp" list="newDirectorNames" placeholder="選択、または名前を入力" value="'+esc(initial)+'"><datalist id="newDirectorNames">'+names.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist></label><label class="new-song-field">曲名・項目名<input class="inp" id="newSongTitle" placeholder="あとで入力もできます"></label><label class="new-song-field">制作の種類<select class="inp" id="newSongBase">'+S.templates.filter(t=>!t.directorPreset).map(t=>'<option value="'+esc(t.id)+'" '+(t.id===base?'selected':'')+'>'+esc(t.name)+'</option>').join('')+'</select></label><div id="newSongPreview" class="new-song-preview"></div>';
+  s3('新しい曲','ディレクターから作成',h,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'作成',c:'btn pri',f:()=>{
+    const d=document.getElementById('newDirector').value.trim();if(!d)return toast('ディレクターを選んでください');
+    const song=directorSongDraft(d,document.getElementById('newSongBase').value,document.getElementById('newSongTitle').value);
+    if(song.use==='live'){const p=openShow();if(p&&p.director===d){song.projectId=p.id;song.artist=p.artist||''}}
+    applySort(song);applySolo(song);S.songs.unshift(song);if(!S.masters.director.includes(d))S.masters.director.push(d);
+    V.dir=d;V.use=song.use;mark();hide('sheet3');render();openSong(song.id);
+  }}]);
+  const preview=()=>{
+    const d=document.getElementById('newDirector').value.trim(),id=document.getElementById('newSongBase').value;
+    const t=S.templates.find(t=>t.directorPreset&&t.director===d&&t.sourceTemplateId===id);
+    const draft=directorSongDraft(d,id,'');
+    document.getElementById('newSongPreview').innerHTML='<b>'+esc(t?d+'さんの標準工程':'基本工程から作成')+'</b><p>'+stages(draft).length+'工程'+(t?' · 保存済みの構成を使用します。':' · 標準はまだ登録されていません。')+'</p><small>曲の「工程設定」で一度整え、「担当者の標準に保存」すると、次から自動で使えます。日程や完了状態は引き継ぎません。</small>';
+  };
+  document.getElementById('newDirector').oninput=preview;document.getElementById('newSongBase').onchange=preview;preview();
+}
+
 function stageSettings(){
   const s=cur;
   const draw=()=>{
     const L=s.stageList||[],active=new Set(stages(s).map(x=>x.k));
-    const presets=S.templates.filter(t=>t.directorPreset&&t.sourceTemplateId===(s.use==='live'?'tpl_show':s.templateId));
+    const presets=S.templates.filter(t=>t.directorPreset&&t.director===s.director&&t.sourceTemplateId===(s.use==='live'?'tpl_show':s.templateId));
     const h='<div class="stage-setting-head"><b>'+active.size+' / '+L.length+'工程を使用</b><button class="btn sm" id="saveDirectorPreset">担当者の標準に保存</button></div>'+(presets.length?'<div class="preset-row"><select class="inp" id="directorPresetPick"><option value="">担当者の標準設定を選択</option>'+presets.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select><button class="btn" id="useDirectorPreset">適用</button></div>':'')+'<div class="stage-settings">'+L.map((x,i)=>'<div class="stage-setting '+(x.d===1?'child':'')+'"><label><input type="checkbox" data-include="'+esc(x.k)+'" '+(active.has(x.k)?'checked':'')+'><span>'+esc(x.n)+'<small>'+esc(x.gp||'その他')+(!active.has(x.k)?' · 対象外':'')+'</small></span></label>'+(x.d!==1?'<button class="iconbtn" data-move="'+i+'|-1" aria-label="'+esc(x.n)+'を上に移動">↑</button><button class="iconbtn" data-move="'+i+'|1" aria-label="'+esc(x.n)+'を下に移動">↓</button>':'')+'</div>').join('')+'</div>';
     s3('工程設定',songTitle(s),h,[{sp:1},{t:'完了',c:'btn pri',f:()=>{hide('sheet3');head();drawSong();render()}}]);
     const b=document.getElementById('s3Body');
-    b.querySelectorAll('[data-include]').forEach(e=>e.onchange=()=>{
+    b.querySelectorAll('[data-include]').forEach(e=>e.onchange=async()=>{
       const i=L.findIndex(x=>x.k===e.dataset.include),x=L[i];
+      if(!e.checked&&!await ask('「'+x.n+'」'+(x.d!==1?'と配下の工程':'')+'を対象外にします。必要な作業ではないことをご確認ください。記録は残り、あとで戻せます。','対象外にする')){e.checked=true;return}
       if(x.d===1&&e.checked){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)stg(s,L[j].k).excluded=false}
       stg(s,x.k).excluded=!e.checked;
       if(x.d!==1){for(let j=i+1;j<L.length&&L[j].d===1;j++)stg(s,L[j].k).excluded=!e.checked}
@@ -92,9 +119,10 @@ function stageSettings(){
       const pos=blocks.findIndex(z=>z.includes(L[i])),to=pos+dir;if(to<0||to>=blocks.length)return;if(blocks[pos][0].gp!==blocks[to][0].gp)return toast('同じ段階の中で並べ替えできます');
       [blocks[pos],blocks[to]]=[blocks[to],blocks[pos]];s.stageList=blocks.flat();mark();draw();
     });
-    b.querySelector('#saveDirectorPreset').onclick=()=>{
+    b.querySelector('#saveDirectorPreset').onclick=async()=>{
       if(!s.director)return toast('基本情報で担当ディレクターを設定してください');
       const base=s.templateId,old=S.templates.find(t=>t.directorPreset&&t.director===s.director&&t.sourceTemplateId===base);
+      if(!await ask(s.director+'さんの標準として保存します。対象外の工程も引き継がれます。必要な工程がすべて選ばれているかご確認ください。既存の曲は変更しません。','標準に保存'))return;
       const t={id:old?old.id:uid(),name:s.director+' / '+(S.templates.find(t=>t.id===base)?.name||'工程'),directorPreset:true,director:s.director,sourceTemplateId:base,stages:ShinkouCore.copy(s.stageList),excludedKeys:L.filter(x=>stg(s,x.k).excluded).map(x=>x.k),dates:(s.tplDates||[]).slice(),mastering:s.tplMastering?ShinkouCore.copy(s.tplMastering):null,mtime:Date.now()};
       if(old)S.templates[S.templates.indexOf(old)]=t;else S.templates.push(t);mark();toast('担当者の標準設定を保存しました');draw();
     };

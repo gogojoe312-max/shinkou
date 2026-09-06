@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-06-c";
+const APP_VER="2026-09-06-d";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2774,24 +2774,7 @@ function openShow(){
     const key=p=>{const r=p.rehearsal||p.release||"9999-99-99";return (r>=D.today()?"0":"1")+r};
     return shown.slice().sort((a,b)=>key(a).localeCompare(key(b)))[0]}
   return null}
-document.getElementById("fab").onclick=()=>{
-  if(RO)return toast("閲覧専用です");
-  const LV=V.use==="live";
-  const last=S.songs.filter(x=>(x.use||"master")===(LV?"live":"master"))[0];
-  const s=newSong({templateId:LV?"tpl_show":(last?last.templateId:"tpl_single")});
-  if(LV){s.use="live";s.single=false}
-  if(last){s.artist=last.artist;s.projectId=last.projectId;
-    if(!LV){s.stageList=JSON.parse(JSON.stringify(last.stageList));
-      s.tplDates=(last.tplDates||[]).slice();
-      s.tplMastering=last.tplMastering?Object.assign({},last.tplMastering):null}
-    else{const pr=projOf(last.projectId);if(!isShow(pr))s.projectId=""}}
-  /* ライブでは、いま開いている公演にそのまま入れる */
-  if(LV){const p=openShow();
-    if(p){s.projectId=p.id;s.artist=p.artist||s.artist;s.director=p.director||s.director;
-      s.ord=(S.songs.filter(z=>z.projectId===p.id).length+1)*10}}
-  s.director=V.dir!=="__all"?V.dir:(last?last.director:"");
-  applyDirectorPreset(s);applySort(s);applySolo(s);S.songs.unshift(s);mark();render();openSong(s.id);
-  setTimeout(()=>{const i=document.querySelector('#shBody [data-f="title"]');if(i)i.focus()},320)};
+document.getElementById("fab").onclick=()=>{if(RO)return toast("閲覧専用です");newDirectorSong()};
 
 /* ===================== 作業ログ・元に戻す・確認シート ===================== */
 function logAdd(t){if(!S.log)S.log=[];
