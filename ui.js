@@ -1,5 +1,5 @@
 /* 進行 2026-09-06：役割別表示と曲ごとの工程設定 */
-let songTab='flow',flowDone=false;
+let songTab='flow',flowDone=V.flowDone!==false;
 const samePayload=(a,b)=>{const x=syncable(a),y=syncable(b);delete x.at;delete y.at;return ShinkouCore.equal(x,y)};
 function matchesWho(s){if(V.who==='all')return true;const b=ballOf(s),k=b.c==='me'?'me':['other','room'].includes(b.c)?'other':b.c==='wait'?'wait':'todo';return !isFin(s)&&k===V.who}
 const plainStage=x=>({VoDB:'歌の録音',ChoDB:'コーラス録音',楽器DB:'楽器の録音',ReVoDB:'追加の歌録音',VoEDIT:'歌の編集',ChoEDIT:'コーラス編集',ReVoEDIT:'追加録音の編集',ピッチ:'歌の音程調整',繋ぎ:'歌のつなぎ処理',リズムエディット:'歌のタイミング調整',ステム受け取り:'音声素材の受け取り',ステム発注:'音声素材の依頼'}[x]||x||'未設定');
@@ -15,9 +15,10 @@ function renderWorkspace(){
   document.getElementById('workspaceTitle').textContent=V.use==='cal'?'制作の予定':V.mode==='desk'?'制作状況':'制作中の楽曲';
   document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',(V.mode||'work')===b.dataset.mode));
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
-  const c=S.log.filter(z=>z.kind==='sync-conflict');
-  document.getElementById('overviewBar').innerHTML=c.length?'<button class="conflict-banner" id="conflictsOpen">同時編集の記録 '+c.length+'件 <span>内容を確認 →</span></button>':'';
-  const b=document.getElementById('conflictsOpen');if(b)b.onclick=()=>showText(c.map(z=>z.t+'\n'+JSON.stringify(z.detail,null,2)).join('\n\n'));
+  renderSyncNotice();
+  const dirs=[...new Set(S.songs.map(s=>s.director).filter(Boolean))];
+  document.getElementById('dirbar').style.display=dirs.length<=1?'none':'';
+
 }
 document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{V.mode=b.dataset.mode;render()});
 function renderDesk(el,list){
@@ -43,9 +44,9 @@ function wireCurrent(){
   const e=document.getElementById('currentEdit');if(e)e.onclick=()=>{songTab='flow';stOpen=x.k;gpOpen[x.gp]=true;drawSong();document.querySelector('[data-srow="'+CSS.escape(x.k)+'"]')?.scrollIntoView({block:'nearest',behavior:'smooth'})};
 }
 function decorateSong(){
-  const b=document.getElementById('shBody');b.insertAdjacentHTML('afterbegin',songTabs()+currentCard(cur)+'<div class="flow-toolbar"><button class="btn sm" id="toggleFlowDone">完了済みを'+(flowDone?'隠す':'表示')+'</button><button class="btn sm" id="manageStages">工程を設定</button></div>');
+  const b=document.getElementById('shBody');b.insertAdjacentHTML('afterbegin',songTabs()+currentCard(cur)+'<div class="flow-toolbar"><div class="flow-switch" role="group" aria-label="工程の表示"><button data-flow="all" aria-pressed="'+flowDone+'">すべての工程</button><button data-flow="pending" aria-pressed="'+!flowDone+'">未完了のみ</button></div><button class="btn sm" id="manageStages">工程を設定</button></div>');
   b.classList.remove('summary-body');document.getElementById('manageStages').onclick=stageSettings;
-  document.getElementById('toggleFlowDone').onclick=()=>{flowDone=!flowDone;drawSong()};
+  document.querySelectorAll('[data-flow]').forEach(e=>e.onclick=()=>{flowDone=e.dataset.flow==='all';V.flowDone=flowDone;viewSave();gpOpen={};drawSong()});
   wireSongTabs();wireCurrent();document.getElementById('shDel').style.display=RO?'none':'';
 }
 function drawSongPage(){
@@ -117,7 +118,7 @@ if(DEMO){
   syOk=()=>false;aiFetch=async()=>{throw new Error('デモではAIへの送信は行いません')};
   idb=function(){return new Promise((res,rej)=>{const r=indexedDB.open('shinkou-preview-20260906',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv')};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})};
   const realBoot=boot;
-  boot=async function(){await realBoot();if(!S.songs.length){seed();const active=S.songs[0],L=stages(active);L.forEach(x=>{const o=stg(active,x.k);o.done=['gather','sdemo','lyric','kario','demo','meeting','arr','stemO','stemR','stemM','vo','vodb','warigo','voes','rhythm','tsunagi'].includes(x.k)});stg(active,'pitch').st='me';stg(active,'pitch').dl=D.today();stg(active,'pitch').memo='歌の編集内容を確認して、ラフミックスへ進める';S.songs.forEach(s=>{s.dlFixed=true});mark();render()}document.querySelector('.top .brand small').textContent='デモ · サンプルデータ'};
+  boot=async function(){await realBoot();if(!S.songs.length){seed();const active=S.songs[0],L=stages(active);L.forEach(x=>{const o=stg(active,x.k);o.done=['gather','sdemo','lyric','kario','demo','meeting','arr','stemO','stemR','stemM','vo','vodb','warigo','voes','rhythm','tsunagi'].includes(x.k)});stg(active,'pitch').st='me';stg(active,'pitch').dl=D.today();stg(active,'pitch').memo='歌の編集内容を確認して、ラフミックスへ進める';S.songs.forEach(s=>{s.dlFixed=true});mark();render()}document.body.classList.add('demo-mode');document.querySelector('.top .brand small').textContent='デモ · サンプルデータ'};
 }
 // 重なったシートでは最前面だけを操作・読み上げ対象にする。
 const sheetFocus=new Map(),originalShow=show,originalHide=hide;
@@ -133,5 +134,36 @@ document.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const top=modalS
   if(!first){e.preventDefault();return}if(e.shiftKey&&(document.activeElement===first||document.activeElement===top)){e.preventDefault();last.focus()}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===top)){e.preventDefault();first.focus()}
 });
 modalState();
+
+function compactSongCard(s,rank){
+  const a=songSummary(s),L=a.L,done=L.filter((x,i)=>!hasKids(L,i)&&doneOf(s,L,i)).length,total=L.filter((x,i)=>!hasKids(L,i)).length;
+  const p=projOf(s.projectId),context=[s.artist,projTitle(p)].filter(Boolean).join(' · ');
+  const due=a.finished?'完了':a.state.left<0&&a.state.left!==null?(-a.state.left)+'日超過':a.state.left===0?'今日':a.state.dl?D.md(a.state.dl):'締切未設定';
+  return '<button class="song-card '+(!a.finished&&a.state.left!==null&&a.state.left<0?'late':'')+'" data-song="'+esc(s.id)+'"><span class="song-card-context">'+esc(context)+'</span><span class="song-card-title"><b>'+esc(songTitle(s))+'</b><span class="song-card-due">'+esc(due)+'</span></span><span class="song-card-status"><span>'+esc(a.finished?'全工程完了':a.x?a.x.n:'工程未設定')+'</span><span>'+esc(a.finished?'':a.ball.t)+'</span></span><span class="song-card-progress"><span><i style="width:'+Math.round(total?done/total*100:0)+'%"></i></span><small>'+done+' / '+total+' 完了</small></span></button>';
+}
+let reviewedSync=[];try{reviewedSync=JSON.parse(localStorage.getItem('shinkou_sync_reviewed')||'[]')}catch(e){}
+function syncRecords(){return S.log.filter(z=>['sync-conflict','sync-difference'].includes(z.kind))}
+function renderSyncNotice(){
+ const records=syncRecords(),unread=records.filter(z=>!reviewedSync.includes(z.id));
+ document.getElementById('overviewBar').innerHTML=records.length?'<button class="sync-notice '+(unread.length?'unread':'')+'" id="conflictsOpen">'+(unread.length?'同期で値の違い '+unread.length+'件':'同期の確認履歴')+'<span>確認する ›</span></button>':'';
+ const button=document.getElementById('conflictsOpen');if(button)button.onclick=showSyncRecords;
+}
+function syncFieldLabel(path){
+ const parts=String(path||'').split(' / '),s=S.songs.find(s=>s.id===parts[0]),x=s&&(s.stageList||[]).find(x=>parts.includes(x.k));
+ const labels={title:'曲名',note:'メモ',dl:'締切',date:'日付',done:'完了状態',st:'状態',mtime:'更新時刻',slots:'日程',calRef:'予定の識別情報',slotId:'予定の識別情報',excluded:'対象工程',asg:'担当',stageList:'工程設定'};
+ return [s?songTitle(s):'設定・データ',x?x.n:'',labels[parts.at(-1)]||parts.at(-1)].filter(Boolean).join(' / ');
+}
+function syncValue(v){if(v===undefined)return '未設定';if(v===true)return 'はい';if(v===false)return 'いいえ';return typeof v==='object'?JSON.stringify(v,null,2):String(v)||'空欄'}
+function showSyncRecords(){
+ const records=syncRecords();
+ const h='<p class="sync-explanation">端末と同期先で値が異なった記録です。同時編集とは限りません。更新前の記録がない初回同期でも発生します。確認済みにしても、記録や曲の内容は消えません。</p>'+records.map(z=>'<details class="sync-record"><summary>'+esc(syncFieldLabel(z.detail&&z.detail.path))+'<small>'+esc(new Date(z.at).toLocaleString('ja-JP'))+'</small></summary><div class="sync-values"><div><b>この端末にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.local))+'</pre></div><div><b>同期先にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.remote))+'</pre></div></div></details>').join('');
+ s3('同期の確認','値の違いの記録',h,[{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'確認済みにする',c:'btn pri',f:()=>{reviewedSync=[...new Set(reviewedSync.concat(records.map(z=>z.id)))].slice(-500);try{localStorage.setItem('shinkou_sync_reviewed',JSON.stringify(reviewedSync))}catch(e){}hide('sheet3');renderSyncNotice()}}]);
+}
+function setupActionDock(){
+ const bar=document.getElementById('aiBar'),fab=document.getElementById('fab');if(!bar||!fab)return;
+ bar.prepend(fab);const toggle=document.createElement('button');toggle.id='aiToggle';toggle.className='btn';toggle.textContent='AIに相談';toggle.setAttribute('aria-expanded','false');bar.append(toggle);
+ toggle.onclick=()=>{const open=bar.classList.toggle('ai-open');toggle.textContent=open?'閉じる':'AIに相談';toggle.setAttribute('aria-expanded',String(open));if(open)document.getElementById('aiQ').focus()};
+}
+setupActionDock();
 
 boot();

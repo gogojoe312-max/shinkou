@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-06-b";
+const APP_VER="2026-09-06-c";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -740,9 +740,9 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 /* ===================== view state ===================== */
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
-  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode","flowDone"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
 function viewSave(){try{localStorage.setItem("shinkou_view",
-  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list"}))}catch(e){}}
+  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",flowDone:V.flowDone!==false,calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&isFin(s))return false;
@@ -1077,7 +1077,7 @@ function cardHTML(s,rank){
     '</div></div>'}
 
 let AEXP={};
-const item=(s,rank)=>cardHTML(s,rank);
+const item=(s,rank)=>compactSongCard(s,rank);
 function renderToday(){
   const el=document.getElementById("todayBar");if(!el)return;
   const a=agenda().filter(e=>!e.done&&D.to(e.d)<=0);
@@ -1312,7 +1312,7 @@ function drawSong(){
       const done=mem.filter(y=>doneOf(s,L,L.indexOf(y))).length,tot=mem.length;
       const cur=mem.some(y=>L.indexOf(y)===ci);
       /* 手動で開閉した記録が無ければ、いま来ている段階だけ開く */
-      gpShow=gpOpen[x.gp]===undefined?cur:gpOpen[x.gp];
+      gpShow=gpOpen[x.gp]===undefined?(flowDone||cur):gpOpen[x.gp];
       h+='<button class="gph'+(gpShow?" on":"")+'" data-gp="'+esc(x.gp)+'">'+
         '<span class="cv">▼</span><span>'+esc(x.gp)+'</span>'+
         '<b>'+done+'/'+tot+'</b></button>'}
@@ -2295,7 +2295,7 @@ function mergeState(base,local,remote){
   Object.keys(remote.masters||{}).forEach(k=>{
     const a=out.masters[k]||[],b=remote.masters[k]||[];
     out.masters[k]=[...new Set(a.concat(b))].sort((x,y)=>String(x).localeCompare(String(y),"ja"))});
-  mergeConflicts.forEach(c=>out.log.unshift({id:uid(),at:Date.now(),by:"同期",t:"同時編集: "+c.path,kind:"sync-conflict",detail:c}));
+  mergeConflicts.forEach(c=>out.log.unshift({id:uid(),at:Date.now(),by:"同期",t:"同時編集: "+c.path,kind:base?"sync-conflict":"sync-difference",detail:c}));
   out.log=out.log.slice(0,500);
   out.settings=local.settings;   /* トークンなどは端末ごと */
   return out}
