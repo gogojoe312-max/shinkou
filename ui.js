@@ -70,6 +70,7 @@ function drawSongPage(){
   b.querySelectorAll('[data-phase]').forEach(button=>button.onclick=()=>{songTab='flow';gpOpen={};a.L.forEach(x=>gpOpen[x.gp]=false);gpOpen[button.dataset.phase]=true;flowDone=true;V.flowDone=true;viewSave();drawSong()});
   const plan=document.getElementById('summaryPlan');if(plan)plan.onclick=()=>plannerSheet();
   const assistant=document.getElementById('songAssistant');if(assistant)assistant.onclick=()=>plannerSheet();
+  const resume=document.getElementById('songResume');if(resume)resume.onclick=()=>resumeAssistantConversation();
   const legacy=document.getElementById('legacyRecords');if(legacy)legacy.onclick=()=>{songTab='flow';drawSong()};
   if(songTab!=='summary')wireSong();
   const edit=document.getElementById('editSongInfo');if(edit)edit.onclick=()=>{secLoad()['基本情報']=true;secLoad()['基準日']=true;songTab='flow';drawSong();[...b.querySelectorAll('.sec')].find(x=>x.textContent.includes('基本情報'))?.scrollIntoView({block:'start'})};
@@ -220,7 +221,7 @@ function showSyncRecords(){
 function plannerSheet(initial=''){
  if(typeof initial!=='string')initial='';
  if(RO)return toast('閲覧専用です');
- s3('AIアシスタント','今の状況から、一緒に整理',
+ s3('AIアシスタント',cur?songTitle(cur)+'の相談':'制作全体の相談',
  '<p class="planner-lead">決まっていることも、迷っていることも、そのままお話しください。</p><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div><textarea id="plannerText" class="inp" rows="6" placeholder="例：来月発売で、歌録りは来週の予定です。何から決めればいいですか？"></textarea><p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
  [{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'相談する',c:'btn pri',f:async()=>{
    const text=document.getElementById('plannerText').value.trim();if(!text)return;
@@ -286,7 +287,7 @@ async function resumeAssistantConversation(){
 }
 function assistantSongCard(s){
  const a=songSummary(s),L=a.L,completed=L.filter((x,i)=>!hasKids(L,i)&&doneOf(s,L,i)),waiting=L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)&&['other','room'].includes(whoOf(s,x).c));
- return '<section class="assistant-status"><small>記録されている状況</small><h2>'+esc(a.finished?'作業は完了しています':waiting.length?'返事・受け取り待ちがあります':a.next?'次の予定があります':'次の予定を相談しましょう')+'</h2>'+(a.next?'<p>'+esc(D.md(a.next.date))+' · '+esc(plainStage(a.next.x.n))+'</p>':'')+(completed.length?'<p class="muted">完了の記録 '+completed.length+'件</p>':'')+'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button></section>';
+ return '<section class="assistant-status"><small>記録されている状況</small><h2>'+esc(a.finished?'作業は完了しています':waiting.length?'返事・受け取り待ちがあります':a.next?'次の予定があります':'次の予定を相談しましょう')+'</h2>'+(a.next?'<p>'+esc(D.md(a.next.date))+' · '+esc(plainStage(a.next.x.n))+'</p>':'')+(completed.length?'<p class="muted">完了の記録 '+completed.length+'件</p>':'')+'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':'')+'</section>';
 }
 function assistantBrief(list){
  const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));

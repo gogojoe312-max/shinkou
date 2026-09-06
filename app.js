@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-06-g";
+const APP_VER="2026-09-07-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2983,7 +2983,7 @@ async function aiChat(msgs){
   let out;try{out=JSON.parse(clean)}catch(e){
     const a=clean.indexOf("{"),b=clean.lastIndexOf("}");
     if(a>=0&&b>a){try{out=JSON.parse(clean.slice(a,b+1))}catch(_){}}}
-  if(out&&typeof out!=="object")out=null;
+  if(out&&(typeof out!=="object"||Array.isArray(out)))out=null;
   if(out){out.ops=Array.isArray(out.ops)?out.ops.filter(op=>op&&typeof op==="object").slice(0,100):[];out.ans=typeof out.ans==="string"?out.ans:"";out.note=typeof out.note==="string"?out.note:"";}
   if(!out)throw new Error("解釈結果を読めませんでした");
   return {out:out,tx:tx}}
@@ -3132,7 +3132,7 @@ function aiPreview(res,msgs,qtxt){
     if(AIPV.ans)h+='<div class="aians">'+esc(AIPV.ans)+'</div>'+
       '<div style="margin:-4px 0 12px"><button class="btn sm" id="aiCopy">コピー</button></div>';
     if(AIPV.note)h+='<p class="hint" style="margin:0 0 10px">'+esc(AIPV.note)+'</p>';
-    if(!AIPV.list.length&&!AIPV.ans)h+='<p class="hint">反映できる操作はありません。</p>';
+    if(!AIPV.list.length&&!AIPV.ans&&!AIPV.questions.length)h+='<p class="hint">反映できる操作はありません。</p>';
     AIPV.list.forEach((r,i)=>{
       const gs=r.op.g&&r.op.g.length;
       h+='<div class="aiop'+(r.ok?"":" ng")+'">'
@@ -3166,14 +3166,16 @@ function aiPreview(res,msgs,qtxt){
       .then(()=>toast("コピーしました"),()=>showText(AIPV.ans));else showText(AIPV.ans)};
     const fx=document.getElementById("aiFix"),fg=document.getElementById("aiFixGo");
     const doFix=async()=>{
-      const f=fx.value.trim();if(!f)return;
+      const f=fx.value.trim();if(!f||fg.disabled)return;
+      const pending=AIPV;
       fg.disabled=true;fx.disabled=true;fg.textContent="…";
       const ms=AIPV.msgs.concat([{role:"user",content:
         "相談の続き・回答:\n"+f+"\n最新データ:\n"+JSON.stringify(aiCtx())+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
       try{const r=await aiChat(ms);
-        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),AIPV.q+" › "+f)}
-      catch(e){toast("修正できませんでした: "+(e.message||e));
-        fg.disabled=false;fx.disabled=false;fg.textContent="修正"}};
+        if(AIPV!==pending)return;
+        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),pending.q+" › "+f)}
+      catch(e){if(AIPV!==pending)return;toast("送信できませんでした: "+(e.message||e));
+        fg.disabled=false;fx.disabled=false;fg.textContent="送信"}};
     fg.onclick=doFix;
     fx.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();doFix()}})};
   const apply=()=>{
