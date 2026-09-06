@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-06-e";
+const APP_VER="2026-09-06-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1102,6 +1102,7 @@ function render(){
     m.querySelector("#seed").onclick=seed;return}
   if(!list.length){m.innerHTML='<div class="empty"><h3>'+(V.use==="live"?"ライブの制作物がありません":"該当なし")+'</h3>'+
     '<p>'+(V.use==="live"?"右下の「＋ 制作物」から、オープニングSEやダンス曲を追加できます。<br>先に設定から公演を作っておくと、初日から逆算した締切が入ります。":"ディレクターや検索語を変えてください。")+'</p></div>';return}
+  if(V.use!=="live"){renderFocusedHome(m,list);return}
   if(V.grp==="prio"&&V.use!=="live"){
     const a=list.slice().sort(byPrio);let cur="",h="",n=0;
     a.forEach(s=>{const p=prio(s),b=prioBucket(p);
@@ -1245,7 +1246,7 @@ function stageDrag(s,box,rf){
     let pos=0;s.stageList=s.stageList.map(x=>order.includes(x.k)?chosen[pos++]:x);
     mark();drawSong();rf()})}
 let cur=null,stOpen="",stAdv={},gpOpen={};
-function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};songTab=V.mode==="desk"?"summary":"flow";head();drawSong();show("sheet")}
+function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};songTab="summary";head();drawSong();show("sheet")}
 function head(){
   document.getElementById("shTitle").textContent=songTitle(cur);
   const st=status(cur),L=stages(cur);
@@ -1312,7 +1313,7 @@ function drawSong(){
       const done=mem.filter(y=>doneOf(s,L,L.indexOf(y))).length,tot=mem.length;
       const cur=mem.some(y=>L.indexOf(y)===ci);
       /* 手動で開閉した記録が無ければ、いま来ている段階だけ開く */
-      gpShow=gpOpen[x.gp]===undefined?(flowDone||cur):gpOpen[x.gp];
+      gpShow=gpOpen[x.gp]===undefined?cur:gpOpen[x.gp];
       h+='<button class="gph'+(gpShow?" on":"")+'" data-gp="'+esc(x.gp)+'">'+
         '<span class="cv">▼</span><span>'+esc(x.gp)+'</span>'+
         '<b>'+done+'/'+tot+'</b></button>'}

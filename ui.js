@@ -12,7 +12,8 @@ function songSummary(s){
 function renderWorkspace(){
   document.body.classList.toggle('desk-mode',V.mode==='desk');
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
-  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'制作の予定':V.mode==='desk'?'制作状況':'制作中の楽曲';
+  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'楽曲';
+  const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
   document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',(V.mode||'work')===b.dataset.mode));
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();
@@ -34,7 +35,7 @@ function songTabs(){return '<nav class="song-tabs" aria-label="曲の詳細">'+[
 function wireSongTabs(){document.querySelectorAll('[data-song-tab]').forEach(b=>b.onclick=()=>{songTab=b.dataset.songTab;drawSong()})}
 function currentCard(s){
   const a=songSummary(s),x=a.x,o=x?stg(s,x.k):{},assigned=x?(o.asg||nameFor(s,x.role)||s.director||'未設定'):s.director||'未設定';
-  return '<section class="current-card"><div class="current-eyebrow">'+(a.finished?'制作状況':'現在の作業')+'</div><div class="current-line"><h2>'+esc(a.title)+'</h2>'+(!a.finished&&x?'<span class="state-tag '+a.ball.c+'">'+esc(a.ball.t)+'</span>':'')+'</div><div class="current-meta"><span>締切 <b>'+esc(a.state.dl?D.md(a.state.dl):'未設定')+'</b></span><span>担当 <b>'+esc(assigned)+'</b></span>'+(a.state.left!==null&&a.state.left<=0?'<span class="overdue">'+(a.state.left<0?(-a.state.left)+'日超過':'今日')+'</span>':'')+'</div>'+(o.memo?'<p class="current-note">'+esc(o.memo.split('\n')[0])+'</p>':'')+(!RO&&V.mode!=='desk'&&x?'<div class="current-actions"><button class="btn pri" id="currentDone">完了にする</button><button class="btn" id="currentEdit">日程・担当を編集</button></div>':'')+'</section>';
+  return '<section class="current-card"><div class="current-eyebrow">'+(a.finished?'制作状況':'次の作業候補')+'</div><div class="current-line"><h2>'+esc(a.title)+'</h2>'+(!a.finished&&x?'<span class="state-tag '+a.ball.c+'">'+esc(a.ball.t)+'</span>':'')+'</div><div class="current-meta"><span>締切 <b>'+esc(a.state.dl?D.md(a.state.dl):'未設定')+'</b></span><span>担当 <b>'+esc(assigned)+'</b></span>'+(a.state.left!==null&&a.state.left<=0?'<span class="overdue">'+(a.state.left<0?(-a.state.left)+'日超過':'今日')+'</span>':'')+'</div>'+(o.memo?'<p class="current-note">'+esc(o.memo.split('\n')[0])+'</p>':'')+(!RO&&V.mode!=='desk'&&x?'<div class="current-actions"><button class="btn pri" id="currentDone">完了にする</button><button class="btn" id="currentEdit">日程・担当を編集</button></div>':'')+'</section>';
 }
 function wireCurrent(){
   const s=cur,a=songSummary(s),x=a.x;
@@ -53,19 +54,25 @@ function drawSongPage(){
   const s=cur,a=songSummary(s),b=document.getElementById('shBody');
   let h=songTabs();
   if(songTab==='summary'){
-    h+=currentCard(s)+'<div class="summary-grid"><section class="detail-panel"><h3>次の予定</h3>'+(a.next?'<div class="next-date">'+esc(D.md(a.next.date))+'</div><p>'+esc(plainStage(a.next.x.n))+'</p>':'<p class="muted">'+(a.finished?'残りの作業はありません':'日程未設定')+'</p>')+'</section><section class="detail-panel"><h3>確認事項</h3><p>'+esc(a.issue)+'</p></section></div>';
-    h+='<section class="detail-panel"><h3>主要日程</h3><dl class="summary-dates">'+[['release','発売日'],['open','公演初日'],['rehearsal','リハーサル'],['mastering','マスタリング'],['deliver','音源提出']].filter(([k])=>s.dates[k]).map(([k,l])=>'<div><dt>'+l+'</dt><dd>'+esc(D.md(s.dates[k]))+'</dd></div>').join('')+'</dl></section>';
-    const schedule=a.L.flatMap(x=>(stg(s,x.k).slots||[]).filter(v=>v.date&&!v.done).map(v=>({x,v}))).sort((u,v)=>u.v.date.localeCompare(v.v.date));
-    h+='<section class="detail-panel"><h3>録音・作業日程</h3>'+(schedule.length?schedule.map(({x,v})=>'<div class="summary-event"><b>'+esc(D.md(v.date))+'</b><span>'+esc(plainStage(x.n))+'<small>'+esc([v.who,v.note].filter(Boolean).join(' · '))+'</small></span></div>').join(''):'<p class="muted">予定はありません</p>')+'</section>';
+    h+=currentCard(s);
+    if(a.next&&a.next.x.k!==a.x?.k)h+='<div class="next-inline"><span>近い期限 · '+esc(plainStage(a.next.x.n))+'</span><b>'+esc(D.md(a.next.date))+'</b></div>';
+    const groups=[...new Set(a.L.map(x=>x.gp||'その他'))];
+    h+='<section class="phase-overview"><h3>制作の流れ</h3><p class="hint">段階を開くと、作業と完了記録を確認できます。</p>'+groups.map(g=>{
+      const rows=a.L.filter((x,i)=>(x.gp||'その他')===g&&!hasKids(a.L,i)),done=rows.filter(x=>doneOf(s,a.L,a.L.indexOf(x))).length;
+      return '<button class="phase-row" data-phase="'+esc(g)+'"><span>'+esc(plainStage(g))+'</span><small>'+done+' / '+rows.length+' 完了</small><span aria-hidden="true">›</span></button>';
+    }).join('')+'</section>';
+    const dates=[['release','発売'],['open','公演初日'],['rehearsal','リハーサル'],['mastering','マスタリング'],['deliver','音源提出']].filter(([k])=>s.dates[k]);
+    if(dates.length)h+='<section class="detail-panel"><h3>主要日程</h3><dl class="summary-dates">'+dates.map(([k,l])=>'<div><dt>'+l+'</dt><dd>'+esc(D.md(s.dates[k]))+'</dd></div>').join('')+'</dl></section>';
     if(s.note)h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
-    h+='<div class="summary-footer">担当 '+esc(s.director||'未設定')+' · 最終更新 '+(s.mtime?esc(new Date(s.mtime).toLocaleString('ja-JP')):'未記録')+'</div>';
-    if(V.mode!=='desk'&&!RO)h+='<button class="btn w" id="editSongInfo">曲名・担当・基準日を編集</button>';
+    if(V.mode!=='desk'&&!RO)h+='<div class="summary-options"><button class="btn" id="summaryPlan">この曲をAIに相談</button><button class="btn" id="editSongInfo">基本情報を編集</button></div>';
   }else if(songTab==='credits'){
     h+='<div class="detail-panel"><h3>制作クレジット</h3><div id="crW">'+crRows(s,'work')+'</div><button class="btn sm" data-add="work">＋ 人を追加</button></div><div class="detail-panel"><h3>ミュージシャンクレジット</h3><div id="crM">'+crRows(s,'mus')+'</div><button class="btn sm" data-add="mus">＋ 人を追加</button></div>';
   }else{
     h+='<section class="detail-panel"><h3>曲のメモ・申し送り</h3><textarea class="inp" data-f="note" rows="5" placeholder="申し送りを入力">'+esc(s.note||'')+'</textarea></section><section class="detail-panel"><h3>最近の更新</h3>'+(S.log.filter(z=>z.t.includes(songTitle(s))).slice(0,15).map(z=>'<div class="history-row"><small>'+esc(new Date(z.at).toLocaleDateString('ja-JP'))+'</small><span>'+esc(z.t)+'</span></div>').join('')||'<p class="muted">記録はありません</p>')+'</section>';
   }
   b.innerHTML=h;b.classList.add('summary-body');wireSongTabs();wireCurrent();
+  b.querySelectorAll('[data-phase]').forEach(button=>button.onclick=()=>{songTab='flow';gpOpen={};a.L.forEach(x=>gpOpen[x.gp]=false);gpOpen[button.dataset.phase]=true;flowDone=true;V.flowDone=true;viewSave();drawSong()});
+  const plan=document.getElementById('summaryPlan');if(plan)plan.onclick=plannerSheet;
   if(songTab!=='summary')wireSong();
   const edit=document.getElementById('editSongInfo');if(edit)edit.onclick=()=>{secLoad()['基本情報']=true;secLoad()['基準日']=true;songTab='flow';drawSong();[...b.querySelectorAll('.sec')].find(x=>x.textContent.includes('基本情報'))?.scrollIntoView({block:'start'})};
   if(V.mode==='desk'||RO){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
@@ -163,12 +170,37 @@ document.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const top=modalS
 });
 modalState();
 
-function compactSongCard(s,rank){
-  const a=songSummary(s),L=a.L,done=L.filter((x,i)=>!hasKids(L,i)&&doneOf(s,L,i)).length,total=L.filter((x,i)=>!hasKids(L,i)).length;
-  const p=projOf(s.projectId),context=[s.artist,projTitle(p)].filter(Boolean).join(' · ');
-  const due=a.finished?'完了':a.state.left<0&&a.state.left!==null?(-a.state.left)+'日超過':a.state.left===0?'今日':a.state.dl?D.md(a.state.dl):'締切未設定';
-  return '<button class="song-card '+(!a.finished&&a.state.left!==null&&a.state.left<0?'late':'')+'" data-song="'+esc(s.id)+'"><span class="song-card-context">'+esc(context)+'</span><span class="song-card-title"><b>'+esc(songTitle(s))+'</b><span class="song-card-due">'+esc(due)+'</span></span><span class="song-card-status"><span>'+esc(a.finished?'全工程完了':a.x?a.x.n:'工程未設定')+'</span><span>'+esc(a.finished?'':a.ball.t)+'</span></span><span class="song-card-progress"><span><i style="width:'+Math.round(total?done/total*100:0)+'%"></i></span><small>'+done+' / '+total+' 完了</small></span></button>';
+let homeFocus='all';
+function homeSignal(s){
+ const a=songSummary(s),date=a.next?.date||'',left=date?D.to(date):null;
+ const waiting=a.L.some((x,i)=>!hasKids(a.L,i)&&!doneOf(s,a.L,i)&&['other','room'].includes(whoOf(s,x).c));
+ return {a,date,left,soon:!a.finished&&left!==null&&left<=7,waiting:!a.finished&&waiting};
 }
+function renderFocusedHome(el,list){
+ const selected=list.filter(s=>{const a=homeSignal(s);return homeFocus==='all'||(homeFocus==='soon'?a.soon:a.waiting)});
+ const sorted=selected.slice().sort((a,b)=>{const x=homeSignal(a),y=homeSignal(b);return Number(x.a.finished)-Number(y.a.finished)||(x.date||'9999').localeCompare(y.date||'9999')||byOrd(a,b)});
+ el.innerHTML='<div class="home-focus" role="group" aria-label="確認する楽曲">'+[['all','すべて',list.length],['soon','7日以内・超過',list.filter(s=>homeSignal(s).soon).length],['waiting','相手待ち',list.filter(s=>homeSignal(s).waiting).length]].map(([key,title,n])=>'<button data-home-focus="'+key+'" aria-pressed="'+(homeFocus===key)+'">'+title+' <span>'+n+'</span></button>').join('')+'</div><div class="home-list">'+(sorted.map(s=>compactSongCard(s)).join('')||'<div class="empty"><h3>該当する曲はありません</h3><p>「すべて」から他の曲を確認できます。</p></div>')+'</div>';
+ el.querySelectorAll('[data-home-focus]').forEach(b=>b.onclick=()=>{homeFocus=b.dataset.homeFocus;render()});
+ el.querySelectorAll('[data-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.song));
+}
+function compactSongCard(s){
+ const {a,date,left}=homeSignal(s),context=[s.artist,projTitle(projOf(s.projectId))].filter(Boolean).join(' · ');
+ const due=a.finished?'完了':left!==null&&left<0?(-left)+'日超過':left===0?'今日':date?D.md(date):'日程未設定';
+ const task=a.next?plainStage(a.next.x.n):a.title,ball=a.next?whoOf(s,a.next.x):a.ball;
+ return '<button class="song-card '+(left!==null&&left<0?'late':'')+'" data-song="'+esc(s.id)+'"><span class="song-card-context">'+esc(context)+'</span><span class="song-card-title"><b>'+esc(songTitle(s))+'</b><span class="song-card-due">'+esc(due)+'</span></span><span class="song-card-status"><span>'+esc(a.finished?'全工程完了':task)+'</span><span>'+esc(a.finished?'':ball.t)+'</span></span></button>';
+}
+function setupSimpleHome(){
+ const top=document.querySelector('.top'),tools=document.querySelector('.tools');if(!top||!tools)return;
+ const filters=document.createElement('details');filters.id='homeFilters';filters.innerHTML='<summary><span id="filterLabel">絞り込み</span><span aria-hidden="true">⌄</span></summary><div class="filter-content"></div>';
+ const box=filters.querySelector('.filter-content');
+ ['workspaceMode','dirbar','useBar','grpSel','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
+ top.append(filters);
+ // Home has one consistent deadline order; grouping controls remain for legacy views.
+ document.getElementById('grpSel').setAttribute('aria-label','並び順');
+ document.getElementById('whoSel').setAttribute('aria-label','作業状況');document.getElementById('finSel').setAttribute('aria-label','完了曲の表示');
+}
+setupSimpleHome();
+
 let reviewedSync=[];try{reviewedSync=JSON.parse(localStorage.getItem('shinkou_sync_reviewed')||'[]')}catch(e){}
 function syncRecords(){return S.log.filter(z=>['sync-conflict','sync-difference'].includes(z.kind))}
 function renderSyncNotice(){
