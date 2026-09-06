@@ -12,3 +12,47 @@ main,#overviewBar{max-width:1180px;margin:auto}main{padding:18px 28px 150px}.dir
 .desk-caption{font-size:12px;color:var(--dim);margin-bottom:12px}.desk-project{margin-bottom:24px;border:1px solid var(--line);border-radius:11px;overflow:hidden;background:var(--panel)}.desk-project-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px;background:#1b2326}.desk-project-head h2{font-size:16px;margin:0;font-weight:600}.desk-project-head>span{font-size:12px;color:var(--dim)}.desk-columns,.desk-row{display:grid;grid-template-columns:1.3fr 1.25fr .8fr 1fr;gap:18px;text-align:left;padding:13px 20px;width:100%;align-items:center}.desk-columns{color:var(--dim);font-size:12px;border-bottom:1px solid var(--line)}.desk-row{min-height:92px;border-bottom:1px solid var(--line)}.desk-row:last-child{border:0}.desk-row:hover{background:#222d30}.desk-row b,.desk-row strong{font-size:14px;font-weight:550}.desk-row small{font-size:12px;color:var(--dim);display:block;margin-top:4px}.phase-meter{display:flex;gap:3px;max-width:150px;margin-top:10px}.phase-meter i{flex:1;height:3px;background:#37433f;border-radius:2px}.phase-meter .complete{background:var(--green)}.desk-issue{font-size:13px;position:relative;padding-right:15px}.row-arrow{position:absolute;right:0;color:var(--dim);font-size:22px}.desk-mode #fab,.desk-mode #btnSort,.desk-mode #aiBar,.desk-mode #todayBar{display:none!important}.stage-setting-head{display:flex;gap:10px;align-items:center;justify-content:space-between;margin:8px 0 15px;font-size:13px}.stage-setting{display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--line)}.stage-setting label{display:flex;align-items:center;gap:12px;flex:1;min-height:38px}.stage-setting input{width:19px;height:19px;accent-color:var(--green)}.stage-setting span{font-size:14px}.stage-setting small{display:block;color:var(--dim);font-size:12px}.stage-setting.child{padding-left:20px}.preset-row{display:flex;gap:9px;margin-bottom:15px}.conflict-banner{display:block;text-align:left;background:#382f20;color:#f3d39b;border:1px solid #6b5835;border-radius:8px;padding:12px 18px;margin:12px 28px 0}.conflict-banner span{margin-left:25px;font-size:12px}
 @media(min-width:1000px){.top,main,#overviewBar{max-width:1140px}.tools .field{flex:2}.sheet .row{gap:14px}}
 @media(max-width:660px){.top{padding:12px 16px 12px;padding-top:calc(12px + env(safe-area-inset-top,0px))}.brand{font-size:23px}.brand small{font-size:9px}.workspace-heading{margin:17px 0 12px}.workspace-heading h1{font-size:21px}.workspace-date{font-size:11px}#workspaceMode button{padding:7px 11px;min-width:54px}.dirbar,.usebar{overflow:auto;flex-wrap:nowrap}.chip{flex-shrink:0}.tools{flex-wrap:wrap;gap:6px}.tools .field{flex:1 0 100%}.tools select.sel{flex:1;min-width:0;font-size:13px}.tools .field:focus-within ~ select.sel{display:none}main{padding:15px 16px 140px}#sheet{top:0;height:100dvh;border-radius:0}.shead{padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px))}.shead #shTitle{font-size:21px!important}.sbody{padding:0 16px 30px}.song-tabs{gap:22px;margin-bottom:15px}.song-tabs button{font-size:13px;padding:13px 0}.current-card{padding:16px}.current-line h2{font-size:21px}.current-meta{gap:10px;font-size:12px}.current-actions{display:grid;grid-template-columns:1fr 1fr}.current-actions .btn{font-size:13px;min-height:42px}.summary-grid{gap:10px}.detail-panel{padding:15px}.summary-dates{font-size:13px}.stlist .st{gap:8px;padding:11px 8px!important}.st .who{max-width:90px}.st .nm .t{font-size:14px}.desk-project-head{padding:14px}.desk-project-head h2{font-size:14px}.desk-columns{display:none}.desk-row{grid-template-columns:1.2fr 1fr;gap:12px;padding:16px}.desk-row>span:nth-child(3){font-size:12px}.desk-row>span:nth-child(3)::before{content:'次の締切 ';color:var(--dim)}.desk-row>span:nth-child(3) small{display:none}.desk-row>span:nth-child(4){text-align:right}.desk-song b{font-size:15px}.desk-row strong{font-size:13px}.stage-setting-head{align-items:flex-start}.stage-setting-head .btn{font-size:12px}.aibar{left:12px;right:12px;bottom:calc(10px + env(safe-area-inset-bottom,0px));width:auto}.fab{bottom:calc(84px + env(safe-area-inset-bottom,0px));right:16px}.sfoot{padding-left:16px;padding-right:16px}.conflict-banner{margin-left:16px;margin-right:16px}}
+
+/* 2026-09-06-b: 工程は通常のレイアウトに配置し、文字と操作の領域を分離する。 */
+#stList{padding:0;border-radius:12px}
+#stList::before{display:none}
+#stList .st{display:grid;grid-template-columns:44px minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:12px!important;margin:0;min-height:76px;border-left:0}
+#stList .st .chk,#stList .st.cur .chk,#stList .st.kid .chk{position:static;transform:none;left:auto;top:auto;grid-column:1;grid-row:1;width:44px;height:44px;min-width:44px;border:1px solid #56635f;border-radius:12px;background:#19211e;box-shadow:none;font-size:17px;color:transparent}
+#stList .st .chk[aria-checked=true]{background:#365747;border-color:#709d88;color:#d9f5e7}
+#stList .st.cur .chk{border:2px solid var(--green)}
+#stList .st .nm{grid-column:2;min-height:44px;display:flex;flex-direction:column;justify-content:center;border:0;padding:0}
+#stList .st .nm .t{font-size:15px;font-weight:550;white-space:normal;overflow:visible;overflow-wrap:anywhere;line-height:1.55;color:var(--ink)}
+#stList .st .nm .s{font-size:12px;line-height:1.6;color:var(--dim);overflow-wrap:anywhere}
+#stList .st.cur{background:#1a2c24!important;box-shadow:inset 3px 0 var(--green)}
+#stList .st.on .nm .t{color:var(--dim);text-decoration:none}
+#stList .st.kid .nm .t{font-size:14px;font-weight:400}
+#stList .st .qdt{grid-column:3;min-height:44px;display:flex;align-items:center}
+#stList .qdb{font-family:var(--jp);padding:10px 12px;font-size:13px;color:#cedbd5;border-radius:8px;background:#25312c}
+#stList .st .who{grid-column:4;min-height:44px;min-width:68px;padding:8px 10px;font-size:12px;border-radius:8px;max-width:none}
+#stList .gph{display:flex;align-items:center;min-height:50px;padding:12px 14px!important;font-family:var(--jp);letter-spacing:.03em;color:#c5d3ce!important}
+#stList .dtl{margin:0;padding:18px!important;border-left:0;background:#17201d}
+.sheet{max-height:100dvh;overscroll-behavior:contain}.sbody{min-height:0;overscroll-behavior:contain;scroll-padding:16px}.shead>div{min-width:0}.eyebrow{line-height:1.6;overflow-wrap:anywhere}.shead #shTitle{overflow-wrap:anywhere;line-height:1.45!important}.shead .iconbtn{flex-shrink:0;width:44px;height:44px}
+.sfoot{gap:12px;padding-top:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}.sfoot .btn{min-height:44px}.song-tabs{gap:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr))}.song-tabs button{text-align:center;min-height:48px}.flow-toolbar{gap:10px;flex-wrap:wrap}.flow-toolbar .btn{min-height:44px}.btn:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--green);outline-offset:3px}.btn:disabled{opacity:.5}
+@media(max-width:660px){
+  .top{padding-left:14px;padding-right:14px}.workspace-heading{gap:8px}.workspace-heading h1{font-size:20px}.brand small{letter-spacing:.06em}
+  .tools .field:focus-within ~ select.sel{display:block}
+  .shead{padding:12px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px))}.shead .eyebrow{font-size:11px;line-height:1.55}.shead #shTitle{font-size:20px!important;margin-top:3px}.sbody{padding-left:12px;padding-right:12px}.sfoot{padding-left:12px;padding-right:12px}.sfoot .btn{font-size:14px}
+  #stList .st{grid-template-columns:44px minmax(0,1fr) auto;gap:4px 10px;padding:12px!important;min-height:90px}
+  #stList .st .chk,#stList .st.cur .chk,#stList .st.kid .chk{grid-row:1 / 3;align-self:start;margin-top:2px}
+  #stList .st .nm{grid-column:2 / 4;grid-row:1;padding:0;min-height:44px}
+  #stList .st .qdt{grid-column:2;grid-row:2;justify-self:start;min-width:70px}
+  #stList .st .who{grid-column:3;grid-row:2;justify-self:end}
+  #stList .st.kid .nm .t{font-size:14px}
+  #stList .dtl{padding:14px!important}.dtl .row{flex-wrap:wrap;gap:12px}.dtl .row>.fg{flex:1 1 140px}.slot .sl1{flex-wrap:wrap}.sl1 .dtbox{flex:1 1 145px}
+  .summary-grid{grid-template-columns:1fr}.summary-event{gap:14px}.history-row{flex-direction:column;gap:4px}.preset-row{flex-wrap:wrap}.stage-setting-head{flex-wrap:wrap}.stage-setting .btn{min-height:44px;min-width:40px}.stage-setting.child{padding-left:12px}
+  .current-card{padding:16px}.current-line h2{font-size:20px;line-height:1.5}.current-meta{font-size:13px}.current-note{font-size:14px}.chip{min-height:42px}.seg2 button{min-height:44px}.dtcal{width:40px}.dtbox .dt{padding-right:44px}
+}
+/* iOSの入力フォーカス時の自動拡大を防ぐ。利用者によるピンチ拡大は維持する。 */
+@media(pointer:coarse),(max-width:660px){
+  input:not([type=checkbox]):not([type=radio]),textarea,select,.inp,.field input,.tools select.sel,.dtl input.dt,.slot .inp,.st input[type=date],.qdt .dtpick{font-size:16px!important}
+  input:not([type=checkbox]):not([type=radio]):not(.dtpick),select{min-height:44px}
+  button,a,input,select,textarea{touch-action:manipulation}
+  .iconbtn{min-width:44px;min-height:44px}.qc{min-height:40px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+#stList .st.on{opacity:1;min-height:64px;background:#131a17}#stList .st.on .chk{grid-row:1}#stList .st.on .nm .s{color:#92a59b}

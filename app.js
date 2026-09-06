@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],templates:[tplSingle(
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-06-a";
+const APP_VER="2026-09-06-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1343,10 +1343,10 @@ function drawSong(){
       if(!sub)sub=esc("締切なし")}
     h+='<div class="st '+(dn?"on":"")+' '+(late?"late":"")+' '+(x.d===1?"kid":"")+' '+(i===ci?"cur":"")+'" data-srow="'+x.k+'">'+
       '<button class="grip" data-tg="'+x.k+'">⠿</button>'+
-      '<button class="chk" role="checkbox" aria-checked="'+dn+'" data-k="'+x.k+'" data-ki="'+i+'">✓</button>'+
+      '<button class="chk" role="checkbox" aria-label="'+esc(x.n)+'の完了" aria-checked="'+dn+'" data-k="'+x.k+'" data-ki="'+i+'">✓</button>'+
       '<button class="nm" data-ex="'+x.k+'"><span class="t">'+esc(x.n)+
         '</span><span class="s">'+sub+'</span></button>'+
-      (dn?"":'<span class="qdt"><input type="date" class="dtpick" data-qd="'+x.k+'" '+
+      (dn?"":'<span class="qdt"><input type="date" aria-label="'+esc(x.n)+'の日付" class="dtpick" data-qd="'+x.k+'" '+
         'value="'+esc(/^\d{4}-\d{2}-\d{2}$/.test(d||"")?d:"")+'">'+
         '<span class="qdb">'+(d?esc(D.md(d)):"日付")+'</span></span>')+
       (dn||kid?"":'<button class="who '+w.c+'" data-bt="'+x.k+'" title="タップで状態を切替">'+esc(w.t)+'</button>')+
