@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-07-a";
+const APP_VER="2026-09-08-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -741,7 +741,7 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
   if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode","flowDone"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
-function viewSave(){try{localStorage.setItem("shinkou_view",
+function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
   JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",flowDone:V.flowDone!==false,calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
@@ -1094,7 +1094,7 @@ function render(){
   const m=document.getElementById("main");
   if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
   const list=pool();
-  if(V.mode==="desk"&&S.songs.length){renderDesk(m,list);return}
+  if(V.mode==="desk"){renderDesk(m,list);return}
   if(V.mode!=="desk"){renderAssistantHome(m,list);return}
   if(!S.songs.length){
     m.innerHTML='<div class="empty"><h3>まだ楽曲がありません</h3>'+
@@ -1246,7 +1246,7 @@ function stageDrag(s,box,rf){
     let pos=0;s.stageList=s.stageList.map(x=>order.includes(x.k)?chosen[pos++]:x);
     mark();drawSong();rf()})}
 let cur=null,stOpen="",stAdv={},gpOpen={};
-function openSong(id){cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};songTab="summary";head();drawSong();show("sheet")}
+function openSong(id){aiViewRevision++;cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};songTab="summary";head();drawSong();show("sheet")}
 function head(){
   document.getElementById("shTitle").textContent=songTitle(cur);
   const st=status(cur),L=stages(cur);
@@ -2426,6 +2426,7 @@ function invSheet(){
 /* ===================== settings ===================== */
 let setOpen="";
 function openSettings(){
+  if(RO){s2("進行","閲覧専用","<p class=\"hint\">デスク用の表示です。制作データや設定は変更できません。</p>",[{t:"閉じる",c:"btn",f:()=>hide("sheet2")}]);return}
   const g=S.settings.gh;
   const secs=[
     {id:"basic",t:"案件とメンバー",h:()=>{
@@ -2489,7 +2490,12 @@ function openSettings(){
     {id:"sec",t:"セキュリティ",h:()=>
       '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
       '<p class="hint">パスコードを忘れると復号できません。</p>'},
-    {id:"share",t:"閲覧専用リンク",h:()=>
+    {id:"deskUrl",t:"URL確認・デスク表示",h:()=>
+      '<p class="hint">デスク用URLでは、楽曲の状態と締切を閲覧専用で表示します。</p>'+
+      '<label class="lbl" for="deskPreviewUrl">この端末での表示確認</label><input id="deskPreviewUrl" class="inp" readonly value="'+esc(deskPreviewURL())+'">'+
+      '<p><a class="btn" href="'+esc(deskPreviewURL())+'" target="_blank" rel="noopener">デスク表示を確認</a></p>'+
+      '<p class="hint">このURLだけでは別の端末へ制作データは共有されません。メール招待によるアクセス制御はまだ未接続です。</p>'},
+    {id:"share",t:"共有データの公開（従来方式）",h:()=>
       '<div class="warnbox">公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
       '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
       '<div><span class="lbl">Repo</span><input class="inp" id="gR" value="'+esc(g.repo)+'"></div></div>'+
@@ -2718,16 +2724,17 @@ async function publish(){
     const r=await fetch(api,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr),body:JSON.stringify(body)});
     if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,150));
     const raw="https://raw.githubusercontent.com/"+g.owner+"/"+g.repo+"/"+(g.branch||"main")+"/"+g.path;
-    const url=location.origin+location.pathname+"?data="+encodeURIComponent(raw);
+    const url=location.origin+location.pathname+"?mode=desk&data="+encodeURIComponent(raw);
     out.innerHTML='<div class="warnbox okbox">公開しました。閲覧専用リンクです。'+
       '<input class="inp mono" style="margin-top:7px;font-size:11px" value="'+esc(url)+'" readonly onclick="this.select()"></div>'}
   catch(e){out.innerHTML='<div class="warnbox">公開できませんでした。'+esc(e.message||e)+'<br>Tokenのrepo権限とブランチ名を確認してください。</div>'}
   btn.disabled=false;btn.textContent="共有版を公開"}
 
 /* ===================== plumbing ===================== */
+let aiViewRevision=0;
 function show(id){document.getElementById(id).classList.add("on");
   document.getElementById("scrim").classList.add("on");document.body.style.overflow="hidden"}
-function hide(id){document.getElementById(id).classList.remove("on");
+function hide(id){aiViewRevision++;if(id==="sheet3")AIPV=null;document.getElementById(id).classList.remove("on");
   if(!document.querySelector(".sheet.on")){document.getElementById("scrim").classList.remove("on");document.body.style.overflow=""}}
 function mkSheet(pre,eye,title,html,btns){
   document.getElementById(pre+"Eye").textContent=eye;
@@ -2736,8 +2743,8 @@ function mkSheet(pre,eye,title,html,btns){
   const f=document.getElementById(pre+"Foot");f.innerHTML="";
   (btns||[]).filter(Boolean).forEach(b=>{if(b.sp){const d=document.createElement("div");d.style.flex="1";f.appendChild(d);return}
     const e=document.createElement("button");e.className=b.c||"btn";e.textContent=b.t;e.onclick=b.f;f.appendChild(e)})}
-function s2(e,t,h,b){mkSheet("s2",e,t,h,b);show("sheet2")}
-function s3(e,t,h,b){mkSheet("s3",e,t,h,b);show("sheet3")}
+function s2(e,t,h,b){aiViewRevision++;mkSheet("s2",e,t,h,b);show("sheet2")}
+function s3(e,t,h,b){aiViewRevision++;mkSheet("s3",e,t,h,b);show("sheet3")}
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>hide("sheet"));
 document.querySelectorAll("[data-close2]").forEach(b=>b.onclick=()=>hide("sheet2"));
 document.querySelectorAll("[data-close3]").forEach(b=>b.onclick=()=>hide("sheet3"));
@@ -2877,7 +2884,7 @@ function aiCfg(){if(!S.settings.ai)S.settings.ai={key:"",model:AI_DEF_MODEL};
   return S.settings.ai}
 
 /* いまのデータの要約。AIが人名・曲名・工程を寄せられるように渡す */
-function aiCtx(){
+function aiCtx(scope=conversationScope()){
   const cap=(a,n)=>(a||[]).slice(0,n);
   const people={};
   ["director","lyricist","composer","arranger","engineer","musician","studio","artist"].forEach(k=>{
@@ -2908,7 +2915,7 @@ function aiCtx(){
     if(s.note)o.note=String(s.note).slice(0,200);
     return o});
   return {guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
-    open_song:cur?S.songs.indexOf(cur):-1}
+    open_song:scope==="global"?-1:S.songs.findIndex(s=>s.id===scope)}
 }
 
 const AI_SYS=[
@@ -2988,10 +2995,10 @@ async function aiChat(msgs){
   if(!out)throw new Error("解釈結果を読めませんでした");
   return {out:out,tx:tx}}
 
-async function aiCall(text){
-  const msgs=[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx())+"\n\n入力:\n"+text}];
+async function aiCall(text,scope=conversationScope()){
+  const msgs=[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx(scope))+"\n\n入力:\n"+text}];
   const r=await aiChat(msgs);
-  return {out:r.out,msgs:msgs.concat([{role:"assistant",content:r.tx}])}}
+  return {out:r.out,msgs:msgs.concat([{role:"assistant",content:r.tx}]),scope:scope}}
 
 /* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
 function aiResolve(op){
@@ -3119,9 +3126,9 @@ function aiApply(r){
     default:throw new Error("未対応の操作")}}
 
 let AIPV=null;
-function aiPreview(res,msgs,qtxt){
-  saveAssistantConversation(msgs,qtxt);
-  AIPV={list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",questions:Array.isArray(res.questions)?res.questions.filter(q=>typeof q==="string").slice(0,3):[],msgs:msgs,q:qtxt||""};
+function aiPreview(res,msgs,qtxt,scope=conversationScope()){
+  saveAssistantConversation(msgs,qtxt,scope);
+  AIPV={scope:scope,list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",questions:Array.isArray(res.questions)?res.questions.filter(q=>typeof q==="string").slice(0,3):[],msgs:msgs,q:qtxt||""};
   if(AIPV.ans){const a=aiCfg();if(!a.hist)a.hist=[];
     a.hist.unshift({q:AIPV.q.slice(0,120),a:AIPV.ans.slice(0,1500),at:Date.now()});
     if(a.hist.length>20)a.hist.length=20;mark()}
@@ -3167,14 +3174,14 @@ function aiPreview(res,msgs,qtxt){
     const fx=document.getElementById("aiFix"),fg=document.getElementById("aiFixGo");
     const doFix=async()=>{
       const f=fx.value.trim();if(!f||fg.disabled)return;
-      const pending=AIPV;
+      const pending=AIPV,revision=aiViewRevision;
       fg.disabled=true;fx.disabled=true;fg.textContent="…";
       const ms=AIPV.msgs.concat([{role:"user",content:
-        "相談の続き・回答:\n"+f+"\n最新データ:\n"+JSON.stringify(aiCtx())+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
+        "相談の続き・回答:\n"+f+"\n最新データ:\n"+JSON.stringify(aiCtx(pending.scope))+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
       try{const r=await aiChat(ms);
-        if(AIPV!==pending)return;
-        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),pending.q+" › "+f)}
-      catch(e){if(AIPV!==pending)return;toast("送信できませんでした: "+(e.message||e));
+        if(AIPV!==pending||aiViewRevision!==revision)return;
+        aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),pending.q+" › "+f,pending.scope)}
+      catch(e){if(AIPV!==pending||aiViewRevision!==revision)return;toast("送信できませんでした: "+(e.message||e));
         fg.disabled=false;fx.disabled=false;fg.textContent="送信"}};
     fg.onclick=doFix;
     fx.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.isComposing){e.preventDefault();doFix()}})};
@@ -3216,7 +3223,8 @@ function aiHistSheet(){
      a.drafts.push({t:t,at:Date.now()});mark();q.value="";
      toast("オフラインなので下書きに残しました");return}
    go.disabled=true;q.disabled=true;const old=go.textContent;go.textContent="…";
-   try{const r=await aiCall(t);aiPreview(r.out,r.msgs,t)}
+   const revision=aiViewRevision,scope=conversationScope();
+   try{const r=await aiCall(t,scope);if(revision===aiViewRevision&&scope===conversationScope())aiPreview(r.out,r.msgs,t,r.scope)}
    catch(e){toast("解釈できませんでした: "+(e.message||e))}
    go.disabled=false;q.disabled=false;go.textContent=old};
  go.onclick=run;
@@ -3560,6 +3568,7 @@ async function boot(){
     document.getElementById("lockPin").onkeydown=e=>{if(e.key==="Enter")go()};
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
+  if(RO){render();return}
   purgeTrash();
   {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true;if(fixDeps(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();

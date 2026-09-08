@@ -9,6 +9,28 @@ function songSummary(s){
   const finished=L.length>0&&state.k==='fin';
   return {state,L,x,ball,next,finished,title:!L.length?'工程未設定':finished?'全工程完了':plainStage(x.n),issue:!L.length?'工程を設定してください':state.left!==null&&state.left<0?(-state.left)+'日超過':ball.c==='other'||ball.c==='room'?ball.t:!next&&!finished?'次の日程が未設定':finished?'完了':'—'};
 }
+// 登録済みの記録を表示する。未入力の状況・日程は推測で補わない。
+function songSnapshot(s){
+  const a=songSummary(s),pending=a.L.filter((x,i)=>!hasKids(a.L,i)&&!doneOf(s,a.L,i));
+  const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];
+  const w=x?whoOf(s,x):null,n=x?plainStage(x.n):'',o=x?stg(s,x.k):{};
+  const state=a.finished?'完了':!x?'状況未登録':n+' · '+w.t;
+  const action=a.finished?'完了した作業を見返せます':!x?'今の状況と次の予定を相談':w.c==='me'?n+'の内容を確認・進行':w.c==='other'||w.c==='room'?n+'の返事・受け取り状況を確認':w.c==='wait'?n+'の予定を確認':w.c==='late'?w.t+'を確認':n+'の依頼・段取りを確認';
+  const date=a.next?.date||'',left=date?D.to(date):null;
+  return {state,action,memo:String(o.memo||'').split('\n')[0],date,left,dueTask:a.next?plainStage(a.next.x.n):'',finished:a.finished};
+}
+function songSnapshotHTML(s){
+  const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
+  const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
+  return '<div class="song-snapshot"><div class="snapshot-status"><small>現在の状態</small><strong>'+esc(a.state)+'</strong></div><div class="snapshot-action"><small>次に確認すること</small><span>'+esc(a.action)+'</span></div><div class="snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':'')+'"><small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span></div>'+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'')+'</div>';
+}
+function songOverview(list){
+  const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
+  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div><p class="hint">登録済みの作業・日程から表示しています。締切が近い順です。</p><div class="snapshot-list">'+(sorted.map(s=>'<button class="snapshot-card" data-brief-song="'+esc(s.id)+'"><span class="snapshot-title"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></span>'+songSnapshotHTML(s)+'</button>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
+}
+function deskPreviewURL(){
+  const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href;
+}
 function renderWorkspace(){
   document.body.classList.toggle('desk-mode',V.mode==='desk');
   document.body.classList.toggle('assistant-first',V.mode!=='desk'&&V.use!=='cal');
@@ -22,15 +44,12 @@ function renderWorkspace(){
   document.getElementById('dirbar').style.display=dirs.length<=1?'none':'';
 
 }
-document.querySelectorAll('[data-mode]').forEach(b=>b.onclick=()=>{V.mode=b.dataset.mode;render()});
+const deskParams=new URLSearchParams(location.search);
+V.mode=deskParams.has('data')||deskParams.get('mode')==='desk'?'desk':'work';
+if(V.mode==='desk'){RO=true;V.dir='__all';V.who='all';V.fin='show';V.use='all';}
 function renderDesk(el,list){
-  const sorted=list.slice().sort(byDue),groups=new Map();
-  sorted.forEach(s=>{const p=projOf(s.projectId),key=(s.artist||'グループ未設定')+' / '+projTitle(p);if(!groups.has(key))groups.set(key,[]);groups.get(key).push(s)});
-  el.innerHTML='<div class="desk-caption">状況確認用の表示</div>'+(!list.length?'<div class="empty">該当する楽曲がありません</div>':[...groups].map(([name,songs])=>'<section class="desk-project"><div class="desk-project-head"><h2>'+esc(name)+'</h2><span>'+songs.length+'曲</span></div><div class="desk-columns"><span>楽曲・担当</span><span>現在の状況</span><span>次の締切</span><span>確認事項</span></div>'+songs.map(s=>{
-    const a=songSummary(s),groups=[...new Set(a.L.map(x=>x.gp||'その他'))],L=groups.map(g=>({name:g,done:a.L.filter(x=>(x.gp||'その他')===g).every(x=>doneOf(s,a.L,a.L.indexOf(x)))})),done=L.filter(x=>x.done).length;
-    return '<button class="desk-row" data-desk-song="'+esc(s.id)+'"><span class="desk-song"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.director||'担当未設定')+'</small></span><span><strong>'+esc(a.title)+'</strong><span class="phase-meter" aria-label="'+done+'/'+L.length+'工程完了">'+L.map(x=>'<i class="'+(x.done?'complete':'')+'"></i>').join('')+'</span></span><span><b>'+esc(a.next?D.md(a.next.date):'—')+'</b><small>'+esc(a.next?plainStage(a.next.x.n):'')+'</small></span><span class="desk-issue '+(a.state.left<0?'overdue':'')+'">'+esc(a.issue)+'<span class="row-arrow">›</span></span></button>'
-  }).join('')+'</section>').join(''));
-  el.querySelectorAll('[data-desk-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.deskSong));
+  el.innerHTML='<p class="desk-caption">デスク用 · 閲覧のみ</p>'+songOverview(list);
+  el.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
 }
 function songTabs(){return '<nav class="song-tabs" aria-label="曲の詳細">'+[['summary','状況'],['credits','クレジット'],['notes','メモ・履歴']].filter(([key])=>V.mode!=='desk'||key!=='flow').map(([key,label])=>'<button data-song-tab="'+key+'" aria-pressed="'+(songTab===key)+'">'+label+'</button>').join('')+'</nav>'}
 function wireSongTabs(){document.querySelectorAll('[data-song-tab]').forEach(b=>b.onclick=()=>{songTab=b.dataset.songTab;drawSong()})}
@@ -221,12 +240,14 @@ function showSyncRecords(){
 function plannerSheet(initial=''){
  if(typeof initial!=='string')initial='';
  if(RO)return toast('閲覧専用です');
+ const scope=conversationScope();
  s3('AIアシスタント',cur?songTitle(cur)+'の相談':'制作全体の相談',
  '<p class="planner-lead">決まっていることも、迷っていることも、そのままお話しください。</p><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div><textarea id="plannerText" class="inp" rows="6" placeholder="例：来月発売で、歌録りは来週の予定です。何から決めればいいですか？"></textarea><p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
  [{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'相談する',c:'btn pri',f:async()=>{
    const text=document.getElementById('plannerText').value.trim();if(!text)return;
    const error=document.getElementById('plannerError'),button=document.querySelector('#s3Foot .pri');button.disabled=true;error.textContent='状況を整理しています…';
-   try{const r=await aiCall(text);aiPreview(r.out,r.msgs,text)}catch(e){error.textContent=e.message||String(e);button.disabled=false}
+   const revision=aiViewRevision;
+   try{const r=await aiCall(text,scope);if(revision!==aiViewRevision||scope!==conversationScope()||!error.isConnected)return;aiPreview(r.out,r.msgs,text,r.scope)}catch(e){if(revision!==aiViewRevision||!error.isConnected)return;error.textContent=e.message||String(e);button.disabled=false}
  }}]);
  document.getElementById('plannerText').value=initial;
  document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{document.getElementById('plannerText').value=b.dataset.prompt;document.getElementById('plannerText').focus()});
@@ -271,9 +292,9 @@ function editAssistantRule(id){
  document.getElementById('ruleScope').onchange=update;update();
 }
 function conversationScope(){return cur?.id||'global';}
-function saveAssistantConversation(msgs,q){
+function saveAssistantConversation(msgs,q,scope=conversationScope()){
  if(RO)return;
- const cfg=aiCfg(),scope=conversationScope();if(!cfg.conversations)cfg.conversations=[];
+ const cfg=aiCfg();if(!cfg.conversations)cfg.conversations=[];
  const record={scope,q:String(q||'').slice(-1000),msgs:ShinkouCore.copy(msgs.slice(-12)),at:Date.now()};
  cfg.conversations=[record,...cfg.conversations.filter(x=>x.scope!==scope)].slice(0,20);mark();
 }
@@ -283,11 +304,11 @@ async function resumeAssistantConversation(){
  // Earlier proposed operations may already be applied: never replay them on resume.
  const safeMsgs=row.msgs.map(m=>{if(m.role!=='assistant')return m;try{const value=JSON.parse(m.content);value.ops=[];return {...m,content:JSON.stringify(value)}}catch{return m}});
  safeMsgs.push({role:'user',content:'前の相談を再開します。過去の操作は再実行しないでください。次の発言で明示された新しい変更だけを提案してください。最新データ:'+JSON.stringify(aiCtx())});
- aiPreview({ops:[],ans:result.ans||'前の相談の続きです。',questions:result.questions||[]},safeMsgs,row.q);
+ aiPreview({ops:[],ans:result.ans||'前の相談の続きです。',questions:result.questions||[]},safeMsgs,row.q,row.scope);
 }
 function assistantSongCard(s){
- const a=songSummary(s),L=a.L,completed=L.filter((x,i)=>!hasKids(L,i)&&doneOf(s,L,i)),waiting=L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)&&['other','room'].includes(whoOf(s,x).c));
- return '<section class="assistant-status"><small>記録されている状況</small><h2>'+esc(a.finished?'作業は完了しています':waiting.length?'返事・受け取り待ちがあります':a.next?'次の予定があります':'次の予定を相談しましょう')+'</h2>'+(a.next?'<p>'+esc(D.md(a.next.date))+' · '+esc(plainStage(a.next.x.n))+'</p>':'')+(completed.length?'<p class="muted">完了の記録 '+completed.length+'件</p>':'')+'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':'')+'</section>';
+ const a=songSummary(s),completed=a.L.filter((x,i)=>!hasKids(a.L,i)&&doneOf(s,a.L,i));
+ return '<section class="assistant-status">'+songSnapshotHTML(s)+(completed.length?'<p class="muted">完了の記録 '+completed.length+'件</p>':'')+(!RO?'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':''):'')+'</section>';
 }
 function assistantBrief(list){
  const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));
@@ -297,10 +318,12 @@ function renderAssistantHome(el,list){
  const brief=assistantBrief(list),history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
  document.body.classList.add('assistant-first');
  el.innerHTML='<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea><div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'')+'<details class="assistant-library"><summary>楽曲を探す <span>'+list.length+'曲</span></summary><div class="home-list">'+(list.map(s=>'<button class="brief-row" data-brief-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>'+esc([s.artist,s.director].filter(Boolean).join(' · '))+'</small></span><span>›</span></button>').join('')||'<p>まだ楽曲がありません。相談欄から新しい制作を始められます。</p>')+'</div></details>';
+ el.querySelector('.assistant-library')?.remove();
+ el.insertAdjacentHTML('afterbegin',songOverview(list));
  el.querySelector('#assistantMemory').onclick=()=>{cur=null;assistantKnowledge()};
  el.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
  el.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});
- const send=async()=>{const input=el.querySelector('#assistantInput'),text=input.value.trim();if(!text)return;if(RO)return;cur=null;const button=el.querySelector('#assistantSend'),error=el.querySelector('#assistantError');button.disabled=true;input.disabled=true;error.textContent='状況を整理しています…';try{const r=await aiCall(text);aiPreview(r.out,r.msgs,text);error.textContent='';input.value=''}catch(e){error.textContent=e.message||String(e)}finally{button.disabled=false;input.disabled=false}};
+ const send=async()=>{const input=el.querySelector('#assistantInput'),text=input.value.trim();if(!text)return;if(RO)return;cur=null;const button=el.querySelector('#assistantSend'),error=el.querySelector('#assistantError');button.disabled=true;input.disabled=true;error.textContent='状況を整理しています…';const revision=aiViewRevision;try{const r=await aiCall(text,'global');if(revision!==aiViewRevision||conversationScope()!=='global'||!input.isConnected)return;aiPreview(r.out,r.msgs,text,r.scope);error.textContent='';input.value=''}catch(e){error.textContent=e.message||String(e)}finally{if(error.textContent==='状況を整理しています…')error.textContent='';button.disabled=false;input.disabled=false}};
  el.querySelector('#assistantSend').onclick=send;
  el.querySelector('#assistantReview').onclick=()=>{cur=null;plannerSheet('現在の記録をもとに、抜けている可能性のある情報や次の段取りを一緒に整理してください。不明なことは質問してください。')};
  const resume=el.querySelector('#assistantContinue');if(resume)resume.onclick=()=>{cur=null;resumeAssistantConversation()};
