@@ -2577,7 +2577,7 @@ function wireSettings(B){
         await Promise.all(rs.map(r=>r.unregister()))}
         if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}
       }catch(e){}
-      location.replace(location.pathname+"?v="+Date.now())});
+      const nextURL=new URL(location.href);nextURL.searchParams.set("v",String(Date.now()));location.replace(nextURL.href)});
   on("#exJ",exportJSON);on("#imJ",importJSON);on("#exC",exportCSV);on("#rest",restoreSheet);
   on("#pinBtn",pinSheet);on("#pub",publish);
   [["gO","owner"],["gR","repo"],["gP","path"],["gB","branch"],["gT","token"]].forEach(x=>{
