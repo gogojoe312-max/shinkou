@@ -130,3 +130,17 @@ body{background:#111113;color:#eeeef2;-webkit-font-smoothing:antialiased}
 @media(min-width:900px){.top,#main,#overviewBar{max-width:900px}.assistant-first #main{padding-top:22px}}
 @media(max-width:600px){.top{padding-top:calc(16px + env(safe-area-inset-top,0px))!important}.overview-heading{margin:2px 1px 20px}.overview-heading h2{font-size:25px}.snapshot-list{border-radius:20px}.snapshot-card{grid-template-columns:minmax(0,1fr) 100px;column-gap:18px;row-gap:6px;padding:23px 19px}.snapshot-title b{font-size:21px}.snapshot-title small{font-size:11px}.snapshot-status strong{font-size:14px}.snapshot-action span{font-size:12px}.snapshot-card .snapshot-deadline{padding-top:2px}.snapshot-deadline strong{font-size:25px}.snapshot-deadline span{font-size:11px}.snapshot-deadline>small{font-size:10px}.snapshot-memo{font-size:12px}.assistant-welcome{display:flex;gap:12px}.assistant-welcome h2{font-size:18px}.assistant-welcome .btn{margin:0;padding:4px 0;min-height:44px}.assistant-composer{padding:18px}.assistant-status{padding:20px}.assistant-status .song-snapshot{grid-template-columns:minmax(0,1fr) 95px}.assistant-status .snapshot-status strong{font-size:19px}}
 @media(prefers-reduced-motion:reduce){.snapshot-card{transition:none}}
+
+/* Phone-first refinement, checked inside 390px and 430px viewports. */
+.snapshot-deadline.unscheduled strong{font-size:16px;letter-spacing:0;color:#a9a9b7;font-weight:400}
+.assistant-status .song-snapshot{align-items:start;row-gap:10px}.assistant-status .snapshot-memo{grid-row:3;padding-top:4px}.assistant-status .snapshot-action span{font-size:14px;color:#b9b9c7}.assistant-status .btn.pri{background:#d6e0ef;color:#202532}
+@media(max-width:600px){
+ .assistant-first #main{padding-top:8px}.overview-heading{margin:0 1px 16px}.song-overview{margin-bottom:28px}
+ .snapshot-card{grid-template-columns:minmax(0,1fr) 94px;column-gap:12px;row-gap:10px;padding:20px 18px}
+ .snapshot-card .snapshot-deadline{grid-row:1;gap:3px}.snapshot-title{margin-bottom:2px}.snapshot-title b{font-size:21px}.snapshot-title small{font-size:12px;color:#a4a4b2}
+ .snapshot-card .snapshot-status{grid-column:1/-1;grid-row:2}.snapshot-card .snapshot-action{grid-column:1/-1;grid-row:3}
+ .snapshot-status strong{font-size:16px;color:#dedee7;line-height:1.6}.snapshot-action span{font-size:14px;color:#b9b9c7;line-height:1.7}.snapshot-memo{font-size:14px;color:#b4bfce;line-height:1.7;padding-top:2px}
+ .snapshot-deadline span{font-size:12px}.snapshot-deadline>small{font-size:11px}.snapshot-deadline.unscheduled strong{font-size:15px}
+ .assistant-status .snapshot-status strong{font-size:18px}.assistant-status .snapshot-memo{font-size:14px}.summary-options .btn{font-size:14px;min-height:46px}
+ .desk-mode .workspace-heading{display:none}.desk-caption{margin-top:4px}
+}
