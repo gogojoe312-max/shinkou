@@ -144,3 +144,22 @@ body{background:#111113;color:#eeeef2;-webkit-font-smoothing:antialiased}
  .assistant-status .snapshot-status strong{font-size:18px}.assistant-status .snapshot-memo{font-size:14px}.summary-options .btn{font-size:14px;min-height:46px}
  .desk-mode .workspace-heading{display:none}.desk-caption{margin-top:4px}
 }
+
+/* 2026-09-10: native grouped surfaces, readable work history and current action. */
+:root{--bg:#000;--panel:#1c1c1e;--ink:#f5f5f7;--dim:#98989f;--jp:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;--disp:var(--jp);--mono:var(--jp)}
+body{background:#000;font-family:var(--jp)}
+.top .brand{font-weight:650}.top .iconbtn{color:#0a84ff}.tools .field{background:#1c1c1e;border:0;border-radius:12px}
+.overview-heading h2{font-weight:700;letter-spacing:-.045em;font-size:30px}.overview-heading{margin-bottom:18px}
+.snapshot-list{background:none;border:0;border-radius:0;overflow:visible;display:grid;gap:14px}
+.snapshot-card{width:100%;background:#1c1c1e;border:0;border-radius:22px;padding:24px;grid-template-columns:minmax(0,1fr) 100px;gap:14px 18px;text-align:left;color:#f5f5f7}
+.snapshot-card:hover{background:#242426}.snapshot-title{margin:0;gap:3px}.snapshot-title b{font-size:23px;font-weight:650;line-height:1.35;letter-spacing:-.025em}.snapshot-title small{font-size:13px;color:#98989f}
+.snapshot-card .snapshot-deadline{grid-row:1;gap:2px;padding:0}.snapshot-deadline strong{font-size:26px;font-weight:600;letter-spacing:-.035em}.snapshot-deadline>small{font-size:11px;letter-spacing:0}.snapshot-deadline span{font-size:12px;line-height:1.5}
+.snapshot-card .snapshot-progress{grid-column:1/-1;grid-row:2}.snapshot-progress{min-width:0;padding:0 0 15px;border-bottom:1px solid #ffffff12}
+.snapshot-progress>div{display:flex;justify-content:space-between;align-items:baseline;gap:12px;font-size:12px;color:#98989f}.snapshot-progress strong{font-size:19px;color:#f5f5f7;font-weight:600;font-variant-numeric:tabular-nums}.snapshot-progress strong small{font-size:12px;font-weight:400;color:#98989f}
+.snapshot-progress progress{display:block;width:100%;height:4px;margin:9px 0 8px;appearance:none;border:0;border-radius:8px;overflow:hidden;background:#38383a;accent-color:#30d158}.snapshot-progress progress::-webkit-progress-bar{background:#38383a}.snapshot-progress progress::-webkit-progress-value{background:#30d158;border-radius:8px}.snapshot-progress progress::-moz-progress-bar{background:#30d158;border-radius:8px}.snapshot-progress p{font-size:12px;line-height:1.6;color:#a8a8ae;margin:0;overflow-wrap:anywhere}
+.snapshot-card .snapshot-status{grid-column:1/-1;grid-row:3}.snapshot-status>small{position:static;width:auto;height:auto;clip-path:none;overflow:visible;white-space:normal;margin:0 0 4px;display:block;font-size:11px;color:#98989f}.snapshot-status strong{font-size:17px;font-weight:550;color:#f5f5f7;line-height:1.5}
+.snapshot-card .snapshot-action{grid-column:1/-1;grid-row:4}.snapshot-action span{font-size:14px;line-height:1.65;color:#aebed0}.snapshot-action span::before{content:'次は';margin-right:8px;color:#64a9ff;font-size:12px}
+.snapshot-card .snapshot-memo{grid-row:5;color:#98989f;font-size:13px;padding:0}.snapshot-deadline.unscheduled strong{font-size:14px}.snapshot-deadline.overdue strong{color:#ff9f0a}
+.assistant-status{background:#1c1c1e;border:0}.assistant-status .snapshot-progress{grid-column:1/-1;grid-row:1}.assistant-status .snapshot-status{grid-row:2}.assistant-status .snapshot-action{grid-row:3}.assistant-status .snapshot-deadline{grid-row:2/4}.assistant-status .snapshot-memo{grid-row:4}
+.assistant-composer{background:#1c1c1e;border:0}.assistant-composer .btn.pri,.assistant-status .btn.pri{background:#0a84ff;color:white;border-radius:14px}.assistant-composer textarea{min-height:54px}.ai-wait,#plannerError,#assistantError{font-size:14px;line-height:1.7;color:#a8bad1;overflow-wrap:anywhere}
+@media(max-width:600px){.snapshot-card{padding:20px;column-gap:12px;row-gap:13px;border-radius:20px;grid-template-columns:minmax(0,1fr) 86px}.snapshot-title b{font-size:22px}.overview-heading h2{font-size:28px}.snapshot-status strong{font-size:17px}.snapshot-card .snapshot-status,.snapshot-card .snapshot-action{grid-column:1/-1}.snapshot-deadline strong{font-size:25px}.snapshot-progress p{font-size:12px}.snapshot-list{gap:12px}.assistant-status .snapshot-status strong{font-size:18px}}
