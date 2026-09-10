@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-10-e";
+const APP_VER="2026-09-10-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1195,7 +1195,7 @@ function drawSong(){
   '<div class="sec">基準日</div>';
   const useKeys=(s.tplDates&&s.tplDates.length)?s.tplDates:Object.keys(ANCHORS);
   useKeys.forEach(k=>{
-    if(!ANCHORS[k]||HIDE_ANCHOR[k])return;
+    if(!ANCHORS[k]||HIDE_ANCHOR[k]||(k==="mv"&&!songHasMV(s)))return;
     if((k==="open"||k==="rehearsal")&&(s.use||"master")!=="live")return;
     if(SINGLE_ONLY[k]&&s.single===false)return;
     if(k==="release"||k==="open"){
@@ -2804,7 +2804,7 @@ function aiCtx(scope=conversationScope()){
     if(focus>=0&&i!==focus)return {i,title:songTitle(s),artist:s.artist||"",detail:"相談対象外のため詳細省略。変更前にその曲の相談で確認する"};
     const o={i:i,title:songTitle(s),artist:s.artist||"",dir:s.director||"",
       proj:s.projectId?S.projects.findIndex(p=>p.id===s.projectId):-1,
-      live:s.use==="live"?1:0,
+      live:s.use==="live"?1:0,sort:sortOf(s),has_mv:songHasMV(s),
       stages:stages(s).map(x=>{const g=stg(s,x.k);
         const st={k:x.k,n:x.n};if(g.done)st.done=1;if(isMulti(x))st.multi=1;
         if(g.dl)st.dl=g.dl;if(g.st)st.status=g.st;if(g.asg)st.asg=g.asg;
@@ -2829,6 +2829,7 @@ function aiCtx(scope=conversationScope()){
 }
 
 const AI_SYS=[
+"MVは通常シングル曲が対象。アルバム曲・アディショナル曲は原則なし。アルバムリード等の例外はhas_mvを参照し、MVなしの曲へ撮影日を必須として質問しない。",
 "detailに詳細省略とある曲は一覧照合用。情報がないことを未実施と解釈せず、その曲への操作を生成しない。必要ならその曲の相談で確認するよう案内する。",
 "回答は要点を先に、原則3項目以内。質問は次に必要なものだけ、最大3件。説明の繰り返しは省く。",
 "ユーザー専属の制作アシスタントとして、現状と次に必要な確認を簡潔に伝える。画面を工程表として操作することを前提にせず、自然な会話から情報整理・作業の記録・予定調整を提案する。",
