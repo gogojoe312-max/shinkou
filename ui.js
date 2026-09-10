@@ -70,7 +70,6 @@ function renderWorkspace(){
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
   document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'アシスタント';
   const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
-  document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',(V.mode||'work')===b.dataset.mode));
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();
   const dirs=[...new Set(S.songs.map(s=>s.director).filter(Boolean))];
@@ -129,32 +128,6 @@ function drawSongPage(){
   if(V.mode==='desk'||RO){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
   document.getElementById('shDel').style.display=V.mode==='desk'||RO?'none':'';
 }
-function directorSongDraft(director,templateId,title){
-  const s=newSong({director:director.trim(),templateId,title:(title||'').trim()});
-  applyDirectorPreset(s);
-  return s;
-}
-function newDirectorSong(){
-  const names=[...new Set([...(S.masters.director||[]),...S.songs.map(s=>s.director),...S.templates.filter(t=>t.directorPreset).map(t=>t.director)].filter(Boolean))];
-  const initial=V.dir&&V.dir!=='__all'?V.dir:(names.length===1?names[0]:'');
-  const base=V.use==='live'?'tpl_show':'tpl_single';
-  const h='<div class="new-song-intro">ディレクターの標準工程で始めます。</div><label class="new-song-field">ディレクター<input id="newDirector" class="inp" list="newDirectorNames" placeholder="選択、または名前を入力" value="'+esc(initial)+'"><datalist id="newDirectorNames">'+names.map(n=>'<option value="'+esc(n)+'">').join('')+'</datalist></label><label class="new-song-field">曲名・項目名<input class="inp" id="newSongTitle" placeholder="あとで入力もできます"></label><label class="new-song-field">制作の種類<select class="inp" id="newSongBase">'+S.templates.filter(t=>!t.directorPreset).map(t=>'<option value="'+esc(t.id)+'" '+(t.id===base?'selected':'')+'>'+esc(t.name)+'</option>').join('')+'</select></label><div id="newSongPreview" class="new-song-preview"></div>';
-  s3('新しい曲','ディレクターから作成',h,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'作成',c:'btn pri',f:()=>{
-    const d=document.getElementById('newDirector').value.trim();if(!d)return toast('ディレクターを選んでください');
-    const song=directorSongDraft(d,document.getElementById('newSongBase').value,document.getElementById('newSongTitle').value);
-    if(song.use==='live'){const p=openShow();if(p&&p.director===d){song.projectId=p.id;song.artist=p.artist||''}}
-    applySort(song);applySolo(song);S.songs.unshift(song);if(!S.masters.director.includes(d))S.masters.director.push(d);
-    V.dir=d;V.use=song.use;mark();hide('sheet3');render();openSong(song.id);
-  }}]);
-  const preview=()=>{
-    const d=document.getElementById('newDirector').value.trim(),id=document.getElementById('newSongBase').value;
-    const t=S.templates.find(t=>t.directorPreset&&t.director===d&&t.sourceTemplateId===id);
-    const draft=directorSongDraft(d,id,'');
-    document.getElementById('newSongPreview').innerHTML='<b>'+esc(t?d+'さんの標準工程':'基本工程から作成')+'</b><p>'+stages(draft).length+'工程'+(t?' · 保存済みの構成を使用します。':' · 標準はまだ登録されていません。')+'</p><small>曲の「工程設定」で一度整え、「担当者の標準に保存」すると、次から自動で使えます。日程や完了状態は引き継ぎません。</small>';
-  };
-  document.getElementById('newDirector').oninput=preview;document.getElementById('newSongBase').onchange=preview;preview();
-}
-
 function stageSettings(){
   const s=cur;
   const draw=()=>{
@@ -221,30 +194,11 @@ document.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const top=modalS
 });
 modalState();
 
-let homeFocus='all';
-function homeSignal(s){
- const a=songSummary(s),date=a.next?.date||'',left=date?D.to(date):null;
- const waiting=a.L.some((x,i)=>!hasKids(a.L,i)&&!doneOf(s,a.L,i)&&['other','room'].includes(whoOf(s,x).c));
- return {a,date,left,soon:!a.finished&&left!==null&&left<=7,waiting:!a.finished&&waiting};
-}
-function renderFocusedHome(el,list){
- const selected=list.filter(s=>{const a=homeSignal(s);return homeFocus==='all'||(homeFocus==='soon'?a.soon:a.waiting)});
- const sorted=selected.slice().sort((a,b)=>{const x=homeSignal(a),y=homeSignal(b);return Number(x.a.finished)-Number(y.a.finished)||(x.date||'9999').localeCompare(y.date||'9999')||byOrd(a,b)});
- el.innerHTML='<div class="home-focus" role="group" aria-label="確認する楽曲">'+[['all','すべて',list.length],['soon','7日以内・超過',list.filter(s=>homeSignal(s).soon).length],['waiting','相手待ち',list.filter(s=>homeSignal(s).waiting).length]].map(([key,title,n])=>'<button data-home-focus="'+key+'" aria-pressed="'+(homeFocus===key)+'">'+title+' <span>'+n+'</span></button>').join('')+'</div><div class="home-list">'+(sorted.map(s=>compactSongCard(s)).join('')||'<div class="empty"><h3>該当する曲はありません</h3><p>「すべて」から他の曲を確認できます。</p></div>')+'</div>';
- el.querySelectorAll('[data-home-focus]').forEach(b=>b.onclick=()=>{homeFocus=b.dataset.homeFocus;render()});
- el.querySelectorAll('[data-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.song));
-}
-function compactSongCard(s){
- const {a,date,left}=homeSignal(s),context=[s.artist,projTitle(projOf(s.projectId))].filter(Boolean).join(' · ');
- const due=a.finished?'完了':left!==null&&left<0?(-left)+'日超過':left===0?'今日':date?D.md(date):'日程未設定';
- const task=a.next?plainStage(a.next.x.n):a.title,ball=a.next?whoOf(s,a.next.x):a.ball;
- return '<button class="song-card '+(left!==null&&left<0?'late':'')+'" data-song="'+esc(s.id)+'"><span class="song-card-context">'+esc(context)+'</span><span class="song-card-title"><b>'+esc(songTitle(s))+'</b><span class="song-card-due">'+esc(due)+'</span></span><span class="song-card-status"><span>'+esc(a.finished?'全工程完了':task)+'</span><span>'+esc(a.finished?'':ball.t)+'</span></span></button>';
-}
 function setupSimpleHome(){
  const top=document.querySelector('.top'),tools=document.querySelector('.tools');if(!top||!tools)return;
  const filters=document.createElement('details');filters.id='homeFilters';filters.innerHTML='<summary><span id="filterLabel">絞り込み</span><span aria-hidden="true">⌄</span></summary><div class="filter-content"></div>';
  const box=filters.querySelector('.filter-content');
- ['workspaceMode','dirbar','useBar','grpSel','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
+ ['dirbar','useBar','grpSel','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
  top.append(filters);
  // Home has one consistent deadline order; grouping controls remain for legacy views.
  document.getElementById('grpSel').setAttribute('aria-label','並び順');
@@ -342,14 +296,12 @@ function assistantSongCard(s){
 }
 function assistantBrief(list){
  const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));
- return {near:tasks.filter(t=>D.to(t.date)<=7).slice(0,3),missing:list.filter(s=>!isFin(s)&&!homeSignal(s).date).slice(0,2)};
+ return {near:tasks.filter(t=>D.to(t.date)<=7).slice(0,3),missing:list.filter(s=>!isFin(s)&&!songSummary(s).next).slice(0,2)};
 }
 function renderAssistantHome(el,list){
  const brief=assistantBrief(list),history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
  document.body.classList.add('assistant-first');
- el.innerHTML='<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea><div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'')+'<details class="assistant-library"><summary>楽曲を探す <span>'+list.length+'曲</span></summary><div class="home-list">'+(list.map(s=>'<button class="brief-row" data-brief-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>'+esc([s.artist,s.director].filter(Boolean).join(' · '))+'</small></span><span>›</span></button>').join('')||'<p>まだ楽曲がありません。相談欄から新しい制作を始められます。</p>')+'</div></details>';
- el.querySelector('.assistant-library')?.remove();
- el.insertAdjacentHTML('afterbegin',songOverview(list));
+ el.innerHTML=songOverview(list)+'<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea><div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'');
  el.querySelector('#assistantMemory').onclick=()=>{cur=null;assistantKnowledge()};
  el.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
  el.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});

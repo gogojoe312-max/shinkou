@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-10-d";
+const APP_VER="2026-09-10-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1077,111 +1077,17 @@ function cardHTML(s,rank){
     '</div></div>'}
 
 let AEXP={};
-const item=(s,rank)=>compactSongCard(s,rank);
-function renderToday(){
-  const el=document.getElementById("todayBar");if(!el)return;
-  const a=agenda().filter(e=>!e.done&&D.to(e.d)<=0);
-  if(!a.length){el.style.display="none";el.innerHTML="";return}
-  el.style.display="";
-  el.innerHTML='<b>今日</b>'+a.map(e=>
-    '<button class="tdc'+(D.to(e.d)<0?" late":"")+'" data-song="'+e.s.id+'">'+
-    esc(e.x.n)+'<u>'+esc(e.s.title||"（無題）")+'</u></button>').join("");
-  el.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song))}
+// 一覧の描画先をここで決める。各画面が検索済みの曲を受け取る。
 function render(){
   viewSave();
   renderWorkspace();
-  renderDirs();renderUse();syncLists();renderToday();
+  renderDirs();renderUse();syncLists();
   const m=document.getElementById("main");
   if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
   const list=pool();
-  if(V.mode==="desk"){renderDesk(m,list);return}
-  if(V.mode!=="desk"){renderAssistantHome(m,list);return}
-  if(!S.songs.length){
-    m.innerHTML='<div class="empty"><h3>まだ楽曲がありません</h3>'+
-      '<p>楽曲を追加して、日程と制作工程を管理できます。</p>'+
-      '<button class="btn pri" id="seed">サンプルを入れて試す</button></div>';
-    m.querySelector("#seed").onclick=seed;return}
-  if(!list.length){m.innerHTML='<div class="empty"><h3>'+(V.use==="live"?"ライブの制作物がありません":"該当なし")+'</h3>'+
-    '<p>'+(V.use==="live"?"右下の「＋ 制作物」から、オープニングSEやダンス曲を追加できます。<br>先に設定から公演を作っておくと、初日から逆算した締切が入ります。":"ディレクターや検索語を変えてください。")+'</p></div>';return}
-  if(V.grp==="prio"&&V.use!=="live"){
-    const a=list.slice().sort(byPrio);let cur="",h="",n=0;
-    a.forEach(s=>{const p=prio(s),b=prioBucket(p);
-      if(b.k!==cur){cur=b.k;h+='<div class="pb '+b.k+'">'+esc(b.t)+'</div>'}
-      h+=item(s,++n)});
-    m.innerHTML=h||'<div class="empty"><h3>該当なし</h3></div>';bind(m);return}
-  if(V.grp==="flat"&&V.use!=="live"){m.innerHTML=list.slice().sort(byDue).map(s=>item(s)).join("");bind(m);return}
-  /* 公演の近さ。リハがあればリハ、なければ初日。終わったものは後ろへ */
-  const showKey=p=>{if(!p)return"z9999";
-    const r=p.rehearsal||p.release||"9999-99-99";
-    return (r>=D.today()?"0":"1")+r};
-  /* ライブは、グループをまたいでリハが近い公演から並べる */
-  if(V.use==="live"){
-    const pj=new Map();
-    list.forEach(s=>{const k=s.projectId||"__none";if(!pj.has(k))pj.set(k,[]);pj.get(k).push(s)});
-    m.innerHTML=[...pj.entries()]
-      .sort((a,z)=>showKey(projOf(a[0])).localeCompare(showKey(projOf(z[0]))))
-      .map(e=>projBlock(projOf(e[0]),e[0],e[1],(projOf(e[0])||{}).artist||"")).join("");
-    bind(m);return}
-  const arts=new Map();
-  list.forEach(s=>{const a=s.artist||"グループ未設定";if(!arts.has(a))arts.set(a,[]);arts.get(a).push(s)});
-  m.innerHTML=[...arts.entries()].sort((a,b)=>a[0].localeCompare(b[0],"ja")).map(en=>{
-    const a=en[0],songs=en[1],pj=new Map();
-    songs.forEach(s=>{const k=s.projectId||"__none";if(!pj.has(k))pj.set(k,[]);pj.get(k).push(s)});
-    const blocks=[...pj.entries()].map(e=>projBlock(projOf(e[0]),e[0],e[1],a)).join("");
-    const unit=songs.every(z=>(z.use||"master")==="master")?"曲":"件";
-    return'<div class="artist">'+esc(a)+'<span class="n">'+songs.length+unit+'</span></div><div class="artline"></div>'+blocks
-  }).join("");
-  bind(m)}
-/* 案件・公演のかたまり。グループ別でもライブ順でも同じ見た目を使う */
-function projBlock(p,pid,songs,artist){
-  const key=(artist||"")+"|"+pid,open=!V.collapsed[key],sh=p&&isShow(p);
-  const rel=p&&p.release?(sh?"初日 ":"発売 ")+D.md(p.release):(sh?"初日 未設定":"発売日 未設定");
-  const near=p&&p.release&&D.to(p.release)<=45;
-  const pkd=sh?(kdTile("リハ",p.rehearsal,"k3")+kdTile("初日",p.release,"k4")):"";
-  const sub=(pkd&&open)?[p.artist||artist,p.venue||""].filter(Boolean).join(" · "):
-    (sh?[p&&p.artist||artist,rel].filter(Boolean).join(" · "):rel);
-  return'<div class="proj" role="button" tabindex="0" data-c="'+esc(key)+'" data-p="'+esc(pid)+'" aria-expanded="'+open+'">'+
-    '<span class="caret">▼</span><h3>'+esc(projTitle(p))+'</h3>'+
-    (sub?'<span class="rel '+(near&&!(pkd&&open)?"near":"")+'">'+esc(sub)+'</span>':"")+'</div>'+
-    (open&&pkd?'<div class="kd" style="margin:9px 0 11px">'+pkd+'</div>':"")+
-    (open?'<div class="slist" data-pl="'+esc(pid)+'">'+
-      songs.sort(byOrd).map(s=>V.reorder?rowHTML(s):item(s)).join("")+'</div>':"")}
-/* 1曲1行の細い表示 */
-function slimHTML(s,rank){
-  const st=status(s),L=stages(s),fin=st.k==="fin";
-  const bl=fin?{c:"none",t:"完了"}:ballOf(s);
-  const dl=fin?"":st.dl?D.md(st.dl):"—";
-  const left=fin?"":(st.left===null?"":st.left<0?(-st.left)+"日超過":st.left===0?"本日":"あと"+st.left+"日");
-  const tops=L.filter(x=>x.d!==1);
-  const dn=tops.filter((x,i)=>doneOf(s,L,L.indexOf(x))).length;
-  return'<button class="slim '+(fin?"fin":st.k)+'" data-song="'+s.id+'">'+
-    (rank?'<span class="sr">'+rank+'</span>':"")+
-    '<span class="sn"><span class="t">'+esc(songTitle(s))+'</span>'+
-    '<span class="s">'+esc(fin?"完了":L[st.i].n)+'</span></span>'+
-    '<span class="sd'+(st.left!==null&&st.left<=0&&!fin?" hot":"")+'">'+esc(dl)+
-      (left?'<u>'+esc(left)+'</u>':"")+'</span>'+
-    '<span class="sp">'+dn+'/'+tops.length+'</span>'+
-    '<span class="ball '+bl.c+'"><span>'+esc(bl.t)+'</span></span></button>'}
-function rowHTML(s){
-  const st=status(s),L=stages(s);
-  return'<div class="srow" data-sid="'+s.id+'">'+
-    '<button class="grip" data-sg="'+s.id+'">⠿</button>'+
-    '<span class="nm"><span class="t">'+esc(songTitle(s))+'</span>'+
-    '<span class="s">'+(st.k==="fin"?"完了":esc(L[st.i].n))+'</span></span></div>'}
-function songDrag(box){
-  dragList(box,".srow","[data-sg]",()=>{
-    [...box.querySelectorAll(".srow")].forEach((r,i)=>{
-      const s=S.songs.find(z=>z.id===r.dataset.sid);if(s){s.ord=(i+1)*10;stamp(s)}});
-    mark();render();toast("並び順を保存しました")})}
-function bind(m){
-  m.querySelectorAll("[data-song]").forEach(b=>b.onclick=()=>openSong(b.dataset.song));
-  m.querySelectorAll("[data-cx]").forEach(b=>b.onclick=()=>{
-    AEXP[b.dataset.cx]=!AEXP[b.dataset.cx];render()});
-  m.querySelectorAll("[data-pl]").forEach(box=>songDrag(box));
-  m.querySelectorAll("[data-c]").forEach(b=>{
-    b.onclick=()=>{V.collapsed[b.dataset.c]=!V.collapsed[b.dataset.c];render()};
-    b.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();b.click()}};
-    b.ondblclick=e=>{e.preventDefault();if(b.dataset.p!=="__none")editProject(b.dataset.p)}})}
+  if(V.mode==="desk")renderDesk(m,list);
+  else renderAssistantHome(m,list);
+}
 /* 保存済みのデータから候補を拾う。入力途中の文字は拾わない（確定時のみmAddで登録） */
 function harvestMasters(){
   let ch=false;
