@@ -163,3 +163,8 @@ body{background:#000;font-family:var(--jp)}
 .assistant-status{background:#1c1c1e;border:0}.assistant-status .snapshot-progress{grid-column:1/-1;grid-row:1}.assistant-status .snapshot-status{grid-row:2}.assistant-status .snapshot-action{grid-row:3}.assistant-status .snapshot-deadline{grid-row:2/4}.assistant-status .snapshot-memo{grid-row:4}
 .assistant-composer{background:#1c1c1e;border:0}.assistant-composer .btn.pri,.assistant-status .btn.pri{background:#0a84ff;color:white;border-radius:14px}.assistant-composer textarea{min-height:54px}.ai-wait,#plannerError,#assistantError{font-size:14px;line-height:1.7;color:#a8bad1;overflow-wrap:anywhere}
 @media(max-width:600px){.snapshot-card{padding:20px;column-gap:12px;row-gap:13px;border-radius:20px;grid-template-columns:minmax(0,1fr) 86px}.snapshot-title b{font-size:22px}.overview-heading h2{font-size:28px}.snapshot-status strong{font-size:17px}.snapshot-card .snapshot-status,.snapshot-card .snapshot-action{grid-column:1/-1}.snapshot-deadline strong{font-size:25px}.snapshot-progress p{font-size:12px}.snapshot-list{gap:12px}.assistant-status .snapshot-status strong{font-size:18px}}
+@media(max-width:600px){
+ .assistant-status .song-snapshot{grid-template-columns:minmax(0,1fr);gap:16px}
+ .assistant-status .snapshot-deadline{grid-column:1;grid-row:1;display:flex;flex-direction:row;align-items:baseline;flex-wrap:wrap;gap:6px 12px;text-align:left;padding:0 0 12px;border-bottom:1px solid #ffffff12}
+ .assistant-status .snapshot-deadline span{flex-basis:100%}.assistant-status .snapshot-progress{grid-column:1;grid-row:2}.assistant-status .snapshot-status{grid-column:1;grid-row:3}.assistant-status .snapshot-action{grid-column:1;grid-row:4}.assistant-status .snapshot-memo{grid-column:1;grid-row:5}
+}

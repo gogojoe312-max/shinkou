@@ -224,9 +224,7 @@ setupSimpleHome();
 let reviewedSync=[];try{reviewedSync=JSON.parse(localStorage.getItem('shinkou_sync_reviewed')||'[]')}catch(e){}
 function syncRecords(){return S.log.filter(z=>['sync-conflict','sync-difference'].includes(z.kind))}
 function renderSyncNotice(){
- const records=syncRecords(),unread=records.filter(z=>!reviewedSync.includes(z.id));
- document.getElementById('overviewBar').innerHTML=records.length?'<button class="sync-notice '+(unread.length?'unread':'')+'" id="conflictsOpen">'+(unread.length?'同期で値の違い '+unread.length+'件':'同期の確認履歴')+'<span>確認する ›</span></button>':'';
- const button=document.getElementById('conflictsOpen');if(button)button.onclick=showSyncRecords;
+ const bar=document.getElementById('overviewBar');if(bar){bar.replaceChildren();bar.hidden=true}
 }
 function syncFieldLabel(path){
  const parts=String(path||'').split(' / '),s=S.songs.find(s=>s.id===parts[0]),x=s&&(s.stageList||[]).find(x=>parts.includes(x.k));
@@ -236,7 +234,7 @@ function syncFieldLabel(path){
 function syncValue(v){if(v===undefined)return '未設定';if(v===true)return 'はい';if(v===false)return 'いいえ';return typeof v==='object'?JSON.stringify(v,null,2):String(v)||'空欄'}
 function showSyncRecords(){
  const records=syncRecords();
- const h='<p class="sync-explanation">端末と同期先で値が異なった記録です。同時編集とは限りません。更新前の記録がない初回同期でも発生します。確認済みにしても、記録や曲の内容は消えません。</p>'+records.map(z=>'<details class="sync-record"><summary>'+esc(syncFieldLabel(z.detail&&z.detail.path))+'<small>'+esc(new Date(z.at).toLocaleString('ja-JP'))+'</small></summary><div class="sync-values"><div><b>この端末にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.local))+'</pre></div><div><b>同期先にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.remote))+'</pre></div></div></details>').join('');
+ const h='<p class="sync-explanation">端末と同期先で値が異なった記録です。同時編集とは限りません。更新前の記録がない初回同期でも発生します。確認済みにしても、記録や曲の内容は消えません。</p>'+(!records.length?'<p class="hint">同期の確認履歴はありません。</p>':'')+records.map(z=>'<details class="sync-record"><summary>'+esc(syncFieldLabel(z.detail&&z.detail.path))+'<small>'+esc(new Date(z.at).toLocaleString('ja-JP'))+'</small></summary><div class="sync-values"><div><b>この端末にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.local))+'</pre></div><div><b>同期先にあった値</b><pre>'+esc(syncValue(z.detail&&z.detail.remote))+'</pre></div></div></details>').join('');
  s3('同期の確認','値の違いの記録',h,[{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'確認済みにする',c:'btn pri',f:()=>{reviewedSync=[...new Set(reviewedSync.concat(records.map(z=>z.id)))].slice(-500);try{localStorage.setItem('shinkou_sync_reviewed',JSON.stringify(reviewedSync))}catch(e){}hide('sheet3');renderSyncNotice()}}]);
 }
 function plannerSheet(initial=''){
@@ -310,7 +308,7 @@ async function resumeAssistantConversation(){
 }
 function assistantSongCard(s){
  const a=songSummary(s),completed=a.L.filter((x,i)=>!hasKids(a.L,i)&&doneOf(s,a.L,i));
- return '<section class="assistant-status">'+songSnapshotHTML(s)+(completed.length?'<p class="muted">完了の記録 '+completed.length+'件</p>':'')+(!RO?'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':''):'')+'</section>';
+ return '<section class="assistant-status">'+songSnapshotHTML(s)+(!RO?'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':''):'')+'</section>';
 }
 function assistantBrief(list){
  const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));

@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-10-a";
+const APP_VER="2026-09-10-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2469,7 +2469,8 @@ function openSettings(){
       '<div><span class="lbl">Branch</span><input class="inp" id="sB" value="'+esc(syCfg().branch||"main")+'"></div></div>'+
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
-        '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'},
+        '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'+
+      '<div class="fg"><button class="btn w" id="syHistory">同期の確認履歴を見る</button></div>'},
     {id:"ai",t:"AI入力",h:()=>''+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル（通常は変更不要）</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="fg"><span class="lbl">記名（任意）</span><input class="inp" id="aiN" value="'+esc(aiCfg().name||"")+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button><button class="btn" id="mLog">作業ログ</button></div>'+'<p class="hint" id="aiLog"></p>'},
      {id:"cal",t:"カレンダーから取り込む",h:()=>
       ''+
@@ -2589,6 +2590,7 @@ function wireSettings(B){
     B.querySelectorAll("#syOn [data-sy]").forEach(b=>b.setAttribute("aria-pressed",
       (b.dataset.sy==="1")===!!syCfg().on));
     syStart()};
+  on("#syHistory",()=>showSyncRecords());
   on("#syNow",async()=>{if(!syOk())return toast("先に設定を入れてください");
     await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)});
   on("#syPull",async()=>{if(!syOk())return toast("先に設定を入れてください");
