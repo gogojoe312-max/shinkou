@@ -12,19 +12,50 @@ function songSummary(s){
 // 登録済みの記録を表示する。未入力の状況・日程は推測で補わない。
 function songSnapshot(s){
   const a=songSummary(s),pending=a.L.filter((x,i)=>!hasKids(a.L,i)&&!doneOf(s,a.L,i));
-  const completed=a.L.filter((x,i)=>!hasKids(a.L,i)&&doneOf(s,a.L,i));
   const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];
   const w=x?whoOf(s,x):null,n=x?plainStage(x.n):'',o=x?stg(s,x.k):{};
   const state=a.finished?'完了':!x?'状況未登録':n+' · '+w.t;
   const action=a.finished?'完了した作業を見返せます':!x?'今の状況と次の予定を相談':w.c==='me'?n+'の内容を確認・進行':w.c==='other'||w.c==='room'?n+'の返事・受け取り状況を確認':w.c==='wait'?n+'の予定を確認':w.c==='late'?w.t+'を確認':n+'の依頼・段取りを確認';
   const date=a.next?.date||'',left=date?D.to(date):null;
-  return {completed:completed.map(x=>plainStage(x.n)),total:completed.length+pending.length,state,action,memo:String(o.memo||'').split('\n')[0],date,left,dueTask:a.next?plainStage(a.next.x.n):'',finished:a.finished};
+  return {state,action,memo:String(o.memo||'').split('\n')[0],date,left,dueTask:a.next?plainStage(a.next.x.n):'',finished:a.finished};
+}
+// 日程調整の完了を、録音・編集そのものの完了として扱わない。
+function songMilestones(s){
+  const L=stages(s),definitions=[
+    ['アレンジ',['arr']],['VoDB',['vodb']],['VoEDIT',['rhythm','tsunagi','pitch']],
+    ['ミックス',['td']],['マスタリング',['mas']]
+  ];
+  for(const [name,keys,schedule] of [['ChoDB',['chodb'],'cho'],['楽器DB',['instdb'],'instrec'],['追加VoDB',['revodb'],'revo']]){
+    if(L.some(x=>keys.includes(x.k))&&[...keys,schedule].some(k=>{const o=s.stages?.[k]||{};return o.done||o.st||o.dl||(o.slots||[]).some(v=>v.date)}))definitions.splice(definitions.length-2,0,[name,keys]);
+  }
+  return definitions.map(([name,keys])=>{
+    const indexes=L.map((x,i)=>keys.includes(x.k)||(name==='VoEDIT'&&x.n==='VoEDIT')?i:-1).filter(i=>i>=0);
+    const complete=indexes.filter(i=>doneOf(s,L,i)).length;
+    const partial=indexes.some(i=>hasKids(L,i)&&kidsOf(L,i).some(x=>s.stages?.[x.k]?.done));
+    return {name,state:!indexes.length?'記録なし':complete===indexes.length?'完了':complete||partial?'一部完了':'未完了',done:indexes.length>0&&complete===indexes.length};
+  });
+}
+function songKeyDates(s){
+  const L=stages(s),active=k=>L.some(x=>x.k===k),dateText=d=>{
+    if(!d)return '未登録';
+    return String(d).slice(0,4)!==D.today().slice(0,4)?String(d).replace(/-0?/g,'/'):D.md(d);
+  };
+  const slots=active('vo')?(s.stages?.vo?.slots||[]).filter(v=>v.date):[];
+  const dates=[...new Set(slots.map(v=>v.date))].sort();
+  const rec=active('vodb')?(s.stages?.vodb||{}):{};
+  let vo=dates.map(d=>dateText(d)+(slots.filter(v=>v.date===d).every(v=>v.done)?' 済':D.to(d)<0?' 実施確認':'' )).join('・');
+  let voNote=dates.length?'':rec.done&&rec.date?'完了記録':rec.dl?'期限（録音日未登録）':'';
+  if(!vo)vo=rec.done&&rec.date?dateText(rec.date):rec.dl?dateText(rec.dl):'未登録';
+  const out=[{label:'発売日',value:dateText(relOf(s))},{label:'MV撮影日',value:dateText(s.dates?.mv)},{label:'VoDB日',value:vo,note:voNote}];
+  if(s.use==='live')out.push({label:'ライブ初披露',value:dateText(s.dates?.live||s.dates?.open)});
+  return out;
 }
 function songSnapshotHTML(s){
   const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
   const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
-  const progress='<div class="snapshot-progress"><div><span>作業の記録</span><strong>'+a.completed.length+'<small> / '+a.total+' 完了</small></strong></div><progress value="'+a.completed.length+'" max="'+(a.total||1)+'" aria-label="登録済み作業の完了数"></progress><p>'+(a.completed.length?'完了済み：'+esc(a.completed.slice(-3).join('・'))+(a.completed.length>3?' ほか':''):a.total?'完了の記録はまだありません':'作業の記録は未登録です')+'</p></div>';
-  return '<div class="song-snapshot">'+progress+'<div class="snapshot-status"><small>現在の状態</small><strong>'+esc(a.state)+'</strong></div><div class="snapshot-action"><small>次に確認すること</small><span>'+esc(a.action)+'</span></div><div class="snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':'')+'"><small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span></div>'+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'')+'</div>';
+  const milestones='<div class="song-milestones" aria-label="主要作業の登録状況">'+songMilestones(s).map(m=>'<span class="milestone '+(m.done?'complete':'')+'"><b>'+esc(m.name)+'</b><small>'+(m.done?'✓ ':'')+esc(m.state)+'</small></span>').join('')+'</div>';
+  const dates='<dl class="song-key-dates">'+songKeyDates(s).map(d=>'<div><dt>'+esc(d.label)+'</dt><dd>'+esc(d.value)+(d.note?'<small>'+esc(d.note)+'</small>':'')+'</dd></div>').join('')+'</dl>';
+  return '<div class="song-snapshot">'+dates+milestones+'<div class="snapshot-status"><small>現在の状態</small><strong>'+esc(a.state)+'</strong></div><div class="snapshot-action"><small>次に確認すること</small><span>'+esc(a.action)+'</span></div><div class="snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':'')+'"><small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span></div>'+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'')+'</div>';
 }
 function songOverview(list){
   const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
@@ -307,7 +338,6 @@ async function resumeAssistantConversation(){
  aiPreview({ops:[],ans:result.ans||'前の相談の続きです。',questions:result.questions||[]},safeMsgs,row.q,row.scope);
 }
 function assistantSongCard(s){
- const a=songSummary(s),completed=a.L.filter((x,i)=>!hasKids(a.L,i)&&doneOf(s,a.L,i));
  return '<section class="assistant-status">'+songSnapshotHTML(s)+(!RO?'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':''):'')+'</section>';
 }
 function assistantBrief(list){
