@@ -238,8 +238,8 @@ function tplShow(){return{id:"tpl_show",name:"ライブ制作物",dates:["rehear
 const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],templates:[tplSingle(),tplLive(),tplShow()],
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
-  settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{key:"",model:"claude-sonnet-4-6"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-10-g";
+  settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
+const APP_VER="2026-09-16-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2377,7 +2377,7 @@ function openSettings(){
       '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
         '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'+
       '<div class="fg"><button class="btn w" id="syHistory">同期の確認履歴を見る</button></div>'},
-    {id:"ai",t:"AI入力",h:()=>''+'<div class="fg"><span class="lbl">APIキー</span><input class="inp" id="aiK" type="password" value="'+esc(aiCfg().key)+'"></div>'+'<div class="fg"><span class="lbl">モデル（通常は変更不要）</span><input class="inp" id="aiM" value="'+esc(aiCfg().model)+'" placeholder="'+AI_DEF_MODEL+'"></div>'+'<div class="fg"><span class="lbl">記名（任意）</span><input class="inp" id="aiN" value="'+esc(aiCfg().name||"")+'"></div>'+'<div class="row fg"><button class="btn" id="aiTest">接続テスト</button><button class="btn" id="mLog">作業ログ</button></div>'+'<p class="hint" id="aiLog"></p>'},
+    {id:"ai",t:"AI相談・利用額",h:aiSettingsHTML},
      {id:"cal",t:"カレンダーから取り込む",h:()=>
       ''+
       '<div class="fg"><span class="lbl">取り込み用のURL</span>'+
@@ -2434,15 +2434,15 @@ function wireSettings(B){
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
   {const k=q("#aiK");if(k)k.onblur=()=>{aiCfg().key=k.value.trim();mark()}}
-  {const m=q("#aiM");if(m)m.onblur=()=>{aiCfg().model=m.value.trim()||AI_DEF_MODEL;mark()}}
   {const nm=q("#aiN");if(nm)nm.onblur=()=>{aiCfg().name=nm.value.trim();mark()}}
   on("#mLog",logSheet);
   on("#aiTest",async()=>{const box=q("#aiLog");
-    if(!aiCfg().key&&q("#aiK"))aiCfg().key=q("#aiK").value.trim();
+    if(q("#aiK")){aiCfg().key=q("#aiK").value.trim();mark()}
     if(!aiCfg().key){if(box)box.textContent="APIキーを入れてください";return}
     if(box)box.textContent="確認中…";
-    try{await aiPing();if(box)box.textContent="OK"}
-    catch(e){if(box)box.textContent="失敗: "+(e.message||e)}});
+    const button=q("#aiTest");if(button.disabled)return;button.disabled=true;
+    try{await aiPing();if(box)box.textContent="キーとモデルへの接続を確認しました。回答生成はしていません。API残高はOpenAIの利用履歴で確認できます。"}
+    catch(e){if(box)box.textContent="失敗: "+(e.message||e)}finally{button.disabled=false}});
   {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
   const calRun=async dry=>{
     const u=(q("#calU")?q("#calU").value:"").trim();
@@ -2784,12 +2784,44 @@ function fixDeps(s){
   return ch}
 
 /* ===================== AI入力バー ===================== */
-/* 画面下のバーに普通の文で書くと、Claude APIで操作に変換してプレビュー→確定で反映する */
-const AI_DEF_MODEL="claude-sonnet-5";
-function aiCfg(){if(!S.settings.ai)S.settings.ai={key:"",model:AI_DEF_MODEL};
-  if(!S.settings.ai.model)S.settings.ai.model=AI_DEF_MODEL;
-  if(S.settings.ai.model==="claude-sonnet-4-6")S.settings.ai.model=AI_DEF_MODEL;
-  return S.settings.ai}
+/* OpenAIへ相談し、プレビュー→確定で反映する。キーは端末内のみ。 */
+const AI_DEF_MODEL="gpt-4.1-mini";
+function aiCfg(){
+  const a=S.settings.ai||(S.settings.ai={});
+  // 旧サービスの資格情報を別のサービスに送信しない。会話・知識は保持する。
+  if(a.provider!=="openai"){a.key="";a.provider="openai";a.model=AI_DEF_MODEL}
+  a.model=AI_DEF_MODEL;
+  return a;
+}
+// USD / 100万tokens。2026-09-16の公式料金。キャッシュ適用分は実レスポンスから計算する。
+const AI_PRICE={input:0.40,cached:0.10,output:1.60};
+function aiMoney(n){return '$'+Number(n||0).toFixed(4)}
+function aiRecordUsage(j,cfg=aiCfg()){
+  const ledger=cfg.usage||(cfg.usage={months:{},recent:[]});
+  const id=j.id||uid();
+  if(ledger.recent.some(r=>r.id===id))return ledger.recent.find(r=>r.id===id);
+  const u=j.usage,known=!!u&&Number.isFinite(u.input_tokens)&&Number.isFinite(u.output_tokens);
+  const input=known?Math.max(0,u.input_tokens):0,output=known?Math.max(0,u.output_tokens):0;
+  const cached=known?Math.min(input,Math.max(0,Number(u.input_tokens_details?.cached_tokens)||0)):0;
+  const usd=((input-cached)*AI_PRICE.input+cached*AI_PRICE.cached+output*AI_PRICE.output)/1e6;
+  const row={id,at:Date.now(),input,output,cached,usd,known};
+  const month=D.today().slice(0,7),sum=ledger.months[month]||(ledger.months[month]={input:0,output:0,cached:0,usd:0,requests:0,unknown:0});
+  sum.input+=input;sum.output+=output;sum.cached+=cached;sum.usd+=usd;sum.requests++;if(!known)sum.unknown++;
+  ledger.recent.unshift(row);ledger.recent=ledger.recent.slice(0,50);
+  Object.keys(ledger.months).sort().slice(0,-24).forEach(k=>delete ledger.months[k]);
+  if(!RO)mark();return row;
+}
+function aiUsageLabel(row){return row?.known?'今回 約'+aiMoney(row.usd)+' · 入力 '+row.input.toLocaleString()+' / 出力 '+row.output.toLocaleString()+' tokens':'今回の使用量は未取得です。OpenAIの利用履歴で確認できます。'}
+function aiSettingsHTML(){
+  const a=aiCfg(),m=a.usage?.months?.[D.today().slice(0,7)],last=a.usage?.recent?.[0];
+  return '<div class="ai-cost-card"><span>この端末の今月の相談</span><strong>'+aiMoney(m?.usd)+'</strong><small>概算 · '+(m?.requests||0)+'回'+(m?.unknown?' · '+m.unknown+'回は料金未取得':'')+'</small></div>'
+    +'<p class="hint">OpenAI · GPT-4.1 mini<br>重複データを省いて送信し、回答の長さを制限します。画面の表示や曲の編集だけではAIを呼びません。</p>'
+    +'<label class="fg"><span class="lbl">OpenAI APIキー</span><input class="inp" id="aiK" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" value="'+esc(a.key||'')+'" placeholder="OpenAIのキーを入力"></label>'
+    +'<p class="hint">ChatGPTの月額プランとは別のAPI課金です。Claudeのキーは使えません。キーはこの端末に保存し、通常の同期・JSON書き出しには含めません。</p>'
+    +'<div class="row fg"><button class="btn" id="aiTest">保存・接続確認</button><a class="btn" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">キーを取得</a></div><p class="hint" id="aiLog" role="status"></p>'
+    +'<details class="ai-usage-details"><summary>使用量の詳細</summary><p class="hint">'+(last?esc(aiUsageLabel(last)):'まだ使用履歴がありません。')+'</p><p class="hint">この機能で受け取った使用量のみの集計です。以前のClaude利用分・別端末の利用分は含みません。通信切断時など、料金を取得できない場合があります。入力 $0.40・キャッシュ入力 $0.10・出力 $1.60 / 100万tokens（2026/9/16）。円の請求額は為替・税等で変わります。</p><a class="btn" href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer">OpenAIの利用履歴</a></details>'
+    +'<label class="fg"><span class="lbl">記名（任意）</span><input class="inp" id="aiN" value="'+esc(a.name||'')+'"></label><button class="btn" id="mLog">作業ログ</button>';
+}
 
 /* いまのデータの要約。AIが人名・曲名・工程を寄せられるように渡す */
 function aiCtx(scope=conversationScope()){
@@ -2824,11 +2856,20 @@ function aiCtx(scope=conversationScope()){
     o.guidance=rulesForSong(s).filter(r=>r.scope!=="global").map(r=>({id:r.id,text:r.text,scope:r.scope}));
     if(s.note)o.note=String(s.note).slice(0,200);
     return o});
-  return {guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
+  // 同じ工程名を全曲で繰り返さない。独自の名称・multi指定も別の定義として保持する。
+  const catalog=[],definitions=new Map();
+  songs.forEach(s=>{if(!s.stages)return;
+    s.stages=s.stages.map(st=>{const {k,n,multi,...state}=st,definition={k,n,...(multi?{multi}:{} )};
+      const key=JSON.stringify(definition);if(!definitions.has(key)){definitions.set(key,catalog.length);catalog.push(definition)}
+      const ref=definitions.get(key);return Object.keys(state).length?{ref,...state}:ref;
+    });
+  });
+  return {stage_catalog:catalog,guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
     open_song:scope==="global"?-1:S.songs.findIndex(s=>s.id===scope)}
 }
 
 const AI_SYS=[
+"stagesの数値、またはrefはstage_catalogの添字。工程名n・操作に使うk・multiはその定義を参照する。数値だけの工程は追加の状態記録なし（未実施とは断定しない）。opsのstにはrefでなく定義のkを使う。",
 "MVは通常シングル曲が対象。アルバム曲・アディショナル曲は原則なし。アルバムリード等の例外はhas_mvを参照し、MVなしの曲へ撮影日を必須として質問しない。",
 "detailに詳細省略とある曲は一覧照合用。情報がないことを未実施と解釈せず、その曲への操作を生成しない。必要ならその曲の相談で確認するよう案内する。",
 "回答は要点を先に、原則3項目以内。質問は次に必要なものだけ、最大3件。説明の繰り返しは省く。",
@@ -2875,27 +2916,48 @@ const AI_SYS=[
 "- 対応するopが無い指示（案件やゴミ箱の削除、テンプレート編集など）はopにせず、noteで「アプリの設定から操作してください」と伝える。"
 ].join("\n");
 
+let aiSending=false;
 async function aiFetch(body){
+  if(RO)throw new Error("閲覧のみのためAIへ送信できません");
+  if(aiSending)throw new Error("前の相談を送信中です。返答を待ってから送信してください。");
   const a=aiCfg();
-  if(!a.key)throw new Error("APIキーが未設定です。設定 → AI入力 に入れてください");
+  if(!a.key)throw new Error("OpenAIのAPIキーが未設定です。設定 → AI相談・利用額 に入れてください");
+  if(/^sk-ant-/.test(a.key))throw new Error("Claudeのキーは使えません。OpenAIのAPIキーを設定してください。");
   if(!navigator.onLine)throw new Error("オフラインです");
+  const payload=body?JSON.stringify(body):undefined;
+  if(payload&&new TextEncoder().encode(payload).length>120000)throw new Error("送信量が多いため、まだ送信していません。曲を開いてその曲だけを相談するか、相談内容を短くしてください。");
+  aiSending=true;let received=false;
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
-  try{const r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal:controller.signal,
-    headers:{"content-type":"application/json","x-api-key":a.key,
-      "anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-    body:JSON.stringify(body)});
-  if(!r.ok){let m="";try{const j=await r.json();m=(j.error&&j.error.message)||""}catch(_){}
-    throw new Error(r.status===401?"APIキーが違います（設定 → AI入力）":
-      r.status===400&&/model/i.test(m)?"モデル名が違います："+a.model:
-      r.status===429?"利用上限に達しています":/credit balance/i.test(m)?"APIの残高が足りません。console.anthropic.com の Plans & Billing でクレジットを購入してください":(r.status+" "+m).trim())}
-  return await r.json()}catch(e){if(controller.signal.aborted)throw new Error("AIの応答が時間内に届きませんでした。入力は残っています。少し待って再送してください。");throw e}finally{clearTimeout(timer)}}
+  try{
+    const r=await fetch("https://api.openai.com/v1/"+(body?"responses":"models/"+AI_DEF_MODEL),{
+      method:body?"POST":"GET",signal:controller.signal,
+      headers:{"content-type":"application/json","Authorization":"Bearer "+a.key},body:payload});
+    if(!r.ok){received=true;let code="";try{const j=await r.json();code=j.error?.code||""}catch(_){}
+      throw new Error(r.status===401?"OpenAIのAPIキーを確認してください（設定 → AI相談・利用額）":
+        code==="insufficient_quota"?"OpenAI APIの残高・利用上限を確認してください。ChatGPTの月額プランとは別です。":
+        r.status===429?"OpenAIが混み合っているか、利用制限に達しています。自動で再送はしません。":
+        r.status===403?"このキーに利用権限がありません。OpenAIのプロジェクト設定を確認してください。":
+        "OpenAIへの接続に失敗しました（"+r.status+"）。自動で再送はしません。")}
+    const j=await r.json();received=true;
+    if(body)j.localUsage=aiRecordUsage(j,a);
+    return j;
+  }catch(e){
+    if(body&&!received)aiRecordUsage({},a);
+    if(controller.signal.aborted)throw new Error("返答が時間内に届きませんでした。自動再送はしていません。入力は保持しています。料金はOpenAIの利用履歴で確認してください。");
+    if(!received)throw new Error("通信が切れました。自動再送はしていません。入力は保持しています。料金はOpenAIの利用履歴で確認してください。");
+    throw e;
+  }finally{clearTimeout(timer);aiSending=false}
+}
 
 async function aiPing(){
-  await aiFetch({model:aiCfg().model,max_tokens:16,
-    messages:[{role:"user",content:"okとだけ返して"}]})}
+  // モデルの参照だけ。回答生成はしない。
+  await aiFetch(null);
+}
 
 // 過去の会話は残し、古いデータの写しだけを除く。最後のデータは必ず保持する。
 function aiCompactMessages(msgs){
+  // 保存する会話と同じ直近12メッセージまで。旧スナップショットの再送を防ぐ。
+  msgs=msgs.slice(-12);
   let latest=-1;
   msgs.forEach((m,i)=>{if(m.role==='user'&&/(?:^データ:|最新データ:)/.test(m.content))latest=i});
   return msgs.map((m,i)=>i>=latest||m.role!=='user'?m:{...m,content:m.content
@@ -2913,17 +2975,21 @@ function aiWait(element){
 
 async function aiChat(msgs){
   const wd=["日","月","火","水","木","金","土"][new Date().getDay()];
-  const j=await aiFetch({model:aiCfg().model,max_tokens:3000,
-    system:AI_SYS+"\n\n今日: "+D.today()+"（"+wd+"曜）",
-    messages:aiCompactMessages(msgs)});
-  const tx=(j.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("\n");
+  const j=await aiFetch({model:AI_DEF_MODEL,max_output_tokens:2000,store:false,
+    instructions:AI_SYS,input:[{role:"developer",content:"今日: "+D.today()+"（"+wd+"曜）"},...aiCompactMessages(msgs)],
+    text:{format:{type:"json_object"}}});
+  if(j.status!=="completed")throw new Error("回答を最後まで取得できませんでした。提案は反映していません。相談を短く分けてください。使用量は設定で確認できます。");
+  const blocks=(j.output||[]).filter(b=>b.type==="message").flatMap(b=>b.content||[]);
+  if(blocks.some(b=>b.type==="refusal"))throw new Error("この相談には回答できませんでした。内容を変えてお試しください。");
+  const tx=blocks.filter(b=>b.type==="output_text").map(b=>b.text).join("\n");
   const clean=tx.replace(/```json|```/g,"").trim();
   let out;try{out=JSON.parse(clean)}catch(e){
     const a=clean.indexOf("{"),b=clean.lastIndexOf("}");
     if(a>=0&&b>a){try{out=JSON.parse(clean.slice(a,b+1))}catch(_){}}}
   if(out&&(typeof out!=="object"||Array.isArray(out)))out=null;
   if(out){out.ops=Array.isArray(out.ops)?out.ops.filter(op=>op&&typeof op==="object").slice(0,100):[];out.ans=typeof out.ans==="string"?out.ans:"";out.note=typeof out.note==="string"?out.note:"";}
-  if(!out)throw new Error("解釈結果を読めませんでした");
+  if(!out||(!out.ans&&!out.note&&!out.ops.length&&!out.questions?.length))throw new Error("解釈結果を読めませんでした。自動で再送はしていません。使用量は設定で確認できます。");
+  out.localUsage=j.localUsage;
   return {out:out,tx:tx}}
 
 async function aiCall(text,scope=conversationScope()){
@@ -3059,7 +3125,7 @@ function aiApply(r){
 let AIPV=null;
 function aiPreview(res,msgs,qtxt,scope=conversationScope()){
   saveAssistantConversation(msgs,qtxt,scope);
-  AIPV={scope:scope,list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",questions:Array.isArray(res.questions)?res.questions.filter(q=>typeof q==="string").slice(0,3):[],msgs:msgs,q:qtxt||""};
+  AIPV={usage:res.localUsage,scope:scope,list:res.ops.map(aiResolve),note:res.note||"",ans:res.ans||"",questions:Array.isArray(res.questions)?res.questions.filter(q=>typeof q==="string").slice(0,3):[],msgs:msgs,q:qtxt||""};
   if(AIPV.ans){const a=aiCfg();if(!a.hist)a.hist=[];
     a.hist.unshift({q:AIPV.q.slice(0,120),a:AIPV.ans.slice(0,1500),at:Date.now()});
     if(a.hist.length>20)a.hist.length=20;mark()}
@@ -3082,6 +3148,7 @@ function aiPreview(res,msgs,qtxt,scope=conversationScope()){
           '<label class="aif"><span>'+esc(f.l)+'</span>'
           +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
       h+='</div>'});
+    if(AIPV.usage)h+='<p class="ai-response-cost">'+esc(aiUsageLabel(AIPV.usage))+'</p>';
     h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="質問への回答・状況の続き" autocomplete="off">'
       +'<button class="btn" id="aiFixGo">送信</button></div>';
     const n=AIPV.list.filter(r=>r.on).length;
@@ -3151,7 +3218,7 @@ function aiHistSheet(){
    const t=q.value.trim();
    if(!t){aiHistSheet();return}
    if(RO)return toast("閲覧のみのため使えません");
-   if(!aiCfg().key){openSettings();toast("設定の「AI入力」にAPIキーを入れてください");return}
+   if(!aiCfg().key){openSettings();toast("設定の「AI相談・利用額」にOpenAIのAPIキーを入れてください");return}
    if(!navigator.onLine){const a=aiCfg();if(!a.drafts)a.drafts=[];
      a.drafts.push({t:t,at:Date.now()});mark();q.value="";
      toast("オフラインなので下書きに残しました");return}
