@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-16-a";
+const APP_VER="2026-09-16-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2441,7 +2441,7 @@ function wireSettings(B){
     if(!aiCfg().key){if(box)box.textContent="APIキーを入れてください";return}
     if(box)box.textContent="確認中…";
     const button=q("#aiTest");if(button.disabled)return;button.disabled=true;
-    try{await aiPing();if(box)box.textContent="キーとモデルへの接続を確認しました。回答生成はしていません。API残高はOpenAIの利用履歴で確認できます。"}
+    try{await aiPing();if(box)box.textContent="キーと両モデルへの接続を確認しました。回答生成はしていません。API残高はOpenAIの利用履歴で確認できます。"}
     catch(e){if(box)box.textContent="失敗: "+(e.message||e)}finally{button.disabled=false}});
   {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
   const calRun=async dry=>{
@@ -2786,6 +2786,24 @@ function fixDeps(s){
 /* ===================== AI入力バー ===================== */
 /* OpenAIへ相談し、プレビュー→確定で反映する。キーは端末内のみ。 */
 const AI_DEF_MODEL="gpt-4.1-mini";
+const AI_MODELS={
+  'gpt-4.1-mini':{name:'GPT-4.1 mini',input:0.40,cached:0.10,output:1.60,maxOutput:2000},
+  'gpt-5.4':{name:'GPT-5.4',input:2.50,cached:0.25,output:15,maxOutput:4000}
+};
+function aiSelectModel(text,scope='global',mode='auto',followup=false){
+  // 無料の保守的な判定。対象曲が決まった短い照会以外は理解力を優先する。
+  const simple=scope!=='global'&&!followup&&/^(?:この曲の?)?(?:発売日|締切|MV撮影日|VoDB日|録音日|現在の状態|今の状態|進捗)(?:は|を)?(?:いつ|何日|どうなっている|どうなってる|教えて|確認したい)(?:ですか|ください|下さい)?[？?。\s]*$/i.test(String(text).trim());
+  const model=mode==='quick'?'gpt-4.1-mini':mode==='careful'?'gpt-5.4':simple?'gpt-4.1-mini':'gpt-5.4';
+  return {model,...AI_MODELS[model]};
+}
+function aiChoiceHTML(id){
+  return '<div class="ai-choice"><label for="'+id+'">相談の進め方</label><select class="inp" id="'+id+'"><option value="auto">自動で使い分け</option><option value="quick">軽い確認 · 料金優先</option><option value="careful">じっくり相談 · 理解優先</option></select><small id="'+id+'Hint" aria-live="polite"></small></div>';
+}
+function wireAIChoice(id,input,scope,followup=false){
+  const select=document.getElementById(id),hint=document.getElementById(id+'Hint');
+  const update=()=>{const choice=aiSelectModel(input.value,scope,select.value,followup);hint.textContent='送信先：'+choice.name+(choice.model==='gpt-5.4'?' · 複雑な相談向け／料金は高め':' · 日付・状態の確認向け');};
+  select.onchange=update;input.addEventListener('input',update);update();return update;
+}
 function aiCfg(){
   const a=S.settings.ai||(S.settings.ai={});
   // 旧サービスの資格情報を別のサービスに送信しない。会話・知識は保持する。
@@ -2794,32 +2812,32 @@ function aiCfg(){
   return a;
 }
 // USD / 100万tokens。2026-09-16の公式料金。キャッシュ適用分は実レスポンスから計算する。
-const AI_PRICE={input:0.40,cached:0.10,output:1.60};
 function aiMoney(n){return '$'+Number(n||0).toFixed(4)}
-function aiRecordUsage(j,cfg=aiCfg()){
+function aiRecordUsage(j,cfg=aiCfg(),model=AI_DEF_MODEL){
   const ledger=cfg.usage||(cfg.usage={months:{},recent:[]});
   const id=j.id||uid();
   if(ledger.recent.some(r=>r.id===id))return ledger.recent.find(r=>r.id===id);
   const u=j.usage,known=!!u&&Number.isFinite(u.input_tokens)&&Number.isFinite(u.output_tokens);
   const input=known?Math.max(0,u.input_tokens):0,output=known?Math.max(0,u.output_tokens):0;
   const cached=known?Math.min(input,Math.max(0,Number(u.input_tokens_details?.cached_tokens)||0)):0;
-  const usd=((input-cached)*AI_PRICE.input+cached*AI_PRICE.cached+output*AI_PRICE.output)/1e6;
-  const row={id,at:Date.now(),input,output,cached,usd,known};
+  const price=AI_MODELS[model];
+  const usd=((input-cached)*price.input+cached*price.cached+output*price.output)/1e6;
+  const row={id,at:Date.now(),model,input,output,cached,usd,known};
   const month=D.today().slice(0,7),sum=ledger.months[month]||(ledger.months[month]={input:0,output:0,cached:0,usd:0,requests:0,unknown:0});
   sum.input+=input;sum.output+=output;sum.cached+=cached;sum.usd+=usd;sum.requests++;if(!known)sum.unknown++;
   ledger.recent.unshift(row);ledger.recent=ledger.recent.slice(0,50);
   Object.keys(ledger.months).sort().slice(0,-24).forEach(k=>delete ledger.months[k]);
   if(!RO)mark();return row;
 }
-function aiUsageLabel(row){return row?.known?'今回 約'+aiMoney(row.usd)+' · 入力 '+row.input.toLocaleString()+' / 出力 '+row.output.toLocaleString()+' tokens':'今回の使用量は未取得です。OpenAIの利用履歴で確認できます。'}
+function aiUsageLabel(row){return row?.known?(AI_MODELS[row.model||AI_DEF_MODEL]?.name||row.model)+' · 今回 約'+aiMoney(row.usd)+' · 入力 '+row.input.toLocaleString()+' / 出力 '+row.output.toLocaleString()+' tokens':'今回の使用量は未取得です。OpenAIの利用履歴で確認できます。'}
 function aiSettingsHTML(){
   const a=aiCfg(),m=a.usage?.months?.[D.today().slice(0,7)],last=a.usage?.recent?.[0];
   return '<div class="ai-cost-card"><span>この端末の今月の相談</span><strong>'+aiMoney(m?.usd)+'</strong><small>概算 · '+(m?.requests||0)+'回'+(m?.unknown?' · '+m.unknown+'回は料金未取得':'')+'</small></div>'
-    +'<p class="hint">OpenAI · GPT-4.1 mini<br>重複データを省いて送信し、回答の長さを制限します。画面の表示や曲の編集だけではAIを呼びません。</p>'
+    +'<p class="hint">簡単な確認はGPT-4.1 mini、制作の相談はGPT-5.4。相談欄で送信先を確認・変更できます。自動判定にAPIは使わず、1回の送信につき1モデルだけに相談します。画面表示や曲の編集だけではAIを呼びません。</p>'
     +'<label class="fg"><span class="lbl">OpenAI APIキー</span><input class="inp" id="aiK" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" value="'+esc(a.key||'')+'" placeholder="OpenAIのキーを入力"></label>'
     +'<p class="hint">ChatGPTの月額プランとは別のAPI課金です。Claudeのキーは使えません。キーはこの端末に保存し、通常の同期・JSON書き出しには含めません。</p>'
     +'<div class="row fg"><button class="btn" id="aiTest">保存・接続確認</button><a class="btn" href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer">キーを取得</a></div><p class="hint" id="aiLog" role="status"></p>'
-    +'<details class="ai-usage-details"><summary>使用量の詳細</summary><p class="hint">'+(last?esc(aiUsageLabel(last)):'まだ使用履歴がありません。')+'</p><p class="hint">この機能で受け取った使用量のみの集計です。以前のClaude利用分・別端末の利用分は含みません。通信切断時など、料金を取得できない場合があります。入力 $0.40・キャッシュ入力 $0.10・出力 $1.60 / 100万tokens（2026/9/16）。円の請求額は為替・税等で変わります。</p><a class="btn" href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer">OpenAIの利用履歴</a></details>'
+    +'<details class="ai-usage-details"><summary>使用量の詳細</summary><p class="hint">'+(last?esc(aiUsageLabel(last)):'まだ使用履歴がありません。')+'</p><p class="hint">この機能で受け取った使用量のみの集計です。以前のClaude利用分・別端末の利用分は含みません。通信切断時など、料金を取得できない場合があります。100万tokensあたり：GPT-4.1 miniは入力 $0.40・キャッシュ $0.10・出力 $1.60。GPT-5.4は入力 $2.50・キャッシュ $0.25・出力 $15.00（推論分を含む／2026/9/16）。円の請求額は為替・税等で変わります。</p><a class="btn" href="https://platform.openai.com/usage" target="_blank" rel="noopener noreferrer">OpenAIの利用履歴</a></details>'
     +'<label class="fg"><span class="lbl">記名（任意）</span><input class="inp" id="aiN" value="'+esc(a.name||'')+'"></label><button class="btn" id="mLog">作業ログ</button>';
 }
 
@@ -2917,7 +2935,7 @@ const AI_SYS=[
 ].join("\n");
 
 let aiSending=false;
-async function aiFetch(body){
+async function aiFetch(body,checkModel=AI_DEF_MODEL){
   if(RO)throw new Error("閲覧のみのためAIへ送信できません");
   if(aiSending)throw new Error("前の相談を送信中です。返答を待ってから送信してください。");
   const a=aiCfg();
@@ -2929,7 +2947,7 @@ async function aiFetch(body){
   aiSending=true;let received=false;
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),90000);
   try{
-    const r=await fetch("https://api.openai.com/v1/"+(body?"responses":"models/"+AI_DEF_MODEL),{
+    const r=await fetch("https://api.openai.com/v1/"+(body?"responses":"models/"+checkModel),{
       method:body?"POST":"GET",signal:controller.signal,
       headers:{"content-type":"application/json","Authorization":"Bearer "+a.key},body:payload});
     if(!r.ok){received=true;let code="";try{const j=await r.json();code=j.error?.code||""}catch(_){}
@@ -2939,10 +2957,10 @@ async function aiFetch(body){
         r.status===403?"このキーに利用権限がありません。OpenAIのプロジェクト設定を確認してください。":
         "OpenAIへの接続に失敗しました（"+r.status+"）。自動で再送はしません。")}
     const j=await r.json();received=true;
-    if(body)j.localUsage=aiRecordUsage(j,a);
+    if(body)j.localUsage=aiRecordUsage(j,a,body.model);
     return j;
   }catch(e){
-    if(body&&!received)aiRecordUsage({},a);
+    if(body&&!received)aiRecordUsage({},a,body.model);
     if(controller.signal.aborted)throw new Error("返答が時間内に届きませんでした。自動再送はしていません。入力は保持しています。料金はOpenAIの利用履歴で確認してください。");
     if(!received)throw new Error("通信が切れました。自動再送はしていません。入力は保持しています。料金はOpenAIの利用履歴で確認してください。");
     throw e;
@@ -2951,7 +2969,7 @@ async function aiFetch(body){
 
 async function aiPing(){
   // モデルの参照だけ。回答生成はしない。
-  await aiFetch(null);
+  for(const model of Object.keys(AI_MODELS))await aiFetch(null,model);
 }
 
 // 過去の会話は残し、古いデータの写しだけを除く。最後のデータは必ず保持する。
@@ -2973,9 +2991,10 @@ function aiWait(element){
   return ()=>{clearInterval(timer);if(element.textContent.startsWith('AIの返答を待っています'))element.textContent=original};
 }
 
-async function aiChat(msgs){
+async function aiChat(msgs,choice=aiSelectModel("","global")){
   const wd=["日","月","火","水","木","金","土"][new Date().getDay()];
-  const j=await aiFetch({model:AI_DEF_MODEL,max_output_tokens:2000,store:false,
+  const j=await aiFetch({model:choice.model,max_output_tokens:choice.maxOutput,store:false,
+    ...(choice.model==="gpt-5.4"?{reasoning:{effort:"low"}}:{}),
     instructions:AI_SYS,input:[{role:"developer",content:"今日: "+D.today()+"（"+wd+"曜）"},...aiCompactMessages(msgs)],
     text:{format:{type:"json_object"}}});
   if(j.status!=="completed")throw new Error("回答を最後まで取得できませんでした。提案は反映していません。相談を短く分けてください。使用量は設定で確認できます。");
@@ -2992,9 +3011,9 @@ async function aiChat(msgs){
   out.localUsage=j.localUsage;
   return {out:out,tx:tx}}
 
-async function aiCall(text,scope=conversationScope()){
+async function aiCall(text,scope=conversationScope(),mode="auto"){
   const msgs=[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx(scope))+"\n\n入力:\n"+text}];
-  const r=await aiChat(msgs);
+  const r=await aiChat(msgs,aiSelectModel(text,scope,mode));
   return {out:r.out,msgs:msgs.concat([{role:"assistant",content:r.tx}]),scope:scope}}
 
 /* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
@@ -3149,6 +3168,7 @@ function aiPreview(res,msgs,qtxt,scope=conversationScope()){
           +'<input class="inp" type="'+f.ty+'" data-aif="'+i+'|'+f.p+'" value="'+esc(aiGet(r.op,f.p)||"")+'"></label>').join("")+'</div>'}
       h+='</div>'});
     if(AIPV.usage)h+='<p class="ai-response-cost">'+esc(aiUsageLabel(AIPV.usage))+'</p>';
+    h+=aiChoiceHTML("aiFollowMode");
     h+='<div class="aifix"><input class="inp" id="aiFix" placeholder="質問への回答・状況の続き" autocomplete="off">'
       +'<button class="btn" id="aiFixGo">送信</button></div>';
     const n=AIPV.list.filter(r=>r.on).length;
@@ -3170,6 +3190,7 @@ function aiPreview(res,msgs,qtxt,scope=conversationScope()){
     if(cp)cp.onclick=()=>{if(navigator.clipboard)navigator.clipboard.writeText(AIPV.ans)
       .then(()=>toast("コピーしました"),()=>showText(AIPV.ans));else showText(AIPV.ans)};
     const fx=document.getElementById("aiFix"),fg=document.getElementById("aiFixGo");
+    wireAIChoice("aiFollowMode",fx,AIPV.scope,true);
     const doFix=async()=>{
       const f=fx.value.trim();if(!f||fg.disabled)return;
       const pending=AIPV,revision=aiViewRevision;
@@ -3177,7 +3198,7 @@ function aiPreview(res,msgs,qtxt,scope=conversationScope()){
       const waiting=document.createElement("p");waiting.setAttribute("role","status");waiting.className="ai-wait";fx.after(waiting);const stopWaiting=aiWait(waiting);
       const ms=AIPV.msgs.concat([{role:"user",content:
         "相談の続き・回答:\n"+f+"\n最新データ:\n"+JSON.stringify(aiCtx(pending.scope))+"\n\n修正後の完全なops一覧を同じJSON形式で出し直して（変更のない操作も含めて全部）。"}]);
-      try{const r=await aiChat(ms);
+      try{const r=await aiChat(ms,aiSelectModel(f,pending.scope,document.getElementById("aiFollowMode").value,true));
         if(AIPV!==pending||aiViewRevision!==revision)return;
         aiPreview(r.out,ms.concat([{role:"assistant",content:r.tx}]),pending.q+" › "+f,pending.scope)}
       catch(e){if(AIPV!==pending||aiViewRevision!==revision)return;toast("送信できませんでした: "+(e.message||e));
