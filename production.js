@@ -106,6 +106,11 @@ function report(s,opt={}){
  const unfinishedExtra=extra.filter(x=>!s.stages?.[x.k]?.done);
  for(const x of unfinishedExtra){const g=s.stages?.[x.k]||{},state=stageState(g);if(g.st||g.dl){const id='legacy:'+x.k;ranked.push({id,title:x.n+'の状況を確認',reason:g.dl?'登録済みの期限 '+g.dl:'追加の作業記録に対応待ちがあります',score:g.dl?Math.round((stamp(g.dl)-stamp(today))/864e5)-60:50});if(g.st)balls.push({id,label:x.n,who:g.st==='me'?'自分':g.asg?g.asg+'の対応待ち':'担当未確認',state})}}
  ranked.sort((a,b)=>a.score-b.score);
+ const alerts=[];
+ if(validDate(live)&&dates.vocal.value&&dates.vocal.kind!=='completed'&&live<dates.vocal.value){alerts.push({id:'vocalBooking',title:'ライブ披露に必要な音源と日程を確認',reason:'ライブ披露 '+live+' が歌録り '+dates.vocal.value+' より先です。必要な音源と納期を決めて前倒しを相談します',score:-20})}
+ if(dates.master.value&&dates.master.kind!=='completed'&&dates.vocal.value&&dates.vocal.kind!=='completed'&&dates.master.value<dates.vocal.value){alerts.push({id:'vocalBooking',title:'歌録りとマスタリングの日程を見直す',reason:'歌録り '+dates.vocal.value+' がマスタリング '+dates.master.value+' より後になっています',score:-20})}
+ if(validDate(release)&&dates.master.value&&dates.master.kind!=='completed'&&dates.master.value>release){alerts.push({id:'master',title:'発売に間に合うマスタリング日を相談',reason:'登録したマスタリング日が発売日より後になっています',score:-20})}
+ ranked.unshift(...alerts);
  const admin=nodes.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)&&!n.done);
  const gaps=pending.filter(n=>n.state==='unknown'&&level[n.id]<Math.max(0,frontier-1));
  const audioComplete=node.master.state==='done';
