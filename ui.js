@@ -1,7 +1,10 @@
 /* ホーム・曲の詳細・相談。作業の表示と編集は production-ui.js に集約。 */
 let songTab='summary';
 const samePayload=(a,b)=>{const x=syncable(a),y=syncable(b);delete x.at;delete y.at;return ShinkouCore.equal(x,y)};
-function matchesWho(s){if(V.who==='all')return true;const b=ballOf(s),k=b.c==='me'?'me':['other','room'].includes(b.c)?'other':b.c==='wait'?'wait':'todo';return !isFin(s)&&k===V.who}
+function matchesWho(s){
+ if(V.who==='all')return true;const r=productionReport(s);if(r.archive)return false;
+ return r.nodes.some(n=>!n.done&&(V.who==='wait'?n.state==='waiting':V.who==='todo'?['unknown','todo'].includes(n.state):V.who==='other'?n.wait||(['doing','review','received'].includes(n.state)&&!!n.owner&&n.owner!=='自分'):['doing','review','received'].includes(n.state)&&n.owner==='自分'));
+}
 const plainStage=x=>({VoDB:'歌の録音',ChoDB:'コーラス録音',楽器DB:'楽器の録音',ReVoDB:'追加の歌録音',VoEDIT:'歌の編集',ChoEDIT:'コーラス編集',ReVoEDIT:'追加録音の編集',ピッチ:'歌の音程調整',繋ぎ:'歌のつなぎ処理',リズムエディット:'歌のタイミング調整',ステム受け取り:'音声素材の受け取り',ステム発注:'音声素材の依頼'}[x]||x||'未設定');
 function songHasMV(s){return typeof s.mvEnabled==='boolean'?s.mvEnabled:!!s.dates?.mv||sortOf(s)==='single'}
 function songSnapshotContents(s){return productionSnapshot(s)}

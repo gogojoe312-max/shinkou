@@ -48,12 +48,12 @@ function productionToggleTask(s,id,redraw){
  const before=ShinkouCore.copy(s),state=n.done?'todo':'done';
  try{ShinkouProduction.apply(s,id,{state},D.today());n.keys.forEach(k=>setKidDone(s,k,state==='done'))}catch(e){toast(e.message);return}
  const diff=[];function walk(a,z,path){if(ShinkouCore.equal(a,z))return;if((a===undefined||a&&typeof a==='object'&&!Array.isArray(a))&&z&&typeof z==='object'&&!Array.isArray(z)){for(const k of new Set([...Object.keys(a||{}),...Object.keys(z)]))walk(a?.[k],z[k],path.concat(k))}else diff.push({path,before:ShinkouCore.copy(a),after:ShinkouCore.copy(z)})}walk(before,s,[]);
- logAdd(n.label+(state==='done'?'を完了: ':'を未完了へ: ')+songTitle(s));productionAfterSave(s);redraw?.();
+ logAdd(n.label+(state==='done'?'を完了: ':'を未完了へ: ')+songTitle(s));productionAfterSave(s);redraw?.();const revision=aiViewRevision;
  toast(n.label+(state==='done'?'を完了しました':'を未完了に戻しました'),{label:'元に戻す',run:()=>{
   if(RO)return;const current=S.songs.find(x=>x.id===s.id),get=(o,p)=>p.reduce((v,k)=>v?.[k],o);
   if(!current||diff.some(d=>!ShinkouCore.equal(get(current,d.path),d.after)))return toast('記録が更新されています。現在の状態を確認してください');
   for(const d of diff){let obj=current;for(const k of d.path.slice(0,-1))obj=obj[k];if(d.before===undefined)delete obj[d.path.at(-1)];else obj[d.path.at(-1)]=ShinkouCore.copy(d.before)}
-  productionAfterSave(current);if(current===s&&document.getElementById('sheet3').classList.contains('on'))redraw?.();toast('元に戻しました');
+  productionAfterSave(current);if(current===s&&aiViewRevision===revision&&document.getElementById('sheet3').classList.contains('on'))redraw?.();toast('元に戻しました');
  }});
 }
 function wireProductionTasks(s,body,back,redraw){
@@ -106,7 +106,7 @@ function productionTaskEditor(s,id,back='all'){
   const p=read(),original={owner:n.owner,recipient:n.recipient,channel:n.channel,due:n.due.kind==='target'?'':n.due.value,dueKind:n.due.kind==='target'?'registered':n.due.kind,memo:n.memo};for(const k of Object.keys(original))if(p[k]===original[k])delete p[k];const e=ShinkouProduction.validatePatch(p);if(e){toast(e);return false}
   try{ShinkouProduction.apply(s,id,p,D.today());if(p.state)n.keys.forEach(k=>setKidDone(s,k,!!s.stages?.[k]?.done))}catch(e){toast(e.message);return false}
   const completed=document.getElementById('productionCompleted');if(completed&&(!p.state||p.state==='done')&&completed.value!==n.date)s.production.tasks[id].completedAt=completed.value;
-  const label=document.getElementById('productionTaskLabel');if(label?.value.trim()){const x=s.stageList.find(x=>x.k===id.slice(6));x.n=label.value.trim();x.productionLabel=x.n}
+  const label=document.getElementById('productionTaskLabel');if(label?.value.trim()){const x=s.stageList.find(x=>x.k===id.slice(6));if(label.value.trim()!==x.n){x.n=label.value.trim();x.productionLabel=x.n}}
   logAdd(n.label+'を更新: '+songTitle(s));productionAfterSave(s);return true;
  };
  s3(songTitle(s),n.label,h,[{t:'戻る',c:'btn',f:()=>productionTasksSheet(s,back)},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(save()){productionTasksSheet(s,back);toast('保存しました')}}}]);

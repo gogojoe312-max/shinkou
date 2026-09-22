@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-i";
+const APP_VER="2026-09-22-j";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -692,13 +692,12 @@ function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
   JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
-    if(V.fin==="hide"&&(typeof ShinkouProduction!=="undefined"&&productionReport(s).applicable?productionReport(s).archive:isFin(s)))return false;
+    if(V.fin==="hide"&&productionReport(s).archive)return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
     if(V.use!=="all"&&(s.use||"master")!==V.use)return false;
-    if(V.who!=="all"){const b=ballOf(s);
-      const k=b.c==="me"?"me":b.c==="other"||b.c==="room"?"other":b.c==="wait"?"wait":"todo";
-      if(isFin(s)||k!==V.who)return false}
+    if(!matchesWho(s))return false;
     if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||"")))
+        .concat(productionReport(s).nodes.map(n=>n.label+" "+n.owner+" "+n.memo))
         .concat(stages(s).map(x=>{const o=s.stages[x.k]||{};
           return x.n+" "+(o.memo||"")+" "+(o.asg||"")+" "+((o.slots||[]).map(v=>(v.who||"")+" "+(v.note||"")).join(" "))}))
         .join(" ").toLowerCase();
@@ -707,14 +706,6 @@ function pool(){const q=V.q.trim().toLowerCase();
 const byDue=(a,b)=>{const x=status(a).dl||"9999",y=status(b).dl||"9999";
   return x.localeCompare(y)||(a.title||"").localeCompare(b.title||"","ja")};
 const byOrd=(a,b)=>(a.ord||0)-(b.ord||0);
-/* 優先順：締切までの残りを基本に、自分にボールがあるものを前に出す */
-function prio(s){
-  const st=status(s);
-  if(st.k==="fin")return{sc:1e9,left:null,st:st};
-  const left=st.left==null?400:st.left;
-  const mine=ballOf(s).c==="me";
-  return{sc:left-(mine?2:0),left:st.left,st:st}}
-const byPrio=(a,b)=>prio(a).sc-prio(b).sc||(a.title||"").localeCompare(b.title||"","ja");
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function renderUse(){
@@ -736,6 +727,7 @@ function agenda(){
   S.songs.forEach(s=>{
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return;
     if(q){const h=[s.title,s.work,s.artist,s.director]
+        .concat(productionReport(s).nodes.map(n=>n.label+" "+n.owner+" "+n.memo))
         .concat(stages(s).map(x=>{const o=s.stages[x.k]||{};
           return x.n+" "+(o.memo||"")+" "+(o.asg||"")+" "+((o.slots||[]).map(v=>(v.who||"")+" "+(v.note||"")).join(" "))}))
         .join(" ").toLowerCase();

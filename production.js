@@ -68,7 +68,7 @@ function setIncluded(s,id,included){
  const L=s.stageList||[],keys=[];
  for(const key of d.keys){const i=L.findIndex(x=>x.k===key);if(i<0)continue;keys.push(key);for(let j=i+1;j<L.length&&L[j].d===1;j++)keys.push(L[j].k);if(included&&L[i].d===1){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)keys.push(L[j].k)}}
  if(keys.length){s.stages||={};for(const k of keys){s.stages[k]||={};s.stages[k].excluded=!included}}
- else{s.production||={};s.production.tasks||={};const rec=s.production.tasks[id]||={};rec.state=included?'unknown':'na'}
+ else{s.production||={};s.production.tasks||={};const rec=s.production.tasks[id]||={};rec.excluded=!included;if(included&&rec.state==='na')rec.state='unknown'}
 }
 function report(s,opt={}){
  const today=opt.today||new Date().toISOString().slice(0,10),p=s.production||{},tasks=p.tasks||{},kind=s.sort||(s.single===false?'album':'single');
@@ -91,7 +91,7 @@ function report(s,opt={}){
    if(d.stage){const n=stageNode(s,d,today);if(n.group==='chorus'&&p.chorus==='none'||n.group==='instrument'&&p.instruments==='none'){n.state='na';n.done=true}return n;}
    const rec=tasks[d.id]||{},keys=keysFor(s,d),gs=keys.map(k=>s.stages?.[k]||{});
    let state=keys.length?aggregate(gs.map(stageState)):(Object.hasOwn(STATES,rec.state)?rec.state:'unknown');
-   const excluded=d.keys.length&&!keys.length&&d.keys.some(k=>(s.stageList||[]).some(x=>x.k===k));
+   const excluded=!!rec.excluded||d.keys.length&&!keys.length&&d.keys.some(k=>(s.stageList||[]).some(x=>x.k===k));
    if(excluded)state='na';
    let applicability='required';
    if(d.id==='instrument'){
