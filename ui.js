@@ -15,7 +15,7 @@ function songSnapshot(s){
   const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];
   const w=x?whoOf(s,x):null,n=x?plainStage(x.n):'',o=x?stg(s,x.k):{};
   const state=a.finished?'完了':!x?'状況未登録':n+' · '+w.t;
-  const action=a.finished?'完了した作業を見返せます':!x?'今の状況と次の予定を相談':w.c==='me'?n+'の内容を確認・進行':w.c==='other'||w.c==='room'?n+'の返事・受け取り状況を確認':w.c==='wait'?n+'の予定を確認':w.c==='late'?w.t+'を確認':n+'の依頼・段取りを確認';
+  const action=a.finished?'完了した作業を見返せます':!x?'今の状況と次の予定を相談':w.c==='me'?n+'を進める':w.c==='other'||w.c==='room'?n+'の返事・受け取り状況を確認':w.c==='wait'?n+'の予定を確認':w.c==='late'?w.t+'を確認':n+'の段取りを確認';
   const date=a.next?.date||'',left=date?D.to(date):null;
   return {state,action,memo:String(o.memo||'').split('\n')[0],date,left,dueTask:a.next?plainStage(a.next.x.n):'',finished:a.finished};
 }
@@ -57,8 +57,14 @@ function refreshCompletion(s){
   document.querySelectorAll('[data-snapshot-song]').forEach(root=>{
     if(root.dataset.snapshotSong!==s.id)return;
     const focused=root.contains(document.activeElement)?document.activeElement.dataset.completeWork:null;
+    const openSections=Array.from(root.querySelectorAll('details[open][data-work-section]')).map(d=>d.dataset.workSection);
     root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root);
-    if(focused)Array.from(root.querySelectorAll('[data-complete-work]')).find(b=>b.dataset.completeWork===focused)?.focus({preventScroll:true});
+    root.querySelectorAll('[data-work-section]').forEach(d=>d.open=openSections.includes(d.dataset.workSection));
+    if(focused){
+      const button=Array.from(root.querySelectorAll('[data-complete-work]')).find(b=>b.dataset.completeWork===focused);
+      const hidden=button?.closest('details:not([open])');
+      (hidden?.querySelector('summary')||button||root.querySelector('.work-panel>summary'))?.focus({preventScroll:true});
+    }
   });
   const brief=document.getElementById('homeBrief');if(brief){brief.innerHTML=assistantBriefHTML(pool());wireBriefLinks(brief)}
   if(cur?.id===s.id)head();
@@ -99,20 +105,22 @@ function songSnapshotContents(s){
   const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
   const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
   const control=(kind,key,cls,body)=>'<button type="button" class="snapshot-edit '+cls+'" data-edit-song="'+esc(s.id)+'" data-edit-kind="'+kind+'" data-edit-key="'+esc(key)+'" '+(RO?'disabled':'')+'>'+body+'</button>';
-  const milestones='<div class="song-milestones" aria-label="主要作業の登録状況">'+songMilestones(s).map(m=>{
+  const row=m=>{
     const targets=milestoneTargets(s,m.keys),dates=targets.map(x=>s.stages?.[x.k]?.date||'');
     const date=m.done&&dates.length&&dates.every(Boolean)?dates.sort().at(-1):'';
     const checked=m.done?'true':m.state==='一部完了'?'mixed':'false';
     const label=m.name+(targets.length>1?'の作業をまとめて':'を')+(m.done?'未完了に戻す':'完了にする');
-    return '<div class="milestone '+(m.done?'complete':checked==='mixed'?'partial':'')+'"><button type="button" class="work-check" role="checkbox" aria-checked="'+checked+'" aria-label="'+esc(label)+'" data-complete-song="'+esc(s.id)+'" data-complete-work="'+esc(m.name)+'" '+(RO||!targets.length?'disabled':'')+'><span aria-hidden="true">'+(m.done?'✓':checked==='mixed'?'−':'')+'</span></button>'+control('milestone',m.name,'milestone-detail','<b>'+esc(m.name)+'</b><small>'+esc(date?D.md(date)+' 完了':m.state)+'</small>')+'</div>';
-  }).join('')+'</div>';
-  const dates='<div class="song-key-dates">'+songKeyDates(s).map(d=>control('date',d.key,'key-date','<span class="date-label">'+esc(d.label)+'</span><strong>'+esc(d.value)+'</strong>'+(d.note?'<small>'+esc(d.note)+'</small>':''))).join('')+'</div>';
-  return dates+milestones+control('current','','snapshot-status','<small>現在の状態</small><strong>'+esc(a.state)+'</strong>')+control('current','','snapshot-action','<small>次に確認すること</small><span>'+esc(a.action)+'</span>')+control('deadline','','snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':''),'<small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span>')+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'');
+    return '<div class="work-row"><button type="button" class="work-check" role="checkbox" aria-checked="'+checked+'" aria-label="'+esc(label)+'" data-complete-song="'+esc(s.id)+'" data-complete-work="'+esc(m.name)+'" '+(RO?'disabled':'')+'><span class="work-circle" aria-hidden="true">'+(m.done?'✓':checked==='mixed'?'−':'')+'</span><span class="work-name"><b>'+esc(plainStage(m.name))+'</b>'+(date?'<small>'+esc(date)+' 完了</small>':checked==='mixed'?'<small>一部完了</small>':'')+'</span><span class="work-action">'+(RO?m.state:m.done?'戻す':'完了にする')+'</span></button>'+(!RO?control('milestone',m.name,'work-edit','編集'):'')+'</div>';
+  };
+  const milestones=songMilestones(s).filter(m=>m.keys.length),pending=milestones.filter(m=>!m.done),done=milestones.filter(m=>m.done);
+  const work='<details class="work-panel" data-work-section="work"><summary>作業をチェック<span aria-hidden="true">⌄</span></summary><div class="work-list"><h3>残っている主な作業</h3>'+(pending.map(row).join('')||'<p class="work-empty">'+(milestones.length?'主な作業は完了しています。':'作業はまだ登録されていません。')+'</p>')+(done.length?'<details class="finished-work" data-work-section="done"><summary>完了した作業<span aria-hidden="true">⌄</span></summary>'+done.map(row).join('')+'</details>':'')+'</div></details>';
+  const dates='<div class="song-key-dates">'+songKeyDates(s).map(d=>control('date',d.key,'key-date','<span class="date-label">'+esc(d.key==='vo'?'歌の録音日':d.label)+'</span><strong>'+esc(d.value)+'</strong>'+(d.note?'<small>'+esc(d.note)+'</small>':''))).join('')+'</div>';
+  return control('current','','snapshot-status','<small>現在の状態</small><strong>'+esc(a.state)+'</strong>')+control('current','','snapshot-action','<small>次にすること</small><span>'+esc(a.action)+'</span>')+control('deadline','','snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':''),'<small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span>')+dates+work;
 }
 function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-song="'+esc(s.id)+'">'+songSnapshotContents(s)+'</div>'}
 function songOverview(list){
   const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
-  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div>'+(!RO?'<div class="completion-tools"><p>丸をタップで完了<br><span>項目名から日程・詳細を編集</span></p><button type="button" class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">完了した曲も表示</button></div>':'')+'<div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
+  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div>'+(!RO?'<div class="completion-tools"><p>曲ごとに、次の作業と予定を確認</p><button type="button" class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">完了した曲も表示</button></div>':'')+'<div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
 }
 function deskPreviewURL(){
   const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href;

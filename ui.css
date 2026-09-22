@@ -181,25 +181,42 @@ body{background:#000;font-family:var(--jp)}
 .ai-choice>select{width:100%;min-width:0;min-height:44px;font-size:16px}
 .ai-choice>small{display:block;color:var(--dim);font-size:12px;line-height:1.5}
 
-/* Direct, reversible checks for production work. */
-.completion-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 18px}
-.completion-tools p{font-size:13px;line-height:1.6;margin:0;color:#d1d1d6}
-.completion-tools p span{font-size:11px;color:#98989f}
+/* Simple overview: current work, deadline, dates; checks open on demand. */
+.snapshot-card{display:grid;grid-template-columns:minmax(0,1fr) 90px;padding:22px 20px;gap:16px 12px}
+.snapshot-card .snapshot-title{grid-column:1;grid-row:1;min-height:48px;justify-content:center}
+.snapshot-card .snapshot-title b{font-size:22px}
+.snapshot-card .snapshot-deadline{grid-column:2;grid-row:1;text-align:right}
+.snapshot-card .snapshot-status{grid-column:1/-1;grid-row:2}
+.snapshot-card .snapshot-action{grid-column:1/-1;grid-row:3}
+.snapshot-card .song-key-dates{grid-column:1/-1;grid-row:4}
+.snapshot-card .work-panel{grid-column:1/-1;grid-row:5}
+.snapshot-action small{display:block;font-size:12px;color:#98989f;margin-bottom:5px}
+.snapshot-action span::before{content:none!important}
+.snapshot-status strong{font-size:17px}.snapshot-action span{font-size:15px;color:#d1d1d6;line-height:1.6}
+.song-key-dates .key-date strong{font-size:15px}.song-key-dates .date-label{font-size:12px}
+.completion-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 16px}
+.completion-tools p{font-size:12px;line-height:1.6;margin:0;color:#98989f;max-width:140px}
 .completed-filter{font:inherit;font-size:12px;color:#b1b1b7;background:#1c1c1e;border:1px solid #ffffff18;border-radius:12px;min-height:44px;padding:8px 12px;flex-shrink:0;cursor:pointer}
 .completed-filter[aria-pressed="true"]{color:#64a9ff;border-color:#0a84ff66;background:#0a84ff1a}
-.song-snapshot .song-milestones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px;padding:0}
-.milestone{display:flex;align-items:center;min-width:0;gap:3px;min-height:56px}
-.work-check{appearance:none;display:grid;place-items:center;flex:0 0 44px;width:44px;height:48px;padding:0;border:0;background:transparent;color:#30d158;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.work-check>span{display:grid;place-items:center;width:25px;height:25px;border:1.5px solid #626268;border-radius:50%;font:600 17px/1 system-ui}
-.work-check[aria-checked="true"]>span{background:#30d158;border-color:#30d158;color:#092610}
-.work-check[aria-checked="mixed"]>span{color:#64a9ff;border-color:#64a9ff;background:#0a84ff1a}
-.work-check:disabled{cursor:default}.work-check:disabled[aria-checked="false"]{opacity:.4}
-.work-check:focus-visible,.completed-filter:focus-visible{outline:2px solid #0a84ff;outline-offset:0;border-radius:10px}
-.work-check:not(:disabled):active>span{transform:scale(.88)}
-.milestone-detail{display:flex;flex-direction:column;justify-content:center;gap:4px;min-height:48px;flex:1}
-.milestone-detail b{font-size:13px;font-weight:500;color:#e5e5ea;line-height:1.4;overflow-wrap:anywhere}
-.milestone-detail small{font-size:11px;color:#98989f;line-height:1.4}.complete .milestone-detail small{color:#30d158}.partial .milestone-detail small{color:#64a9ff}
+.work-panel{min-width:0;border-top:0}
+.work-panel summary{display:flex;align-items:center;justify-content:space-between;gap:12px;list-style:none;min-height:48px;font-size:16px;font-weight:500;color:#64a9ff;cursor:pointer}
+.work-panel summary::-webkit-details-marker{display:none}.work-panel summary>span{font-size:20px;transition:transform .15s}.work-panel[open]>summary>span,.finished-work[open]>summary>span{transform:rotate(180deg)}
+.work-list{padding-top:8px}.work-list h3{font-size:13px;color:#98989f;font-weight:400;margin:4px 0 10px}
+.work-row{display:flex;align-items:stretch;gap:4px;border-bottom:1px solid #ffffff0c;min-width:0}
+.work-check{appearance:none;display:flex;align-items:center;gap:12px;flex:1;min-width:0;min-height:64px;padding:10px 0;border:0;background:transparent;text-align:left;color:#f5f5f7;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.work-circle{flex:0 0 24px;width:24px;height:24px;border:1.5px solid #626268;border-radius:50%;display:grid;place-items:center;font:600 17px/1 system-ui;color:#64a9ff}
+.work-check[aria-checked="true"] .work-circle{background:#30d158;border-color:#30d158;color:#092610}
+.work-check[aria-checked="mixed"] .work-circle{border-color:#64a9ff}
+.work-name{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}.work-name b{font-size:15px;font-weight:500;overflow-wrap:anywhere}.work-name small{font-size:12px;color:#98989f}
+.work-action{font-size:11px;color:#64a9ff;flex-shrink:0}.work-check[aria-checked="true"] .work-name{color:#98989f}
+.work-edit{min-width:44px;min-height:64px;text-align:center;color:#98989f;font-size:12px}
+.work-check:disabled{cursor:default}.work-empty{font-size:14px;color:#98989f;line-height:1.6;margin:12px 0}
+.finished-work{margin-top:14px}.finished-work>summary{font-size:14px;color:#98989f}
+.work-check:focus-visible,.work-panel summary:focus-visible,.completed-filter:focus-visible{outline:2px solid #0a84ff;outline-offset:2px;border-radius:6px}
+.work-check:not(:disabled):active{opacity:.6}
+.assistant-status .song-snapshot{display:flex;flex-direction:column;gap:18px;align-items:stretch}
+.assistant-status .snapshot-deadline{order:-1;border:0;padding:0}
+.assistant-status .snapshot-status,.assistant-status .snapshot-action{width:100%}
 .toast{max-width:calc(100vw - 24px)}
 .toast.actionable{display:flex;align-items:center;gap:16px;padding:8px 10px 8px 18px;border-radius:18px;box-shadow:0 6px 32px #0005;font-size:13px;font-weight:500}
 .toast.actionable.on{pointer-events:auto}.toast.actionable>span{min-width:0}.toast.actionable button{flex-shrink:0;font:inherit;font-weight:600;min-height:44px;border:0;border-radius:10px;padding:8px 10px;background:#007aff12;color:#005bcb;cursor:pointer}
-@media(max-width:380px){.completion-tools{gap:8px}.completed-filter{font-size:11px;padding:8px}.song-snapshot .song-milestones{gap:2px 6px}.milestone{gap:0}.milestone-detail b{font-size:12px}}
