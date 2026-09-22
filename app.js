@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-d";
+const APP_VER="2026-09-22-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -745,7 +745,7 @@ function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
   JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",flowDone:V.flowDone!==false,calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
-    if(V.fin==="hide"&&isFin(s))return false;
+    if(V.fin==="hide"&&(typeof ShinkouProduction!=="undefined"&&productionReport(s).applicable?productionReport(s).archive:isFin(s)))return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
     if(V.use!=="all"&&(s.use||"master")!==V.use)return false;
     if(V.who!=="all"){const b=ballOf(s);
@@ -1157,7 +1157,7 @@ function head(){
   document.getElementById("shTitle").textContent=songTitle(cur);
   const st=status(cur),L=stages(cur);
   document.getElementById("shEye").textContent=[cur.artist||"グループ未設定",
-    projTitle(projOf(cur.projectId)),st.k==="fin"?"完了":"現在 "+L[st.i].n].join(" · ")}
+    projTitle(projOf(cur.projectId)),typeof ShinkouProduction!=="undefined"&&productionReport(cur).applicable?(productionReport(cur).audioComplete?"音源制作完了":"制作の見通し"):st.k==="fin"?"完了":"現在 "+L[st.i].n].join(" · ")}
 
 /* 日程の1行 */
 function slotHTML(s,x,v,si,d){
@@ -2876,6 +2876,10 @@ function aiCtx(scope=conversationScope()){
     if(cr.length)o.credits=cr;else o.no_credits=1;
     o.excluded=(s.stageList||[]).filter(x=>!stages(s).some(a=>a.k===x.k)).map(x=>({k:x.k,n:x.n}));
     o.guidance=rulesForSong(s).filter(r=>r.scope!=="global").map(r=>({id:r.id,text:r.text,scope:r.scope}));
+    if(typeof ShinkouProduction!=="undefined"){
+      const r=productionReport(s);if(r.applicable){o.production=r.nodes.filter(n=>n.state!=="unknown"||n.due.value||n.applicability==="unknown").map(n=>({id:n.id,state:n.state,...(n.owner?{owner:n.owner}:{}),...(n.due.value?{due:n.due.value,due_kind:n.due.kind}:{}),...(n.applicability==="unknown"?{needed:"unknown"}:{} )}));
+      o.next=r.actions.slice(0,2).map(a=>a.title);o.instruments=s.production?.instruments||"unknown";o.chorus=s.production?.chorus||"required";o.choreography=s.production?.choreography===true;}
+    }
     if(s.note)o.note=String(s.note).slice(0,200);
     return o});
   // 同じ工程名を全曲で繰り返さない。独自の名称・multi指定も別の定義として保持する。
@@ -2886,11 +2890,18 @@ function aiCtx(scope=conversationScope()){
       const ref=definitions.get(key);return Object.keys(state).length?{ref,...state}:ref;
     });
   });
-  return {stage_catalog:catalog,guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
+  return {production_catalog:typeof ShinkouProduction!=="undefined"?ShinkouProduction.defs.map(d=>({id:d.id,n:d.label})):[],stage_catalog:catalog,guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
     open_song:scope==="global"?-1:S.songs.findIndex(s=>s.id===scope)}
 }
 
 const AI_SYS=[
+"制作の標準目安: 曲確定は発売4か月前、歌録りは2か月半前、MV撮影は1か月半前、マスタリングは1か月前。先生への歌割と編集後ラフ提出はMV3週間前、歌詞の音・文字・表記確認とクレジットのデスク提出はマスタリング1週間前。半月は15日。全て目安であり確定日ではない。発売未定ならライブ初披露に必要な音源と納期を確認し、発売の逆算は適用しない。",
+"シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、歌録りまでにフルサイズ化、歌録り可能なアレンジ、ステム受領を確認。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
+"先生に歌割と、歌編集済み・アレンジほぼ完成のラフを送り振付を依頼する。MV撮影は最終ミックス必須ではない。ミックス実作業は全素材が揃ってからだが予約は先行できる。マスタリングで音源制作完了。歌詞確認、クレジット提出、請求書のデスク送付が残れば別途案内。請求書の受領はデスク送付の完了ではない。日程管理は制作担当本人で、デスクに予定手配は頼まない。編集・ミックス等の実担当は記録・本人発言で確認し、他ディレクターへ一律適用しない。",
+"productionは既存工程と統合した状態。unknownは未確認、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
+"必要・不要が明示されたら {t:production_options,s:曲i,set:{instruments:required|none|unknown,chorus:required|none,choreography:true|false}} の該当項目だけ提案する。MVなしでもライブ振付が必要ならchoreography:trueを提案する。",
+"production_catalogの作業の更新は {t:production,s:曲i,id:作業id,set:{state:状態,owner:現在ボールを持つ人,recipient:連絡相手,channel:email|line,due:YYYY-MM-DD,dueKind:confirmed|tentative|registered,memo:メモ}}。明示された項目だけsetに含める。既存stageと重なる場合もこちらを使い重複opを作らない。対象不明な人名や状態は勝手に埋めない。仮案や逆算目安をdueやanchorとして記録しない。連絡文はansで作成し、ユーザーが送ったと言うまでrequested/doneにしない。優先順位は期限・後工程の支障・先行予約で理由を短く示す。",
+
 "stagesの数値、またはrefはstage_catalogの添字。工程名n・操作に使うk・multiはその定義を参照する。数値だけの工程は追加の状態記録なし（未実施とは断定しない）。opsのstにはrefでなく定義のkを使う。",
 "MVは通常シングル曲が対象。アルバム曲・アディショナル曲は原則なし。アルバムリード等の例外はhas_mvを参照し、MVなしの曲へ撮影日を必須として質問しない。",
 "detailに詳細省略とある曲は一覧照合用。情報がないことを未実施と解釈せず、その曲への操作を生成しない。必要ならその曲の相談で確認するよう案内する。",
@@ -3025,16 +3036,23 @@ async function aiCall(text,scope=conversationScope(),mode="auto"){
 /* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
 function aiResolve(op){
   const r={op:op,ok:true,why:"",song:null,x:null,proj:null};
-  const allowed="remember stage_add stage_restore add_song upd_song anchor dl done status slot_add slot_upd memo asg del_song add_proj upd_proj master_add".split(" ");
+  const allowed="production production_options remember stage_add stage_restore add_song upd_song anchor dl done status slot_add slot_upd memo asg del_song add_proj upd_proj master_add".split(" ");
   if(!allowed.includes(op.t)){r.ok=false;r.why="未対応の操作です";return r}
   if(op.t==="remember"){
     if(!validRule(op)){r.ok=false;r.why="覚える内容と適用範囲を確認してください";return r}
     if(op.scope==="song")r.song=S.songs[op.s];
   }
-  const needSong="stage_add stage_restore upd_song anchor dl done status slot_add slot_upd memo asg del_song".split(" ").includes(op.t);
+  const needSong="production production_options stage_add stage_restore upd_song anchor dl done status slot_add slot_upd memo asg del_song".split(" ").includes(op.t);
   if(needSong){
     r.song=(typeof op.s==="number"&&S.songs[op.s])||null;
     if(!r.song){r.ok=false;r.why="曲を特定できませんでした";return r}}
+  if(op.t==="production"){
+    if(!ShinkouProduction.byId[op.id]||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
+    r.productionBefore=JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]).map(k=>r.song.stages?.[k])});
+  }
+  if(op.t==="production_options"){
+    if(!op.set||Object.keys(op.set).some(k=>!["instruments","chorus","choreography"].includes(k))||Object.entries(op.set).some(([k,v])=>k==="choreography"?typeof v!=="boolean":!["unknown","required","none"].includes(v))){r.ok=false;r.why="対象の指定が不正です";return r}
+  }
   if("dl done status slot_add slot_upd memo asg".indexOf(op.t)>=0){
     r.x=stages(r.song).find(z=>z.k===op.st)||null;
     if(!r.x){r.ok=false;r.why="工程を特定できませんでした";return r}
@@ -3052,6 +3070,8 @@ const AI_STLBL={"":"未依頼",req:"相手待ち",me:"自分の番",studio:"連�
 function aiSummary(r){
   const op=r.op,sn=r.song?songTitle(r.song):"",xn=r.x?r.x.n:"";
   switch(op.t){
+    case "production":return sn+"｜"+ShinkouProduction.byId[op.id].label+"："+Object.entries(op.set).map(([k,v])=>( {state:"状態",owner:"いま対応する人",recipient:"連絡相手",channel:"連絡手段",due:"締切・予定日",dueKind:"日程の状態",memo:"メモ"}[k])+" → "+(k==="state"?ShinkouProduction.STATES[v]:k==="dueKind"?{registered:"登録日",confirmed:"確定",tentative:"仮"}[v]:v||"未設定")).join("、");
+    case "production_options":return sn+"｜制作条件："+Object.entries(op.set).map(([k,v])=>({instruments:"楽器録音",chorus:"コーラス",choreography:"振付"}[k])+" → "+({unknown:"未確認",required:"必要",none:"不要",true:"あり",false:"なし"}[v]||v)).join("、");
     case "remember":return "今後に活かす（"+ruleScopeLabel({scope:op.scope,songId:r.song?.id,director:op.director})+"）: "+op.text;
     case "stage_add":return sn+"｜工程を追加: "+op.name;
     case "stage_restore":return sn+"｜工程を再使用: "+xn;
@@ -3097,10 +3117,17 @@ function aiSet(o,p,v){const ks=p.split(".");const last=ks.pop();
   const t=ks.reduce((a,k)=>(a[k]=a[k]||{}),o);t[last]=v}
 
 function aiApply(r){
+  if(RO)throw new Error("閲覧のみのため反映できません");
   const op=r.op;if(r.ok===false)throw new Error(r.why||"無効な操作です");
   if(r.song){const current=S.songs.find(s=>s.id===r.song.id);if(current!==r.song)throw new Error("曲が更新されました。AI入力をやり直してください");if(op.st&&op.t!=="stage_restore"&&!stages(current).some(x=>x.k===op.st))throw new Error("対象外または削除された工程です")}
   if(r.proj&&S.projects.find(p=>p.id===r.proj.id)!==r.proj)throw new Error("案件が更新されました。AI入力をやり直してください");
   switch(op.t){
+    case "production":{
+      const keys=ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]);
+      if(r.productionBefore!==JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:keys.map(k=>r.song.stages?.[k])}))throw new Error("作業の記録が更新されました。もう一度確認してください");
+      ShinkouProduction.apply(r.song,op.id,op.set,D.today());if(op.set.state)keys.forEach(k=>setKidDone(r.song,k,op.set.state==="done"));break;
+    }
+    case "production_options":{const fresh=aiResolve(op);if(!fresh.ok)throw new Error(fresh.why);r.song.production||={};Object.assign(r.song.production,op.set);break}
     case "remember":{if(!validRule(op))throw new Error("適用範囲を確認してください");saveAssistantRule({scope:op.scope,songId:r.song?.id,director:op.director,text:op.text});break}
     case "stage_add":{const name=String(op.name||"").trim();if(!name||(r.song.stageList||[]).some(x=>x.n.trim()===name))throw new Error("工程名が空、または重複しています");r.song.stageList.push({k:"ai_"+uid(),n:name,gp:String(op.group||"追加工程"),d:0});break}
     case "stage_restore":{const L=r.song.stageList,i=L.findIndex(x=>x.k===op.st);if(i<0)throw new Error("工程が見つかりません");stg(r.song,op.st).excluded=false;if(L[i].d===1){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)stg(r.song,L[j].k).excluded=false}break}

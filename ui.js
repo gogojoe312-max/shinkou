@@ -102,6 +102,7 @@ function songKeyDates(s){
   return out;
 }
 function songSnapshotContents(s){
+  if(typeof ShinkouProduction!=="undefined"&&productionReport(s).applicable)return productionSnapshot(s);
   const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
   const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
   const control=(kind,key,cls,body)=>'<button type="button" class="snapshot-edit '+cls+'" data-edit-song="'+esc(s.id)+'" data-edit-kind="'+kind+'" data-edit-key="'+esc(key)+'" '+(RO?'disabled':'')+'>'+body+'</button>';
@@ -119,6 +120,7 @@ function songSnapshotContents(s){
 }
 function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-song="'+esc(s.id)+'">'+songSnapshotContents(s)+'</div>'}
 function songOverview(list){
+  if(typeof ShinkouProduction!=="undefined")return productionOverview(list);
   const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
   return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div>'+(!RO?'<div class="completion-tools"><p>曲ごとに、次の作業と予定を確認</p><button type="button" class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">完了した曲も表示</button></div>':'')+'<div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
 }
@@ -126,6 +128,7 @@ function deskPreviewURL(){
   const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href;
 }
 function wireSnapshotEditors(root){
+ if(typeof wireProduction==="function")wireProduction(root);
  root.querySelectorAll('[data-edit-song]').forEach(b=>b.onclick=()=>{if(RO)return;const s=S.songs.find(s=>s.id===b.dataset.editSong);if(s)editSnapshot(s,b.dataset.editKind,b.dataset.editKey)});
  root.querySelectorAll('[data-complete-song]').forEach(b=>b.onclick=()=>{const s=S.songs.find(s=>s.id===b.dataset.completeSong);if(s)toggleMilestone(s,b.dataset.completeWork)});
  root.querySelectorAll('[data-show-completed]').forEach(b=>b.onclick=()=>{
@@ -174,7 +177,7 @@ function renderWorkspace(){
   document.body.classList.toggle('desk-mode',V.mode==='desk');
   document.body.classList.toggle('assistant-first',V.mode!=='desk'&&V.use!=='cal');
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
-  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'アシスタント';
+  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'制作の見通し';
   const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();
@@ -189,7 +192,7 @@ function renderDesk(el,list){
   el.innerHTML='<p class="desk-caption">デスク用 · 閲覧のみ</p>'+songOverview(list);
   el.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));wireSnapshotEditors(el);
 }
-function songTabs(){return '<nav class="song-tabs" aria-label="曲の詳細">'+[['summary','状況'],['credits','クレジット'],['notes','メモ・履歴']].filter(([key])=>V.mode!=='desk'||key!=='flow').map(([key,label])=>'<button data-song-tab="'+key+'" aria-pressed="'+(songTab===key)+'">'+label+'</button>').join('')+'</nav>'}
+function songTabs(){return '<nav class="song-tabs" aria-label="曲の詳細">'+[['summary','状況'],['credits','クレジット'],['notes','メモ・履歴']].filter(([key])=>V.mode!=='desk'||key==='summary').map(([key,label])=>'<button data-song-tab="'+key+'" aria-pressed="'+(songTab===key)+'">'+label+'</button>').join('')+'</nav>'}
 function wireSongTabs(){document.querySelectorAll('[data-song-tab]').forEach(b=>b.onclick=()=>{songTab=b.dataset.songTab;drawSong()})}
 function currentCard(s){
   const a=songSummary(s),x=a.x,o=x?stg(s,x.k):{},assigned=x?(o.asg||nameFor(s,x.role)||s.director||'未設定'):s.director||'未設定';
@@ -210,13 +213,14 @@ function decorateSong(){
 }
 function drawSongPage(){
   const s=cur,a=songSummary(s),b=document.getElementById('shBody');
+  if(V.mode==='desk')songTab='summary';
   let h=songTabs();
   if(songTab==='summary'){
     h+=assistantSongCard(s);
-    if(a.next&&a.next.x.k!==a.x?.k)h+='<div class="next-inline"><span>近い期限 · '+esc(plainStage(a.next.x.n))+'</span><b>'+esc(D.md(a.next.date))+'</b></div>';
+    if(!productionReport(s).applicable&&a.next&&a.next.x.k!==a.x?.k)h+='<div class="next-inline"><span>近い期限 · '+esc(plainStage(a.next.x.n))+'</span><b>'+esc(D.md(a.next.date))+'</b></div>';
     const dates=[['release','発売'],['open','公演初日'],['rehearsal','リハーサル'],['mastering','マスタリング'],['deliver','音源提出']].filter(([k])=>s.dates[k]);
-    if(dates.length)h+='<section class="detail-panel"><h3>主要日程</h3><dl class="summary-dates">'+dates.map(([k,l])=>'<div><dt>'+l+'</dt><dd>'+esc(D.md(s.dates[k]))+'</dd></div>').join('')+'</dl></section>';
-    if(s.note)h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
+    if(!productionReport(s).applicable&&dates.length)h+='<section class="detail-panel"><h3>主要日程</h3><dl class="summary-dates">'+dates.map(([k,l])=>'<div><dt>'+l+'</dt><dd>'+esc(D.md(s.dates[k]))+'</dd></div>').join('')+'</dl></section>';
+    if(s.note&&V.mode!=='desk')h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
     if(V.mode!=='desk'&&!RO)h+='<div class="summary-options"><button class="btn" data-edit-song="'+esc(s.id)+'" data-edit-kind="classification" data-edit-key="">曲の種類・MV</button><button class="btn" id="editSongInfo">基本情報を編集</button><button class="btn" id="legacyRecords">作業記録を確認</button></div>';
   }else if(songTab==='credits'){
     h+='<div class="detail-panel"><h3>制作クレジット</h3><div id="crW">'+crRows(s,'work')+'</div><button class="btn sm" data-add="work">＋ 人を追加</button></div><div class="detail-panel"><h3>ミュージシャンクレジット</h3><div id="crM">'+crRows(s,'mus')+'</div><button class="btn sm" data-add="mus">＋ 人を追加</button></div>';
@@ -410,8 +414,8 @@ function wireBriefLinks(root){
  root.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});
 }
 function assistantBriefHTML(list){
- const brief=assistantBrief(list);
- return '<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'');
+ const items=list.flatMap(s=>{const r=productionReport(s);return r.applicable?r.actions.slice(0,1).map(a=>({s,a,r})):[]}).sort((a,b)=>a.a.score-b.a.score).slice(0,3);
+ return items.length?'<section class="assistant-brief"><h3>先に確認しておきたいこと</h3><small>記録と日程から優先順に表示</small>'+items.map(({s,a})=>'<button class="brief-row" data-brief-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>'+esc(a.title)+'</small></span><span>›</span></button>').join('')+'</section>':'';
 }
 function renderAssistantHome(el,list){
  const history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
