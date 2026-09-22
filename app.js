@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-e";
+const APP_VER="2026-09-22-f";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2647,7 +2647,7 @@ function hide(id){aiViewRevision++;if(id==="sheet3")AIPV=null;document.getElemen
 function mkSheet(pre,eye,title,html,btns){
   document.getElementById(pre+"Eye").textContent=eye;
   document.getElementById(pre+"Title").textContent=title;
-  document.getElementById(pre+"Body").innerHTML=html;
+  document.getElementById(pre+"Body").innerHTML=html;document.getElementById(pre+"Body").scrollTop=0;
   const f=document.getElementById(pre+"Foot");f.innerHTML="";
   (btns||[]).filter(Boolean).forEach(b=>{if(b.sp){const d=document.createElement("div");d.style.flex="1";f.appendChild(d);return}
     const e=document.createElement("button");e.className=b.c||"btn";e.textContent=b.t;e.onclick=b.f;f.appendChild(e)})}
@@ -2877,7 +2877,8 @@ function aiCtx(scope=conversationScope()){
     o.excluded=(s.stageList||[]).filter(x=>!stages(s).some(a=>a.k===x.k)).map(x=>({k:x.k,n:x.n}));
     o.guidance=rulesForSong(s).filter(r=>r.scope!=="global").map(r=>({id:r.id,text:r.text,scope:r.scope}));
     if(typeof ShinkouProduction!=="undefined"){
-      const r=productionReport(s);if(r.applicable){o.production=r.nodes.filter(n=>n.state!=="unknown"||n.due.value||n.applicability==="unknown").map(n=>({id:n.id,state:n.state,...(n.owner?{owner:n.owner}:{}),...(n.due.value?{due:n.due.value,due_kind:n.due.kind}:{}),...(n.applicability==="unknown"?{needed:"unknown"}:{} )}));
+      const r=productionReport(s);if(r.applicable){o.production=r.nodes.filter(n=>(!n.keys.length&&n.state!=="unknown")||s.production?.tasks?.[n.id]).map(n=>({id:n.id,state:n.state,...(n.owner?{owner:n.owner}:{}),...(n.recipient?{recipient:n.recipient}:{}),...(n.channel?{channel:n.channel}:{}),...(n.due.value?{due:n.due.value,due_kind:n.due.kind}:{}),...(n.memo?{memo:String(n.memo).slice(0,150)}:{})}));
+      o.targets=Object.fromEntries(Object.entries(r.dates).filter(([,d])=>d.kind==="target"&&d.value).map(([k,d])=>[k,d.value]));
       o.next=r.actions.slice(0,2).map(a=>a.title);o.instruments=s.production?.instruments||"unknown";o.chorus=s.production?.chorus||"required";o.choreography=s.production?.choreography===true;}
     }
     if(s.note)o.note=String(s.note).slice(0,200);
@@ -2890,7 +2891,7 @@ function aiCtx(scope=conversationScope()){
       const ref=definitions.get(key);return Object.keys(state).length?{ref,...state}:ref;
     });
   });
-  return {production_catalog:typeof ShinkouProduction!=="undefined"?ShinkouProduction.defs.map(d=>({id:d.id,n:d.label})):[],stage_catalog:catalog,guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
+  return {production_catalog:typeof ShinkouProduction!=="undefined"?ShinkouProduction.defs.map(d=>({id:d.id,n:d.label,st:d.keys})):[],stage_catalog:catalog,guidance:(S.assistantRules||[]).filter(r=>!r.removed&&r.scope==="global").map(r=>({id:r.id,text:r.text})),today:D.today(),people:people,projects:projs,songs:songs,
     open_song:scope==="global"?-1:S.songs.findIndex(s=>s.id===scope)}
 }
 
@@ -2898,7 +2899,7 @@ const AI_SYS=[
 "制作の標準目安: 曲確定は発売4か月前、歌録りは2か月半前、MV撮影は1か月半前、マスタリングは1か月前。先生への歌割と編集後ラフ提出はMV3週間前、歌詞の音・文字・表記確認とクレジットのデスク提出はマスタリング1週間前。半月は15日。全て目安であり確定日ではない。発売未定ならライブ初披露に必要な音源と納期を確認し、発売の逆算は適用しない。",
 "シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、歌録りまでにフルサイズ化、歌録り可能なアレンジ、ステム受領を確認。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
 "先生に歌割と、歌編集済み・アレンジほぼ完成のラフを送り振付を依頼する。MV撮影は最終ミックス必須ではない。ミックス実作業は全素材が揃ってからだが予約は先行できる。マスタリングで音源制作完了。歌詞確認、クレジット提出、請求書のデスク送付が残れば別途案内。請求書の受領はデスク送付の完了ではない。日程管理は制作担当本人で、デスクに予定手配は頼まない。編集・ミックス等の実担当は記録・本人発言で確認し、他ディレクターへ一律適用しない。",
-"productionは既存工程と統合した状態。unknownは未確認、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
+"productionは新規項目と補足記録。省略した作業はproduction_catalogのstに対応する既存stagesを参照する。targetsは保存しない逆算目安。unknownは未確認、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
 "必要・不要が明示されたら {t:production_options,s:曲i,set:{instruments:required|none|unknown,chorus:required|none,choreography:true|false}} の該当項目だけ提案する。MVなしでもライブ振付が必要ならchoreography:trueを提案する。",
 "production_catalogの作業の更新は {t:production,s:曲i,id:作業id,set:{state:状態,owner:現在ボールを持つ人,recipient:連絡相手,channel:email|line,due:YYYY-MM-DD,dueKind:confirmed|tentative|registered,memo:メモ}}。明示された項目だけsetに含める。既存stageと重なる場合もこちらを使い重複opを作らない。対象不明な人名や状態は勝手に埋めない。仮案や逆算目安をdueやanchorとして記録しない。連絡文はansで作成し、ユーザーが送ったと言うまでrequested/doneにしない。優先順位は期限・後工程の支障・先行予約で理由を短く示す。",
 
@@ -3047,7 +3048,7 @@ function aiResolve(op){
     r.song=(typeof op.s==="number"&&S.songs[op.s])||null;
     if(!r.song){r.ok=false;r.why="曲を特定できませんでした";return r}}
   if(op.t==="production"){
-    if(!ShinkouProduction.byId[op.id]||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
+    if(typeof op.id!=="string"||!Object.hasOwn(ShinkouProduction.byId,op.id)||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
     r.productionBefore=JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]).map(k=>r.song.stages?.[k])});
   }
   if(op.t==="production_options"){

@@ -50,7 +50,7 @@ function report(s,opt={}){
  dates.lyricCheck=date(days(masterDate.value,-7),'target','マスタリングの1週間前');dates.credits=dates.lyricCheck;
  const nodes=defs.map(d=>{
    const rec=tasks[d.id]||{},keys=keysFor(s,d),gs=keys.map(k=>s.stages?.[k]||{});
-   let state=keys.length?aggregate(gs.map(stageState)):(STATES[rec.state]?rec.state:'unknown');
+   let state=keys.length?aggregate(gs.map(stageState)):(Object.hasOwn(STATES,rec.state)?rec.state:'unknown');
    const excluded=d.keys.length&&!keys.length&&d.keys.some(k=>(s.stageList||[]).some(x=>x.k===k));
    if(excluded)state='na';
    let applicability='required';
@@ -71,6 +71,7 @@ function report(s,opt={}){
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
  if(node.arrange.state==='done')for(const id of ['recordable','almost'])if(node[id].state==='unknown'){Object.assign(node[id],{state:'done',done:true,derived:true})}
+ for(const id of ['vocal','master'])if(node[id].state==='done')dates[id]=date(node[id].date,'completed','完了記録');
  for(const n of nodes){n.blockers=n.deps.filter(k=>!node[k].done);n.left=n.due.value?Math.round((stamp(n.due.value)-stamp(today))/864e5):null}
  const groups=GROUPS.map(([id,label])=>{
    const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));
@@ -95,7 +96,7 @@ function report(s,opt={}){
  for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'登録日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
  const ranked=actions.map(n=>{
    let title=n.wait?n.label+'の返答を確認':n.state==='unknown'?n.label+'の状況を確認':n.label;
-   let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
+   let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
    if(n.blockers.length)reason+='。先に '+n.blockers.map(k=>node[k].label).join('・')+' を確認';
    const inherited=urgency.get(n.id);if(inherited&&inherited.score<score(n))reason=inherited.reason+(n.blockers.length?'。未確認の前提：'+n.blockers.map(k=>node[k].label).join('・'):'');
    return {id:n.id,title,reason,score:Math.min(score(n),inherited?.score??Infinity)};
@@ -116,7 +117,7 @@ function validatePatch(patch){
  const allowed=['state','owner','recipient','channel','due','dueKind','memo'];
  for(const [k,v]of Object.entries(patch)){
   if(!allowed.includes(k))return '未対応の項目です';if(typeof v!=='string')return '文字列で指定してください';
-  if(k==='state'&&!STATES[v])return '状態が不正です';
+  if(k==='state'&&!Object.hasOwn(STATES,v))return '状態が不正です';
   if(k==='channel'&&!['','email','line'].includes(v))return '連絡手段が不正です';
   if(k==='due'&&v&&!validDate(v))return '日付を確認してください';
   if(k==='dueKind'&&!['registered','confirmed','tentative'].includes(v))return '目安は確定日として保存できません';
@@ -124,7 +125,7 @@ function validatePatch(patch){
  }return '';
 }
 function apply(s,id,patch,today){
- const d=byId[id];if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
+ const d=Object.hasOwn(byId,id)?byId[id]:null;if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
  const keys=keysFor(s,d),allKeys=(s.stageList||[]).map(x=>x.k);
  if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。作業記録で対象を確認してください');
  if(patch.state==='na'&&keys.length)throw Error('既存の作業は作業記録から対象外にしてください');
