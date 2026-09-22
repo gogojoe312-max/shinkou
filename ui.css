@@ -106,7 +106,7 @@ body{background:#111113;color:#eeeef2;-webkit-font-smoothing:antialiased}
 .snapshot-title b{font-size:25px;line-height:1.45;font-weight:550;letter-spacing:-.035em}.snapshot-title small{font-size:12px;color:#9898a6;letter-spacing:.025em}
 .snapshot-card .song-snapshot{display:contents}
 .snapshot-card .snapshot-status{grid-column:1;grid-row:2}.snapshot-card .snapshot-action{grid-column:1;grid-row:3}
-.snapshot-status>small,.snapshot-action>small{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+
 .snapshot-status strong{font-size:15px;line-height:1.7;font-weight:400;color:#c9c9d4}
 .snapshot-action span{font-size:13px;line-height:1.8;color:#9696a5;display:block}.snapshot-action span::before{content:'↳';display:inline-block;margin-right:7px;color:#a9bfe1}
 .snapshot-card .snapshot-deadline{grid-column:2;grid-row:1/4;border:0;padding:4px 0 0;text-align:right;display:flex;flex-direction:column;gap:6px;align-self:start;min-width:0}
