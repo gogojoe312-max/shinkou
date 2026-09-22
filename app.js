@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-16-b";
+const APP_VER="2026-09-22-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2955,6 +2955,7 @@ async function aiFetch(body,checkModel=AI_DEF_MODEL){
         code==="insufficient_quota"?"OpenAI APIの残高・利用上限を確認してください。ChatGPTの月額プランとは別です。":
         r.status===429?"OpenAIが混み合っているか、利用制限に達しています。自動で再送はしません。":
         r.status===403?"このキーに利用権限がありません。OpenAIのプロジェクト設定を確認してください。":
+        r.status===400?"相談の送信形式がOpenAIに受け付けられませんでした（400）。アプリを再読み込みしてお試しください。入力は保持しています。自動で再送はしません。":
         "OpenAIへの接続に失敗しました（"+r.status+"）。自動で再送はしません。")}
     const j=await r.json();received=true;
     if(body)j.localUsage=aiRecordUsage(j,a,body.model);
@@ -2993,9 +2994,10 @@ function aiWait(element){
 
 async function aiChat(msgs,choice=aiSelectModel("","global")){
   const wd=["日","月","火","水","木","金","土"][new Date().getDay()];
+  // JSONモードの検証対象はinput。instructionsだけに置くと日本語の相談が400になる。
   const j=await aiFetch({model:choice.model,max_output_tokens:choice.maxOutput,store:false,
     ...(choice.model==="gpt-5.4"?{reasoning:{effort:"low"}}:{}),
-    instructions:AI_SYS,input:[{role:"developer",content:"今日: "+D.today()+"（"+wd+"曜）"},...aiCompactMessages(msgs)],
+    instructions:AI_SYS,input:[{role:"developer",content:"出力は指定されたJSONオブジェクトのみ。\n今日: "+D.today()+"（"+wd+"曜）"},...aiCompactMessages(msgs)],
     text:{format:{type:"json_object"}}});
   if(j.status!=="completed")throw new Error("回答を最後まで取得できませんでした。提案は反映していません。相談を短く分けてください。使用量は設定で確認できます。");
   const blocks=(j.output||[]).filter(b=>b.type==="message").flatMap(b=>b.content||[]);
