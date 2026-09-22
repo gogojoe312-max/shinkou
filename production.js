@@ -66,7 +66,7 @@ function report(s,opt={}){
    const asg=rec.owner||gs.find(g=>g.asg)?.asg||'';
    const wait=['requested','revision'].includes(state),me=gs.some(g=>g.st==='me');
    const owner=rec.owner!==undefined?rec.owner:me?'自分':asg;
-   return {...d,keys,state,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||asg,memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt||gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
+   return {...d,keys,state,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||(asg==='自分'?'':asg),memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
  });
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
@@ -126,7 +126,7 @@ function validatePatch(patch){
 }
 function apply(s,id,patch,today){
  const d=Object.hasOwn(byId,id)?byId[id]:null;if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
- const keys=keysFor(s,d),allKeys=(s.stageList||[]).map(x=>x.k);
+ const keys=keysFor(s,d),completeGroup=keys.length>0&&keys.every(k=>s.stages?.[k]?.done),allKeys=(s.stageList||[]).map(x=>x.k);
  if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。作業記録で対象を確認してください');
  if(patch.state==='na'&&keys.length)throw Error('既存の作業は作業記録から対象外にしてください');
  s.production||={};s.production.tasks||={};const rec=s.production.tasks[id]||={};
@@ -134,7 +134,7 @@ function apply(s,id,patch,today){
  if(patch.state){
    if(patch.state==='na'&&keys.length)throw Error('既存の作業は作業記録から対象外にしてください');
    if(!keys.length){if(patch.state==='done')rec.completedAt=rec.completedAt||today;else rec.completedAt=''}
-   for(const k of keys){s.stages||={};const g=s.stages[k]||={};if(patch.state==='done'){if(!g.done)g.date=today;g.done=true;g.st='';g.prov=false}
+   for(const k of keys){s.stages||={};const g=s.stages[k]||={};if(patch.state!=='done'&&g.done&&!completeGroup)continue;if(patch.state==='done'){if(!g.done)g.date=today;g.done=true;g.st='';g.prov=false}
     else{if(g.done)g.date='';g.done=false;g.prov=false;g.st=['requested','revision'].includes(patch.state)?'req':['doing','review','received'].includes(patch.state)?'me':patch.state==='waiting'?'wait':'';if(g.st==='req')g.req=g.req||today}
     g.workState=patch.state;
    }
@@ -144,7 +144,7 @@ function apply(s,id,patch,today){
 }
 function draft(s,n,channel){
  const title=s.title||s.work||'曲名未登録',artist=s.artist?'（'+s.artist+'）':'';
- const who=n.recipient||n.owner||'ご担当者';
+ const who=n.recipient||(n.owner==='自分'?'':n.owner)||'ご担当者';
  const date=n.due.value?(n.due.value.replace(/-/g,'/')+(n.due.kind==='tentative'?'（仮）を候補に、ご対応可能でしょうか。':n.due.kind==='target'?'を目安に日程をご相談したいです。':'までの日程でご相談できますでしょうか。')):'日程もあわせてご相談させてください。';
  const action=n.wait?'ご相談している「'+n.label+'」の進捗と、対応可能な日程を教えていただけますでしょうか。':'「'+n.label+'」についてご相談です。';
  const body=channel==='line'?who+'さん\nお疲れさまです。'+title+artist+'の'+action+'\n'+date+'\nよろしくお願いします。':who+' 様\n\nお世話になっております。\n'+title+artist+'の'+action+'\n'+date+'\n\nご確認のほど、よろしくお願いいたします。';

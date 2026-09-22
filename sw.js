@@ -1,6 +1,6 @@
 /* 同じ版のHTML・ロジック・スタイルをオフライン用に保持する。 */
-const CACHE='shinkou-v5-20260922f';
-const ASSETS=['./','./index.html','./core.js?v=20260922f','./production.js?v=20260922f','./production-ui.js?v=20260922f','./app.js?v=20260922f','./ui.js?v=20260922f','./ui.css?v=20260922f'];
+const CACHE='shinkou-v5-20260922g';
+const ASSETS=['./','./index.html','./core.js?v=20260922g','./production.js?v=20260922g','./production-ui.js?v=20260922g','./app.js?v=20260922g','./ui.js?v=20260922g','./ui.css?v=20260922g'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('shinkou-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

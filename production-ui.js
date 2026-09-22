@@ -72,7 +72,7 @@ function productionTaskEditor(s,id,back='all'){
  h+='<label class="quick-field">メモ<textarea class="inp" id="productionMemo" rows="3">'+esc(n.memo)+'</textarea></label><button class="btn" id="productionDraft">入力を保存して連絡文を作る</button><p class="hint">メール・LINEの下書きを作成します。送信や依頼済みへの変更は行いません。</p>';
  const snapshot=JSON.stringify({tasks:s.production?.tasks?.[id],stages:n.keys.map(k=>s.stages?.[k])});let stateChanged=false;
  const read=()=>{const v=id=>document.getElementById(id).value;return {...(stateChanged?{state:v('productionState')}:{}),owner:v('productionOwner').trim(),recipient:v('productionRecipient').trim(),channel:v('productionChannel'),due:v('productionDue'),dueKind:v('productionDueKind'),memo:v('productionMemo')}};
- const save=()=>{if(RO||!S.songs.includes(s))return false;if(snapshot!==JSON.stringify({tasks:s.production?.tasks?.[id],stages:n.keys.map(k=>s.stages?.[k])})){toast('記録が更新されました。開き直して確認してください');return false}const p=read(),e=ShinkouProduction.validatePatch(p);if(e){toast(e);return false}try{ShinkouProduction.apply(s,id,p,D.today());if(p.state)n.keys.forEach(k=>setKidDone(s,k,p.state==='done'))}catch(e){toast(e.message);return false}logAdd(n.label+'を更新: '+songTitle(s));productionAfterSave(s);return true};
+ const save=()=>{if(RO||!S.songs.includes(s))return false;if(snapshot!==JSON.stringify({tasks:s.production?.tasks?.[id],stages:n.keys.map(k=>s.stages?.[k])})){toast('記録が更新されました。開き直して確認してください');return false}const p=read(),e=ShinkouProduction.validatePatch(p);if(e){toast(e);return false}try{ShinkouProduction.apply(s,id,p,D.today());if(p.state)n.keys.forEach(k=>setKidDone(s,k,!!s.stages?.[k]?.done))}catch(e){toast(e.message);return false}logAdd(n.label+'を更新: '+songTitle(s));productionAfterSave(s);return true};
  s3(songTitle(s),n.label,h,[{t:'戻る',c:'btn',f:()=>productionTasksSheet(s,back)},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(save()){productionTasksSheet(s,back);toast('保存しました')}}}]);
  document.getElementById('productionState').onchange=()=>stateChanged=true;
  document.getElementById('productionDraft').onclick=()=>{if(save())productionDraftSheet(s,productionReport(s).node[id],back)};
@@ -89,6 +89,11 @@ function productionDatesSheet(s){
 }
 function productionDateEditor(s,key){
  if(RO)return;
+ const report=productionReport(s);
+ if(['vocal','master'].includes(key)&&report.node[key].state==='done'){
+  const n=report.node[key],initial=n.date;
+  s3(songTitle(s),n.label+'の完了日','<label class="quick-field">完了日<input class="inp" type="date" id="productionCompletedDate" value="'+esc(initial)+'"></label><p class="hint">予定日とは分けて、実際に終わった日を記録します。</p>',[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(RO||!S.songs.includes(s))return;const latest=productionReport(s).node[key];if(latest.state!=='done'||latest.date!==initial)return toast('記録が更新されています。開き直してください');const value=document.getElementById('productionCompletedDate').value;if(value&&!ShinkouProduction.validDate(value))return toast('日付を確認してください');s.production||={};s.production.tasks||={};s.production.tasks[key]||={};s.production.tasks[key].completedAt=value;productionAfterSave(s);hide('sheet3');toast('完了日を保存しました')}}]);return;
+ }
  if(key==='vocal'){editSnapshot(s,'date','vo');return}
  const anchor=key==='master'?'mastering':key,label=ANCHORS[anchor]||anchor,kind=s.production?.dateKinds?.[anchor]||'registered';
  const initial=s.dates?.[anchor]||'';

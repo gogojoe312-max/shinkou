@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-f";
+const APP_VER="2026-09-22-g";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -3126,7 +3126,7 @@ function aiApply(r){
     case "production":{
       const keys=ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]);
       if(r.productionBefore!==JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:keys.map(k=>r.song.stages?.[k])}))throw new Error("作業の記録が更新されました。もう一度確認してください");
-      ShinkouProduction.apply(r.song,op.id,op.set,D.today());if(op.set.state)keys.forEach(k=>setKidDone(r.song,k,op.set.state==="done"));break;
+      ShinkouProduction.apply(r.song,op.id,op.set,D.today());if(op.set.state)keys.forEach(k=>setKidDone(r.song,k,!!r.song.stages?.[k]?.done));break;
     }
     case "production_options":{const fresh=aiResolve(op);if(!fresh.ok)throw new Error(fresh.why);r.song.production||={};Object.assign(r.song.production,op.set);break}
     case "remember":{if(!validRule(op))throw new Error("適用範囲を確認してください");saveAssistantRule({scope:op.scope,songId:r.song?.id,director:op.director,text:op.text});break}
