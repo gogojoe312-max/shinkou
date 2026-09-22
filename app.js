@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-a";
+const APP_VER="2026-09-22-b";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -2661,8 +2661,12 @@ document.getElementById("scrim").onclick=()=>{
   hide("sheet2");hide("sheet")};
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){
   if(document.getElementById("sheet3").classList.contains("on"))return hide("sheet3");hide("sheet2");hide("sheet")}});
-function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("on");
-  clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),1900)}
+function toast(t,action){const e=document.getElementById("toast");e.textContent='';
+  const label=document.createElement('span');label.textContent=t;e.appendChild(label);
+  e.classList.toggle('actionable',!!action);e.classList.add("on");
+  if(action){const b=document.createElement('button');b.type='button';b.textContent=action.label;
+    b.onclick=()=>{e.classList.remove('on');action.run()};e.appendChild(b)}
+  clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove("on"),action?8000:1900)}
 
 {document.getElementById("grpSel").value=V.grp;
  document.getElementById("finSel").value=V.fin;

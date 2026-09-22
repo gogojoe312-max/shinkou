@@ -35,6 +35,48 @@ function songMilestones(s){
     return {name,keys:indexes.map(i=>L[i].k),state:!indexes.length?'記録なし':complete===indexes.length?'完了':complete||partial?'一部完了':'未完了',done:indexes.length>0&&complete===indexes.length};
   });
 }
+function milestoneTargets(s,keys){
+  const L=stages(s),targets=[];
+  keys.forEach(k=>{const i=L.findIndex(x=>x.k===k);if(i<0)return;for(const x of hasKids(L,i)?kidsOf(L,i):[L[i]])if(!targets.some(t=>t.k===x.k))targets.push(x)});
+  return targets;
+}
+// 実作業だけを変更し、日程調整・対象外の作業・過去の完了日を保つ。
+const completionState=o=>({done:!!o.done,date:o.date||'',st:o.st||'',prov:!!o.prov});
+function changeWorkCompletion(s,targets,done){
+  const changes=[];
+  for(const x of targets){
+    const o=stg(s,x.k);if(!!o.done===done)continue;
+    const before=completionState(o),slot=kidSlot(s,x.k),slotBefore=slot?!!slot.done:null;
+    o.done=done;o.date=done?D.today():'';o.prov=false;if(done)o.st='';
+    setKidDone(s,x.k,done);
+    changes.push({key:x.k,before,after:completionState(o),slot,slotBefore});
+  }
+  return changes;
+}
+function refreshCompletion(s){
+  document.querySelectorAll('[data-snapshot-song]').forEach(root=>{
+    if(root.dataset.snapshotSong!==s.id)return;
+    const focused=root.contains(document.activeElement)?document.activeElement.dataset.completeWork:null;
+    root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root);
+    if(focused)Array.from(root.querySelectorAll('[data-complete-work]')).find(b=>b.dataset.completeWork===focused)?.focus({preventScroll:true});
+  });
+  const brief=document.getElementById('homeBrief');if(brief){brief.innerHTML=assistantBriefHTML(pool());wireBriefLinks(brief)}
+  if(cur?.id===s.id)head();
+}
+function toggleMilestone(s,name){
+  if(RO||!S.songs.includes(s))return;
+  const m=songMilestones(s).find(m=>m.name===name);if(!m?.keys.length)return;
+  const done=!m.done,changes=changeWorkCompletion(s,milestoneTargets(s,m.keys),done);if(!changes.length)return;
+  logAdd(name+(done?'を完了: ':'を未完了に戻す: ')+songTitle(s));mark();refreshCompletion(s);
+  toast(name+(done?'を完了しました':'を未完了に戻しました'),{label:'元に戻す',run:()=>{
+    if(RO)return;
+    const current=S.songs.find(x=>x.id===s.id),active=current?new Set(stages(current).map(x=>x.k)):new Set();
+    // 同期や別の操作による変更を、古い取り消しで上書きしない。
+    if(!current||changes.some(c=>!active.has(c.key)||!ShinkouCore.equal(completionState(current.stages[c.key]||{}),c.after)||c.slot&&!(current.stages.instrec?.slots||[]).some(v=>v.slotId===c.slot.slotId&&!!v.done===done)))return toast('作業の状態が更新されています。内容を確認してください');
+    changes.forEach(c=>{Object.assign(stg(current,c.key),c.before);if(c.slot){const slot=current.stages.instrec.slots.find(v=>v.slotId===c.slot.slotId);slot.done=c.slotBefore}});
+    logAdd(name+'のチェックを取り消し: '+songTitle(current));mark();refreshCompletion(current);toast('元に戻しました');
+  }});
+}
 function songHasMV(s){return typeof s.mvEnabled==='boolean'?s.mvEnabled:!!s.dates?.mv||sortOf(s)==='single'}
 function songKeyDates(s){
   const L=stages(s),active=k=>L.some(x=>x.k===k),dateText=d=>{
@@ -53,23 +95,36 @@ function songKeyDates(s){
   if(s.use==='live')out.push({key:'live',label:'ライブ初披露',value:dateText(s.dates?.live||s.dates?.open)});
   return out;
 }
-function songSnapshotHTML(s){
+function songSnapshotContents(s){
   const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
   const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
   const control=(kind,key,cls,body)=>'<button type="button" class="snapshot-edit '+cls+'" data-edit-song="'+esc(s.id)+'" data-edit-kind="'+kind+'" data-edit-key="'+esc(key)+'" '+(RO?'disabled':'')+'>'+body+'</button>';
-  const milestones='<div class="song-milestones" aria-label="主要作業の登録状況">'+songMilestones(s).map(m=>control('milestone',m.name,'milestone '+(m.done?'complete':''),'<b>'+esc(m.name)+'</b><small>'+(m.done?'✓ ':'')+esc(m.state)+'</small>')).join('')+'</div>';
+  const milestones='<div class="song-milestones" aria-label="主要作業の登録状況">'+songMilestones(s).map(m=>{
+    const targets=milestoneTargets(s,m.keys),dates=targets.map(x=>s.stages?.[x.k]?.date||'');
+    const date=m.done&&dates.length&&dates.every(Boolean)?dates.sort().at(-1):'';
+    const checked=m.done?'true':m.state==='一部完了'?'mixed':'false';
+    const label=m.name+(targets.length>1?'の作業をまとめて':'を')+(m.done?'未完了に戻す':'完了にする');
+    return '<div class="milestone '+(m.done?'complete':checked==='mixed'?'partial':'')+'"><button type="button" class="work-check" role="checkbox" aria-checked="'+checked+'" aria-label="'+esc(label)+'" data-complete-song="'+esc(s.id)+'" data-complete-work="'+esc(m.name)+'" '+(RO||!targets.length?'disabled':'')+'><span aria-hidden="true">'+(m.done?'✓':checked==='mixed'?'−':'')+'</span></button>'+control('milestone',m.name,'milestone-detail','<b>'+esc(m.name)+'</b><small>'+esc(date?D.md(date)+' 完了':m.state)+'</small>')+'</div>';
+  }).join('')+'</div>';
   const dates='<div class="song-key-dates">'+songKeyDates(s).map(d=>control('date',d.key,'key-date','<span class="date-label">'+esc(d.label)+'</span><strong>'+esc(d.value)+'</strong>'+(d.note?'<small>'+esc(d.note)+'</small>':''))).join('')+'</div>';
-  return '<div class="song-snapshot">'+dates+milestones+control('current','','snapshot-status','<small>現在の状態</small><strong>'+esc(a.state)+'</strong>')+control('current','','snapshot-action','<small>次に確認すること</small><span>'+esc(a.action)+'</span>')+control('deadline','','snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':''),'<small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span>')+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'')+'</div>';
+  return dates+milestones+control('current','','snapshot-status','<small>現在の状態</small><strong>'+esc(a.state)+'</strong>')+control('current','','snapshot-action','<small>次に確認すること</small><span>'+esc(a.action)+'</span>')+control('deadline','','snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':''),'<small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span>')+(a.memo?'<p class="snapshot-memo">'+esc(a.memo)+'</p>':'');
 }
+function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-song="'+esc(s.id)+'">'+songSnapshotContents(s)+'</div>'}
 function songOverview(list){
   const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
-  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div><p class="hint">登録済みの作業・日程から表示しています。締切が近い順です。</p><div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
+  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div>'+(!RO?'<div class="completion-tools"><p>丸をタップで完了<br><span>項目名から日程・詳細を編集</span></p><button type="button" class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">完了した曲も表示</button></div>':'')+'<div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
 }
 function deskPreviewURL(){
   const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href;
 }
 function wireSnapshotEditors(root){
  root.querySelectorAll('[data-edit-song]').forEach(b=>b.onclick=()=>{if(RO)return;const s=S.songs.find(s=>s.id===b.dataset.editSong);if(s)editSnapshot(s,b.dataset.editKind,b.dataset.editKey)});
+ root.querySelectorAll('[data-complete-song]').forEach(b=>b.onclick=()=>{const s=S.songs.find(s=>s.id===b.dataset.completeSong);if(s)toggleMilestone(s,b.dataset.completeWork)});
+ root.querySelectorAll('[data-show-completed]').forEach(b=>b.onclick=()=>{
+   V.fin=V.fin==='show'?'hide':'show';viewSave();document.getElementById('finSel').value=V.fin;renderWorkspace();
+   const overview=b.closest('.song-overview');overview.outerHTML=songOverview(pool());
+   const main=document.getElementById('main');wireSnapshotEditors(main);wireBriefLinks(main);
+ });
 }
 function editSnapshot(s,kind,key){
  if(RO)return;
@@ -102,9 +157,9 @@ function editSnapshot(s,kind,key){
  if(kind==='milestone')keys=songMilestones(s).find(m=>m.name===key)?.keys||[];
  else if(kind==='deadline'){const next=songSummary(s).next;const x=next?.x||L.find((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i));if(x)keys=[x.k]}
  else{const pending=L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i));const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];if(x)keys=[x.k]}
- const targets=[];keys.forEach(k=>{const i=L.findIndex(x=>x.k===k);if(i<0)return;for(const x of hasKids(L,i)?kidsOf(L,i):[L[i]])if(!targets.some(t=>t.k===x.k))targets.push(x)});
+ const targets=milestoneTargets(s,keys);
  if(!targets.length)return toast('編集できる作業記録がありません。曲の作業記録を確認してください');
- show(kind==='milestone'?key:'作業の状態・締切',targets.map((x,i)=>{const o=stg(s,x.k);return '<section class="quick-stage"><h3>'+esc(plainStage(x.n))+'</h3><label class="quick-check"><input type="checkbox" id="done'+i+'" '+(o.done?'checked':'')+'>完了</label><label class="quick-field">状態<select class="inp" id="state'+i+'">'+(stStates(x,s).some(z=>z[0]===(o.st||''))?'':'<option value="'+esc(o.st)+'" selected>'+esc(o.st)+'</option>')+stStates(x,s).map(([v,label])=>'<option value="'+v+'" '+((o.st||'')===v?'selected':'')+'>'+esc(label)+'</option>').join('')+'</select></label>'+field('締切','due'+i,o.dl)+ '<label class="quick-field">メモ<textarea class="inp" id="memo'+i+'">'+esc(o.memo||'')+'</textarea></label></section>'}).join(''),()=>targets.forEach((x,i)=>{const o=stg(s,x.k),done=document.getElementById('done'+i).checked;if(o.done!==done){o.done=done;o.date=done?D.today():'';if(done){o.st='';o.prov=false}}const state=document.getElementById('state'+i).value;if(!done&&state!==(o.st||'')){o.st=state;if(state==='req')o.req=D.today()}o.dl=document.getElementById('due'+i).value;o.memo=document.getElementById('memo'+i).value}));
+ show(kind==='milestone'?key:'作業の状態・締切',targets.map((x,i)=>{const o=stg(s,x.k);return '<section class="quick-stage"><h3>'+esc(plainStage(x.n))+'</h3><label class="quick-check"><input type="checkbox" id="done'+i+'" '+(o.done?'checked':'')+'>完了</label><label class="quick-field">状態<select class="inp" id="state'+i+'">'+(stStates(x,s).some(z=>z[0]===(o.st||''))?'':'<option value="'+esc(o.st)+'" selected>'+esc(o.st)+'</option>')+stStates(x,s).map(([v,label])=>'<option value="'+v+'" '+((o.st||'')===v?'selected':'')+'>'+esc(label)+'</option>').join('')+'</select></label>'+field('締切','due'+i,o.dl)+ '<label class="quick-field">メモ<textarea class="inp" id="memo'+i+'">'+esc(o.memo||'')+'</textarea></label></section>'}).join(''),()=>targets.forEach((x,i)=>{const o=stg(s,x.k),done=document.getElementById('done'+i).checked;changeWorkCompletion(s,[x],done);const state=document.getElementById('state'+i).value;if(!done&&state!==(o.st||'')){o.st=state;if(state==='req')o.req=D.today()}o.dl=document.getElementById('due'+i).value;o.memo=document.getElementById('memo'+i).value}));
 }
 
 function renderWorkspace(){
@@ -342,13 +397,20 @@ function assistantBrief(list){
  const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));
  return {near:tasks.filter(t=>D.to(t.date)<=7).slice(0,3),missing:list.filter(s=>!isFin(s)&&!songSummary(s).next).slice(0,2)};
 }
+function wireBriefLinks(root){
+ root.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
+ root.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});
+}
+function assistantBriefHTML(list){
+ const brief=assistantBrief(list);
+ return '<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'');
+}
 function renderAssistantHome(el,list){
- const brief=assistantBrief(list),history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
+ const history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
  document.body.classList.add('assistant-first');
- el.innerHTML=songOverview(list)+'<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea>'+aiChoiceHTML('homeAIMode')+'<div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<section class="assistant-brief"><h3>近い予定・期限</h3><small>登録されている日程から表示</small>'+(brief.near.length?brief.near.map(t=>'<button class="brief-row" data-brief-song="'+esc(t.song.id)+'"><span><b>'+esc(songTitle(t.song))+'</b><small>'+esc(plainStage(t.x.n))+'</small></span><strong class="'+(D.to(t.date)<0?'overdue':'')+'">'+esc(D.to(t.date)<0?(-D.to(t.date))+'日超過':D.to(t.date)===0?'今日':D.md(t.date))+'</strong></button>').join(''):'<p class="muted">7日以内の予定は登録されていません。</p>')+'</section>'+(brief.missing.length?'<section class="assistant-brief"><h3>一緒に確認したいこと</h3>'+brief.missing.map(s=>'<button class="brief-row" data-ask-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>次の予定が未登録です。今の状況を整理しますか？</small></span><span>›</span></button>').join('')+'</section>':'');
+ el.innerHTML=songOverview(list)+'<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea>'+aiChoiceHTML('homeAIMode')+'<div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<div id="homeBrief">'+assistantBriefHTML(list)+'</div>';
  el.querySelector('#assistantMemory').onclick=()=>{cur=null;assistantKnowledge()};
- el.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));wireSnapshotEditors(el);
- el.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});
+ wireBriefLinks(el);wireSnapshotEditors(el);
  wireAIChoice('homeAIMode',el.querySelector('#assistantInput'),'global');
  const send=async()=>{const input=el.querySelector('#assistantInput'),text=input.value.trim();if(!text)return;if(RO)return;cur=null;const button=el.querySelector('#assistantSend'),error=el.querySelector('#assistantError');button.disabled=true;input.disabled=true;error.textContent='状況を整理しています…';const stopWaiting=aiWait(error);const revision=aiViewRevision;try{const r=await aiCall(text,'global',document.getElementById('homeAIMode').value);if(revision!==aiViewRevision||conversationScope()!=='global'||!input.isConnected)return;aiPreview(r.out,r.msgs,text,r.scope);error.textContent='';input.value=''}catch(e){error.textContent=e.message||String(e)}finally{stopWaiting();if(error.textContent==='状況を整理しています…')error.textContent='';button.disabled=false;input.disabled=false}};
  el.querySelector('#assistantSend').onclick=send;
