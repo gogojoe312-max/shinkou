@@ -1,176 +1,23 @@
-/* 進行 2026-09-06：役割別表示と曲ごとの工程設定 */
-let songTab='flow',flowDone=V.flowDone!==false;
+/* ホーム・曲の詳細・相談。作業の表示と編集は production-ui.js に集約。 */
+let songTab='summary';
 const samePayload=(a,b)=>{const x=syncable(a),y=syncable(b);delete x.at;delete y.at;return ShinkouCore.equal(x,y)};
 function matchesWho(s){if(V.who==='all')return true;const b=ballOf(s),k=b.c==='me'?'me':['other','room'].includes(b.c)?'other':b.c==='wait'?'wait':'todo';return !isFin(s)&&k===V.who}
 const plainStage=x=>({VoDB:'歌の録音',ChoDB:'コーラス録音',楽器DB:'楽器の録音',ReVoDB:'追加の歌録音',VoEDIT:'歌の編集',ChoEDIT:'コーラス編集',ReVoEDIT:'追加録音の編集',ピッチ:'歌の音程調整',繋ぎ:'歌のつなぎ処理',リズムエディット:'歌のタイミング調整',ステム受け取り:'音声素材の受け取り',ステム発注:'音声素材の依頼'}[x]||x||'未設定');
-function songSummary(s){
-  const state=status(s),L=stages(s),x=L[state.i],ball=ballOf(s);
-  const next=L.filter((z,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(z=>({x:z,date:dlOf(s,z)})).filter(z=>z.date).sort((a,b)=>a.date.localeCompare(b.date))[0];
-  const finished=L.length>0&&state.k==='fin';
-  return {state,L,x,ball,next,finished,title:!L.length?'工程未設定':finished?'全工程完了':plainStage(x.n),issue:!L.length?'工程を設定してください':state.left!==null&&state.left<0?(-state.left)+'日超過':ball.c==='other'||ball.c==='room'?ball.t:!next&&!finished?'次の日程が未設定':finished?'完了':'—'};
-}
-// 登録済みの記録を表示する。未入力の状況・日程は推測で補わない。
-function songSnapshot(s){
-  const a=songSummary(s),pending=a.L.filter((x,i)=>!hasKids(a.L,i)&&!doneOf(s,a.L,i));
-  const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];
-  const w=x?whoOf(s,x):null,n=x?plainStage(x.n):'',o=x?stg(s,x.k):{};
-  const state=a.finished?'完了':!x?'状況未登録':n+' · '+w.t;
-  const action=a.finished?'完了した作業を見返せます':!x?'今の状況と次の予定を相談':w.c==='me'?n+'を進める':w.c==='other'||w.c==='room'?n+'の返事・受け取り状況を確認':w.c==='wait'?n+'の予定を確認':w.c==='late'?w.t+'を確認':n+'の段取りを確認';
-  const date=a.next?.date||'',left=date?D.to(date):null;
-  return {state,action,memo:String(o.memo||'').split('\n')[0],date,left,dueTask:a.next?plainStage(a.next.x.n):'',finished:a.finished};
-}
-// 日程調整の完了を、録音・編集そのものの完了として扱わない。
-function songMilestones(s){
-  const L=stages(s),definitions=[
-    ['アレンジ',['arr']],['VoDB',['vodb']],['VoEDIT',['rhythm','tsunagi','pitch']],
-    ['ミックス',['td']],['マスタリング',['mas']]
-  ];
-  for(const [name,keys,schedule] of [['ChoDB',['chodb'],'cho'],['楽器DB',['instdb'],'instrec'],['追加VoDB',['revodb'],'revo']]){
-    if(L.some(x=>keys.includes(x.k))&&[...keys,schedule].some(k=>{const o=s.stages?.[k]||{};return o.done||o.st||o.dl||(o.slots||[]).some(v=>v.date)}))definitions.splice(definitions.length-2,0,[name,keys]);
-  }
-  return definitions.map(([name,keys])=>{
-    const indexes=L.map((x,i)=>keys.includes(x.k)||(name==='VoEDIT'&&x.n==='VoEDIT')?i:-1).filter(i=>i>=0);
-    const complete=indexes.filter(i=>doneOf(s,L,i)).length;
-    const partial=indexes.some(i=>hasKids(L,i)&&kidsOf(L,i).some(x=>s.stages?.[x.k]?.done));
-    return {name,keys:indexes.map(i=>L[i].k),state:!indexes.length?'記録なし':complete===indexes.length?'完了':complete||partial?'一部完了':'未完了',done:indexes.length>0&&complete===indexes.length};
-  });
-}
-function milestoneTargets(s,keys){
-  const L=stages(s),targets=[];
-  keys.forEach(k=>{const i=L.findIndex(x=>x.k===k);if(i<0)return;for(const x of hasKids(L,i)?kidsOf(L,i):[L[i]])if(!targets.some(t=>t.k===x.k))targets.push(x)});
-  return targets;
-}
-// 実作業だけを変更し、日程調整・対象外の作業・過去の完了日を保つ。
-const completionState=o=>({done:!!o.done,date:o.date||'',st:o.st||'',prov:!!o.prov});
-function changeWorkCompletion(s,targets,done){
-  const changes=[];
-  for(const x of targets){
-    const o=stg(s,x.k);if(!!o.done===done)continue;
-    const before=completionState(o),slot=kidSlot(s,x.k),slotBefore=slot?!!slot.done:null;
-    o.done=done;o.date=done?D.today():'';o.prov=false;if(done)o.st='';
-    setKidDone(s,x.k,done);
-    changes.push({key:x.k,before,after:completionState(o),slot,slotBefore});
-  }
-  return changes;
-}
-function refreshCompletion(s){
-  document.querySelectorAll('[data-snapshot-song]').forEach(root=>{
-    if(root.dataset.snapshotSong!==s.id)return;
-    const focused=root.contains(document.activeElement)?document.activeElement.dataset.completeWork:null;
-    const openSections=Array.from(root.querySelectorAll('details[open][data-work-section]')).map(d=>d.dataset.workSection);
-    root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root);
-    root.querySelectorAll('[data-work-section]').forEach(d=>d.open=openSections.includes(d.dataset.workSection));
-    if(focused){
-      const button=Array.from(root.querySelectorAll('[data-complete-work]')).find(b=>b.dataset.completeWork===focused);
-      const hidden=button?.closest('details:not([open])');
-      (hidden?.querySelector('summary')||button||root.querySelector('.work-panel>summary'))?.focus({preventScroll:true});
-    }
-  });
-  const brief=document.getElementById('homeBrief');if(brief){brief.innerHTML=assistantBriefHTML(pool());wireBriefLinks(brief)}
-  if(cur?.id===s.id)head();
-}
-function toggleMilestone(s,name){
-  if(RO||!S.songs.includes(s))return;
-  const m=songMilestones(s).find(m=>m.name===name);if(!m?.keys.length)return;
-  const done=!m.done,changes=changeWorkCompletion(s,milestoneTargets(s,m.keys),done);if(!changes.length)return;
-  logAdd(name+(done?'を完了: ':'を未完了に戻す: ')+songTitle(s));mark();refreshCompletion(s);
-  toast(name+(done?'を完了しました':'を未完了に戻しました'),{label:'元に戻す',run:()=>{
-    if(RO)return;
-    const current=S.songs.find(x=>x.id===s.id),active=current?new Set(stages(current).map(x=>x.k)):new Set();
-    // 同期や別の操作による変更を、古い取り消しで上書きしない。
-    if(!current||changes.some(c=>!active.has(c.key)||!ShinkouCore.equal(completionState(current.stages[c.key]||{}),c.after)||c.slot&&!(current.stages.instrec?.slots||[]).some(v=>v.slotId===c.slot.slotId&&!!v.done===done)))return toast('作業の状態が更新されています。内容を確認してください');
-    changes.forEach(c=>{Object.assign(stg(current,c.key),c.before);if(c.slot){const slot=current.stages.instrec.slots.find(v=>v.slotId===c.slot.slotId);slot.done=c.slotBefore}});
-    logAdd(name+'のチェックを取り消し: '+songTitle(current));mark();refreshCompletion(current);toast('元に戻しました');
-  }});
-}
 function songHasMV(s){return typeof s.mvEnabled==='boolean'?s.mvEnabled:!!s.dates?.mv||sortOf(s)==='single'}
-function songKeyDates(s){
-  const L=stages(s),active=k=>L.some(x=>x.k===k),dateText=d=>{
-    if(!d)return '未登録';
-    return String(d).slice(0,4)!==D.today().slice(0,4)?String(d).replace(/-0?/g,'/'):D.md(d);
-  };
-  const slots=active('vo')?(s.stages?.vo?.slots||[]).filter(v=>v.date):[];
-  const dates=[...new Set(slots.map(v=>v.date))].sort();
-  const rec=active('vodb')?(s.stages?.vodb||{}):{};
-  let vo=dates.map(d=>dateText(d)+(slots.filter(v=>v.date===d).every(v=>v.done)?' 済':D.to(d)<0?' 実施確認':'' )).join('・');
-  let voNote=dates.length?'':rec.done&&rec.date?'完了記録':rec.dl?'期限（録音日未登録）':'';
-  if(!vo)vo=rec.done&&rec.date?dateText(rec.date):rec.dl?dateText(rec.dl):'未登録';
-  const out=[{key:'release',label:'発売日',value:dateText(relOf(s))}];
-  if(songHasMV(s))out.push({key:'mv',label:'MV撮影日',value:dateText(s.dates?.mv)});
-  out.push({key:'vo',label:'VoDB日',value:vo,note:voNote});
-  if(s.use==='live')out.push({key:'live',label:'ライブ初披露',value:dateText(s.dates?.live||s.dates?.open)});
-  return out;
-}
-function songSnapshotContents(s){
-  if(typeof ShinkouProduction!=="undefined"&&productionReport(s).applicable)return productionSnapshot(s);
-  const a=songSnapshot(s),due=a.date?D.md(a.date):a.finished?'完了':'未設定';
-  const urgency=a.left===null?'':a.left<0?(-a.left)+'日超過':a.left===0?'今日まで':a.left===1?'明日まで':'あと'+a.left+'日';
-  const control=(kind,key,cls,body)=>'<button type="button" class="snapshot-edit '+cls+'" data-edit-song="'+esc(s.id)+'" data-edit-kind="'+kind+'" data-edit-key="'+esc(key)+'" '+(RO?'disabled':'')+'>'+body+'</button>';
-  const row=m=>{
-    const targets=milestoneTargets(s,m.keys),dates=targets.map(x=>s.stages?.[x.k]?.date||'');
-    const date=m.done&&dates.length&&dates.every(Boolean)?dates.sort().at(-1):'';
-    const checked=m.done?'true':m.state==='一部完了'?'mixed':'false';
-    const label=m.name+(targets.length>1?'の作業をまとめて':'を')+(m.done?'未完了に戻す':'完了にする');
-    return '<div class="work-row"><button type="button" class="work-check" role="checkbox" aria-checked="'+checked+'" aria-label="'+esc(label)+'" data-complete-song="'+esc(s.id)+'" data-complete-work="'+esc(m.name)+'" '+(RO?'disabled':'')+'><span class="work-circle" aria-hidden="true">'+(m.done?'✓':checked==='mixed'?'−':'')+'</span><span class="work-name"><b>'+esc(plainStage(m.name))+'</b>'+(date?'<small>'+esc(date)+' 完了</small>':checked==='mixed'?'<small>一部完了</small>':'')+'</span><span class="work-action">'+(RO?m.state:m.done?'戻す':'完了にする')+'</span></button>'+(!RO?control('milestone',m.name,'work-edit','編集'):'')+'</div>';
-  };
-  const milestones=songMilestones(s).filter(m=>m.keys.length),pending=milestones.filter(m=>!m.done),done=milestones.filter(m=>m.done);
-  const work='<details class="work-panel" data-work-section="work"><summary>作業をチェック<span aria-hidden="true">⌄</span></summary><div class="work-list"><h3>残っている主な作業</h3>'+(pending.map(row).join('')||'<p class="work-empty">'+(milestones.length?'主な作業は完了しています。':'作業はまだ登録されていません。')+'</p>')+(done.length?'<details class="finished-work" data-work-section="done"><summary>完了した作業<span aria-hidden="true">⌄</span></summary>'+done.map(row).join('')+'</details>':'')+'</div></details>';
-  const dates='<div class="song-key-dates">'+songKeyDates(s).map(d=>control('date',d.key,'key-date','<span class="date-label">'+esc(d.key==='vo'?'歌の録音日':d.label)+'</span><strong>'+esc(d.value)+'</strong>'+(d.note?'<small>'+esc(d.note)+'</small>':''))).join('')+'</div>';
-  return control('current','','snapshot-status','<small>現在の状態</small><strong>'+esc(a.state)+'</strong>')+control('current','','snapshot-action','<small>次にすること</small><span>'+esc(a.action)+'</span>')+control('deadline','','snapshot-deadline '+(a.left!==null&&a.left<=0?'overdue':!a.date?'unscheduled':''),'<small>次の締切</small><strong>'+esc(due)+'</strong><span>'+esc([a.dueTask,urgency].filter(Boolean).join(' · '))+'</span>')+dates+work;
-}
+function songSnapshotContents(s){return productionSnapshot(s)}
 function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-song="'+esc(s.id)+'">'+songSnapshotContents(s)+'</div>'}
-function songOverview(list){
-  if(typeof ShinkouProduction!=="undefined")return productionOverview(list);
-  const sorted=list.slice().sort((a,b)=>{const x=songSnapshot(a),y=songSnapshot(b);return Number(x.finished)-Number(y.finished)||(x.date||'9999').localeCompare(y.date||'9999')});
-  return '<section class="song-overview"><div class="overview-heading"><h2>楽曲の状況</h2><span>'+list.length+'曲</span></div>'+(!RO?'<div class="completion-tools"><p>曲ごとに、次の作業と予定を確認</p><button type="button" class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">完了した曲も表示</button></div>':'')+'<div class="snapshot-list">'+(sorted.map(s=>'<article class="snapshot-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><b>'+esc(songTitle(s))+'</b><small>'+esc(s.artist||'')+'</small></button>'+songSnapshotHTML(s)+'</article>').join('')||'<p class="empty">表示する楽曲がありません。検索・絞り込み条件も確認してください。</p>')+'</div></section>';
+function songOverview(list){return productionOverview(list)}
+function refreshCompletion(s){
+ document.querySelectorAll('[data-snapshot-song]').forEach(root=>{if(root.dataset.snapshotSong===s.id){root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root)}});
+ const brief=document.getElementById('homeBrief');if(brief){brief.innerHTML=assistantBriefHTML(pool());wireBriefLinks(brief)}
+ if(cur?.id===s.id)head();
 }
-function deskPreviewURL(){
-  const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href;
-}
+function deskPreviewURL(){const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href}
 function wireSnapshotEditors(root){
- if(typeof wireProduction==="function")wireProduction(root);
- root.querySelectorAll('[data-edit-song]').forEach(b=>b.onclick=()=>{if(RO)return;const s=S.songs.find(s=>s.id===b.dataset.editSong);if(s)editSnapshot(s,b.dataset.editKind,b.dataset.editKey)});
- root.querySelectorAll('[data-complete-song]').forEach(b=>b.onclick=()=>{const s=S.songs.find(s=>s.id===b.dataset.completeSong);if(s)toggleMilestone(s,b.dataset.completeWork)});
+ wireProduction(root);
  root.querySelectorAll('[data-show-completed]').forEach(b=>b.onclick=()=>{
-   V.fin=V.fin==='show'?'hide':'show';viewSave();document.getElementById('finSel').value=V.fin;renderWorkspace();
-   const overview=b.closest('.song-overview');overview.outerHTML=songOverview(pool());
-   const main=document.getElementById('main');wireSnapshotEditors(main);wireBriefLinks(main);
+  V.fin=V.fin==='show'?'hide':'show';viewSave();document.getElementById('finSel').value=V.fin;render();
  });
-}
-function editSnapshot(s,kind,key){
- if(RO)return;
- const field=(label,id,value,type='date')=>'<label class="quick-field">'+esc(label)+'<input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value||'')+'"></label>';
- const commit=fn=>{
-   if(RO||!S.songs.includes(s))return toast('曲の情報が更新されました。開き直してください');
-   fn();mark();hide('sheet3');render();if(cur===s){head();drawSong()}toast('保存しました');
- };
- const show=(title,html,save)=>s3(songTitle(s),title,html,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{const body=document.getElementById('s3Body');const invalid=body.querySelector('input:invalid');if(invalid){invalid.reportValidity();return}commit(save)}}]);
- if(kind==='classification'){
-   show('曲の種類・MV','<label class="quick-field">曲の種類<select class="inp" id="quickSort">'+SORTS.map(([v,label])=>'<option value="'+v+'" '+(sortOf(s)===v?'selected':'')+'>'+label+'</option>').join('')+'</select></label><label class="quick-check"><input type="checkbox" id="quickMV" '+(songHasMV(s)?'checked':'')+'>MVあり</label><p class="hint">シングルは通常あり。アルバム曲・アディショナルは通常なし。リード曲などは個別に指定できます。MVなしに変えても登録済みの日付は残します。</p>',()=>{s.sort=document.getElementById('quickSort').value;s.single=s.sort==='single';s.sortSet=true;s.mvEnabled=document.getElementById('quickMV').checked});
-   document.getElementById('quickSort').onchange=e=>{document.getElementById('quickMV').checked=e.target.value==='single'};return;
- }
- if(kind==='date'&&key!=='vo'){
-   const label=ANCHORS[key]||key;
-   show(label,field(label,'quickDate',s.dates?.[key]||'')+(key==='release'&&relOf(s)&&!s.dates?.release?'<p class="hint">現在は案件の発売日 '+esc(relOf(s))+' を使用しています。入力するとこの曲だけの日付になります。空欄に戻すと案件の日付を使います。</p>':''),()=>{s.dates[key]=document.getElementById('quickDate').value;if(key==='mv')s.mvEnabled=true});return;
- }
- const L=stages(s);
- if(kind==='date'&&key==='vo'){
-   const stage=L.find(x=>x.k==='vo');if(!stage)return toast('VoDBの日程記録がありません。作業記録から追加してください');
-   const slots=ShinkouCore.copy(stg(s,'vo').slots||[]);
-   if(!slots.length)slots.push({date:'',who:'',done:false});
-   const draw=()=>{
-     show('VoDBの日程',slots.map((v,i)=>'<div class="quick-slot">'+field('録音日','slotDate'+i,v.date)+field('スタジオ','slotWho'+i,v.who,'text')+'</div>').join('')+'<button class="btn" id="quickAddDate">＋ 日程を追加</button><p class="hint">日程の編集では録音の完了状態を変更しません。</p>',()=>{read();stg(s,'vo').slots=slots});
-     document.getElementById('quickAddDate').onclick=()=>{read();slots.push({date:'',who:'',done:false});draw()};
-   };
-   const read=()=>slots.forEach((v,i)=>{v.date=document.getElementById('slotDate'+i).value;v.who=document.getElementById('slotWho'+i).value});draw();return;
- }
- let keys=[];
- if(kind==='milestone')keys=songMilestones(s).find(m=>m.name===key)?.keys||[];
- else if(kind==='deadline'){const next=songSummary(s).next;const x=next?.x||L.find((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i));if(x)keys=[x.k]}
- else{const pending=L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i));const x=pending.find(x=>whoOf(s,x).c==='me')||pending[0];if(x)keys=[x.k]}
- const targets=milestoneTargets(s,keys);
- if(!targets.length)return toast('編集できる作業記録がありません。曲の作業記録を確認してください');
- show(kind==='milestone'?key:'作業の状態・締切',targets.map((x,i)=>{const o=stg(s,x.k);return '<section class="quick-stage"><h3>'+esc(plainStage(x.n))+'</h3><label class="quick-check"><input type="checkbox" id="done'+i+'" '+(o.done?'checked':'')+'>完了</label><label class="quick-field">状態<select class="inp" id="state'+i+'">'+(stStates(x,s).some(z=>z[0]===(o.st||''))?'':'<option value="'+esc(o.st)+'" selected>'+esc(o.st)+'</option>')+stStates(x,s).map(([v,label])=>'<option value="'+v+'" '+((o.st||'')===v?'selected':'')+'>'+esc(label)+'</option>').join('')+'</select></label>'+field('締切','due'+i,o.dl)+ '<label class="quick-field">メモ<textarea class="inp" id="memo'+i+'">'+esc(o.memo||'')+'</textarea></label></section>'}).join(''),()=>targets.forEach((x,i)=>{const o=stg(s,x.k),done=document.getElementById('done'+i).checked;changeWorkCompletion(s,[x],done);const state=document.getElementById('state'+i).value;if(!done&&state!==(o.st||'')){o.st=state;if(state==='req')o.req=D.today()}o.dl=document.getElementById('due'+i).value;o.memo=document.getElementById('memo'+i).value}));
 }
 
 function renderWorkspace(){
@@ -194,85 +41,27 @@ function renderDesk(el,list){
 }
 function songTabs(){return '<nav class="song-tabs" aria-label="曲の詳細">'+[['summary','状況'],['credits','クレジット'],['notes','メモ・履歴']].filter(([key])=>V.mode!=='desk'||key==='summary').map(([key,label])=>'<button data-song-tab="'+key+'" aria-pressed="'+(songTab===key)+'">'+label+'</button>').join('')+'</nav>'}
 function wireSongTabs(){document.querySelectorAll('[data-song-tab]').forEach(b=>b.onclick=()=>{songTab=b.dataset.songTab;drawSong()})}
-function currentCard(s){
-  const a=songSummary(s),x=a.x,o=x?stg(s,x.k):{},assigned=x?(o.asg||nameFor(s,x.role)||s.director||'未設定'):s.director||'未設定';
-  return '<section class="current-card"><div class="current-eyebrow">'+(a.finished?'制作状況':'次の作業候補')+'</div><div class="current-line"><h2>'+esc(a.title)+'</h2>'+(!a.finished&&x?'<span class="state-tag '+a.ball.c+'">'+esc(a.ball.t)+'</span>':'')+'</div><div class="current-meta"><span>締切 <b>'+esc(a.state.dl?D.md(a.state.dl):'未設定')+'</b></span><span>担当 <b>'+esc(assigned)+'</b></span>'+(a.state.left!==null&&a.state.left<=0?'<span class="overdue">'+(a.state.left<0?(-a.state.left)+'日超過':'今日')+'</span>':'')+'</div>'+(o.memo?'<p class="current-note">'+esc(o.memo.split('\n')[0])+'</p>':'')+(!RO&&V.mode!=='desk'&&x?'<div class="current-actions"><button class="btn pri" id="currentDone">完了にする</button><button class="btn" id="currentEdit">日程・担当を編集</button></div>':'')+'</section>';
-}
-function wireCurrent(){
-  const s=cur,a=songSummary(s),x=a.x;
-  const d=document.getElementById('currentDone');if(d)d.onclick=()=>{
-    const o=stg(s,x.k);o.done=true;if(!o.date)o.date=D.today();o.st='';setKidDone(s,x.k,true);syncOrder(s);logAdd(plainStage(x.n)+'を完了: '+songTitle(s));mark();head();drawSong();render();
-  };
-  const e=document.getElementById('currentEdit');if(e)e.onclick=()=>{songTab='flow';stOpen=x.k;gpOpen[x.gp]=true;drawSong();document.querySelector('[data-srow="'+CSS.escape(x.k)+'"]')?.scrollIntoView({block:'nearest',behavior:'smooth'})};
-}
-function decorateSong(){
-  const b=document.getElementById('shBody');b.insertAdjacentHTML('afterbegin',songTabs()+currentCard(cur)+'<div class="flow-toolbar"><div class="flow-switch" role="group" aria-label="工程の表示"><button data-flow="all" aria-pressed="'+flowDone+'">すべての工程</button><button data-flow="pending" aria-pressed="'+!flowDone+'">未完了のみ</button></div><button class="btn sm" id="manageStages">工程を設定</button></div>');
-  b.classList.remove('summary-body');document.getElementById('manageStages').onclick=stageSettings;
-  document.querySelectorAll('[data-flow]').forEach(e=>e.onclick=()=>{flowDone=e.dataset.flow==='all';V.flowDone=flowDone;viewSave();gpOpen={};drawSong()});
-  wireSongTabs();wireCurrent();document.getElementById('shDel').style.display=RO?'none':'';
-}
 function drawSongPage(){
-  const s=cur,a=songSummary(s),b=document.getElementById('shBody');
+  const s=cur,b=document.getElementById('shBody');
   if(V.mode==='desk')songTab='summary';
   let h=songTabs();
   if(songTab==='summary'){
     h+=assistantSongCard(s);
-    if(!productionReport(s).applicable&&a.next&&a.next.x.k!==a.x?.k)h+='<div class="next-inline"><span>近い期限 · '+esc(plainStage(a.next.x.n))+'</span><b>'+esc(D.md(a.next.date))+'</b></div>';
-    const dates=[['release','発売'],['open','公演初日'],['rehearsal','リハーサル'],['mastering','マスタリング'],['deliver','音源提出']].filter(([k])=>s.dates[k]);
-    if(!productionReport(s).applicable&&dates.length)h+='<section class="detail-panel"><h3>主要日程</h3><dl class="summary-dates">'+dates.map(([k,l])=>'<div><dt>'+l+'</dt><dd>'+esc(D.md(s.dates[k]))+'</dd></div>').join('')+'</dl></section>';
     if(s.note&&V.mode!=='desk')h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
-    if(V.mode!=='desk'&&!RO)h+='<div class="summary-options"><button class="btn" data-edit-song="'+esc(s.id)+'" data-edit-kind="classification" data-edit-key="">曲の種類・MV</button><button class="btn" id="editSongInfo">基本情報を編集</button><button class="btn" id="legacyRecords">作業記録を確認</button></div>';
+    if(V.mode!=='desk'&&!RO)h+='<div class="summary-options"><button class="btn" id="editSongInfo">曲の情報を編集</button></div>';
   }else if(songTab==='credits'){
     h+='<div class="detail-panel"><h3>制作クレジット</h3><div id="crW">'+crRows(s,'work')+'</div><button class="btn sm" data-add="work">＋ 人を追加</button></div><div class="detail-panel"><h3>ミュージシャンクレジット</h3><div id="crM">'+crRows(s,'mus')+'</div><button class="btn sm" data-add="mus">＋ 人を追加</button></div>';
   }else{
     h+='<section class="detail-panel"><h3>曲のメモ・申し送り</h3><textarea class="inp" data-f="note" rows="5" placeholder="申し送りを入力">'+esc(s.note||'')+'</textarea></section><section class="detail-panel"><h3>最近の更新</h3>'+(S.log.filter(z=>z.t.includes(songTitle(s))).slice(0,15).map(z=>'<div class="history-row"><small>'+esc(new Date(z.at).toLocaleDateString('ja-JP'))+'</small><span>'+esc(z.t)+'</span></div>').join('')||'<p class="muted">記録はありません</p>')+'</section>';
   }
-  b.innerHTML=h;wireSnapshotEditors(b);b.classList.add('summary-body');wireSongTabs();wireCurrent();
-  b.querySelectorAll('[data-phase]').forEach(button=>button.onclick=()=>{songTab='flow';gpOpen={};a.L.forEach(x=>gpOpen[x.gp]=false);gpOpen[button.dataset.phase]=true;flowDone=true;V.flowDone=true;viewSave();drawSong()});
+  b.innerHTML=h;wireSnapshotEditors(b);b.classList.add('summary-body');wireSongTabs();
   const plan=document.getElementById('summaryPlan');if(plan)plan.onclick=()=>plannerSheet();
   const assistant=document.getElementById('songAssistant');if(assistant)assistant.onclick=()=>plannerSheet();
   const resume=document.getElementById('songResume');if(resume)resume.onclick=()=>resumeAssistantConversation();
-  const legacy=document.getElementById('legacyRecords');if(legacy)legacy.onclick=()=>{songTab='flow';drawSong()};
   if(songTab!=='summary')wireSong();
-  const edit=document.getElementById('editSongInfo');if(edit)edit.onclick=()=>{secLoad()['基本情報']=true;secLoad()['基準日']=true;songTab='flow';drawSong();[...b.querySelectorAll('.sec')].find(x=>x.textContent.includes('基本情報'))?.scrollIntoView({block:'start'})};
+  const edit=document.getElementById('editSongInfo');if(edit)edit.onclick=()=>productionSongInfo(s);
   if(V.mode==='desk'||RO){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
   document.getElementById('shDel').style.display=V.mode==='desk'||RO?'none':'';
-}
-function stageSettings(){
-  const s=cur;
-  const draw=()=>{
-    const L=s.stageList||[],active=new Set(stages(s).map(x=>x.k));
-    const presets=S.templates.filter(t=>t.directorPreset&&t.director===s.director&&t.sourceTemplateId===(s.use==='live'?'tpl_show':s.templateId));
-    const h='<div class="stage-setting-head"><b>'+active.size+' / '+L.length+'工程を使用</b><button class="btn sm" id="saveDirectorPreset">担当者の標準に保存</button></div>'+(presets.length?'<div class="preset-row"><select class="inp" id="directorPresetPick"><option value="">担当者の標準設定を選択</option>'+presets.map(t=>'<option value="'+esc(t.id)+'">'+esc(t.name)+'</option>').join('')+'</select><button class="btn" id="useDirectorPreset">適用</button></div>':'')+'<div class="stage-settings">'+L.map((x,i)=>'<div class="stage-setting '+(x.d===1?'child':'')+'"><label><input type="checkbox" data-include="'+esc(x.k)+'" '+(active.has(x.k)?'checked':'')+'><span>'+esc(x.n)+'<small>'+esc(x.gp||'その他')+(!active.has(x.k)?' · 対象外':'')+'</small></span></label>'+(x.d!==1?'<button class="iconbtn" data-move="'+i+'|-1" aria-label="'+esc(x.n)+'を上に移動">↑</button><button class="iconbtn" data-move="'+i+'|1" aria-label="'+esc(x.n)+'を下に移動">↓</button>':'')+'</div>').join('')+'</div>';
-    s3('工程設定',songTitle(s),h,[{sp:1},{t:'完了',c:'btn pri',f:()=>{hide('sheet3');head();drawSong();render()}}]);
-    const b=document.getElementById('s3Body');
-    b.querySelectorAll('[data-include]').forEach(e=>e.onchange=async()=>{
-      const i=L.findIndex(x=>x.k===e.dataset.include),x=L[i];
-      if(!e.checked&&!await ask('「'+x.n+'」'+(x.d!==1?'と配下の工程':'')+'を対象外にします。必要な作業ではないことをご確認ください。記録は残り、あとで戻せます。','対象外にする')){e.checked=true;return}
-      if(x.d===1&&e.checked){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)stg(s,L[j].k).excluded=false}
-      stg(s,x.k).excluded=!e.checked;
-      if(x.d!==1){for(let j=i+1;j<L.length&&L[j].d===1;j++)stg(s,L[j].k).excluded=!e.checked}
-      logAdd('工程の対象を変更: '+songTitle(s)+' / '+x.n);mark();draw();head();drawSong();render();
-    });
-    b.querySelectorAll('[data-move]').forEach(e=>e.onclick=()=>{
-      const [i,dir]=e.dataset.move.split('|').map(Number),blocks=[];
-      L.forEach(x=>{if(x.d!==1||!blocks.length)blocks.push([]);blocks[blocks.length-1].push(x)});
-      const pos=blocks.findIndex(z=>z.includes(L[i])),to=pos+dir;if(to<0||to>=blocks.length)return;if(blocks[pos][0].gp!==blocks[to][0].gp)return toast('同じ段階の中で並べ替えできます');
-      [blocks[pos],blocks[to]]=[blocks[to],blocks[pos]];s.stageList=blocks.flat();mark();draw();
-    });
-    b.querySelector('#saveDirectorPreset').onclick=async()=>{
-      if(!s.director)return toast('基本情報で担当ディレクターを設定してください');
-      const base=s.templateId,old=S.templates.find(t=>t.directorPreset&&t.director===s.director&&t.sourceTemplateId===base);
-      if(!await ask(s.director+'さんの標準として保存します。対象外の工程も引き継がれます。必要な工程がすべて選ばれているかご確認ください。既存の曲は変更しません。','標準に保存'))return;
-      const t={id:old?old.id:uid(),name:s.director+' / '+(S.templates.find(t=>t.id===base)?.name||'工程'),directorPreset:true,director:s.director,sourceTemplateId:base,stages:ShinkouCore.copy(s.stageList),excludedKeys:L.filter(x=>stg(s,x.k).excluded).map(x=>x.k),dates:(s.tplDates||[]).slice(),mastering:s.tplMastering?ShinkouCore.copy(s.tplMastering):null,mtime:Date.now()};
-      if(old)S.templates[S.templates.indexOf(old)]=t;else S.templates.push(t);mark();toast('担当者の標準設定を保存しました');draw();
-    };
-    const use=b.querySelector('#useDirectorPreset');if(use)use.onclick=async()=>{
-      const t=S.templates.find(t=>t.id===b.querySelector('#directorPresetPick').value);if(!t)return;
-      if(!await ask('工程の構成を変更します。同じ工程の記録と日程は保持します。','適用する'))return;
-      applyPreset(s,t);mark();draw();head();drawSong();render();
-    };
-  };draw();
 }
 function applyPreset(s,t){
   s.stageList=ShinkouCore.copy(t.stages);s.tplDates=t.dates.slice();s.tplMastering=ShinkouCore.copy(t.mastering);
@@ -404,10 +193,6 @@ async function resumeAssistantConversation(){
 }
 function assistantSongCard(s){
  return '<section class="assistant-status">'+songSnapshotHTML(s)+(!RO?'<button class="btn pri" id="songAssistant">状況を伝える・相談する</button>'+((aiCfg().conversations||[]).some(r=>r.scope===s.id)?'<button class="btn" id="songResume">前の相談の続き</button>':''):'')+'</section>';
-}
-function assistantBrief(list){
- const tasks=list.flatMap(s=>{const L=stages(s);return L.filter((x,i)=>!hasKids(L,i)&&!doneOf(s,L,i)).map(x=>({song:s,x,date:dlOf(s,x)})).filter(t=>t.date)}).sort((a,b)=>a.date.localeCompare(b.date));
- return {near:tasks.filter(t=>D.to(t.date)<=7).slice(0,3),missing:list.filter(s=>!isFin(s)&&!songSummary(s).next).slice(0,2)};
 }
 function wireBriefLinks(root){
  root.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));

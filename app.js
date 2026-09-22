@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-h";
+const APP_VER="2026-09-22-i";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -360,14 +360,6 @@ const whoPh=x=>STUDIOK[x.k]?"スタジオ":(x.role==="engineer"?"担当エンジ
 const SORTBYKIND={"シングル":"single","タイアップ":"single","配信":"dl",
   "アルバム":"album","ミニアルバム":"album","EP":"album","ベスト":"album"};
 function sortForProj(p){if(!p||isShow(p))return"add";return SORTBYKIND[p.kind]||"album"}
-function applySort(s){
-  if(s.sortSet)return false;            /* 自分で選んだものは動かさない */
-  const p=projOf(s.projectId);
-  if(!p||isShow(p))return false;
-  /* ライブ先行の曲は、あとでアディショナルかアルバム曲になる */
-  const w=(s.templateId==="tpl_live")?(sortForProj(p)==="album"?"album":"add"):sortForProj(p);
-  if(s.sort===w)return false;
-  s.sort=w;s.single=(w==="single");return true}
 function projTitle(p){if(!p)return"案件未設定";
   if(isShow(p))return (p.custom&&p.custom.trim())||"公演名 未設定";
   if(p.custom&&p.custom.trim())return p.custom.trim();
@@ -534,10 +526,6 @@ function recStep(s,rec,x){
     if(L[j].k===x.k)return n}
   return n||1}
 function slotsOf(s,x){return stg(s,x.k).slots.filter(v=>v.date).sort((a,b)=>a.date.localeCompare(b.date))}
-function slotLine(s,x){const v=slotsOf(s,x);if(!v.length)return"";
-  return v.map(a=>(a.done?"✓":"")+D.md(a.date)+(a.note?"("+a.note+")":"")+
-    (a.who?" "+a.who:"")+
-    (a.swait?"@返事待ち"+(a.swaitAt&&D.to(a.swaitAt)<0?(-D.to(a.swaitAt))+"日":""):"")).join("・")}
 const waitReply=(s,x)=>stg(s,x.k).slots.some(a=>a.swait&&!a.done);
 /* 日程を持つ工程の状態：未依頼 → 日程調整 → 返事待ち → 日程確定 → 完了 */
 function recPhase(s,x){
@@ -553,16 +541,6 @@ function recPhase(s,x){
   if(sl.length)return{p:"listed",n:sl.length};
   if(o.st==="req")return{p:"sched"};
   return{p:"none"}}
-function recLabel(s,x){const r=recPhase(s,x),o=stg(s,x.k);
-  if(r.p==="done")return"完了";
-  if(r.p==="studio")return"スタジオ 連絡待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
-  if(r.p==="wait")return"返事待ち"+(r.n?"（済 "+r.d+"/"+r.n+"）":"");
-  if(r.p==="await")return"日程待ち "+D.md(r.next)+(r.n>1?"（済 "+r.d+"/"+r.n+"）":"");
-  if(r.p==="rec")return"日程 確定 · 済 "+r.d+"/"+r.n;
-  if(r.p==="listed")return"日程 調整中 · "+r.n+"件";
-  if(r.p==="sched")return"日程調整 依頼中";
-  return"未依頼"}
-/* 日程がすべて済んだら工程も完了にする */
 function syncSlotDone(s,x){const o=stg(s,x.k),v=o.slots.filter(a=>a.date||a.note||a.who);
   if(!v.length)return;
   const all=v.every(a=>a.done);
@@ -592,7 +570,6 @@ const hasKids=(L,i)=>L[i].d!==1&&!!L[i+1]&&L[i+1].d===1;
 function kidsOf(L,i){const r=[];for(let j=i+1;j<L.length&&L[j].d===1;j++)r.push(L[j]);return r}
 function doneOf(s,L,i){if(hasKids(L,i))return kidsOf(L,i).every(x=>(s.stages[x.k]||{}).done);
   return !!(s.stages[L[i].k]||{}).done}
-function kidStat(s,L,i){const k=kidsOf(L,i);return{n:k.length,d:k.filter(x=>(s.stages[x.k]||{}).done).length}}
 function curIdx(s){const L=stages(s);
   for(let i=0;i<L.length;i++){if(hasKids(L,i))continue;
     if(doneOf(s,L,i))continue;
@@ -696,36 +673,6 @@ function ballOf(s){
   if(i>=L.length)return{c:"none",t:"完了"};
   return whoOf(s,L[i])}
 /* いま動いている工程すべての相手。並行して待っているものを見落とさないため */
-function ballsOf(s){
-  const L=stages(s),ci=curIdx(s);
-  if(ci>=L.length)return[{c:"none",t:"完了"}];
-  const out=[],seen={};
-  /* 何の工程で待っているかが分かるように、工程名を添える */
-  const short=x=>{const n=x.n||"";
-    if(x.d===1)return n.split(" · ")[0]||n;
-    return n.replace(/スケジュール$/,"").replace(/DB$/,"DB")};
-  const push=x=>{const g=short(x),w=whoOf(s,x),key=w.c+"|"+w.t+"|"+g;
-    if(seen[key])return;seen[key]=1;
-    out.push({c:w.c,t:w.t,g:g})};
-  push(L[ci]);
-  /* 同じ親の中の子工程は、同時に進むので全部見る */
-  const par=(function(){if(L[ci].d!==1)return ci;
-    for(let j=ci-1;j>=0;j--)if(L[j].d!==1)return j;return -1})();
-  if(par>=0&&L[par+1]&&L[par+1].d===1)
-    for(let j=par+1;j<L.length&&L[j].d===1;j++){
-      if(j===ci||(s.stages[L[j].k]||{}).done)continue;push(L[j])}
-  /* 先に進んでいても、発注して返事を待っている工程・日にちが決まっている工程は出す */
-  L.forEach((x,i)=>{if(i<=ci)return;
-    const o=s.stages[x.k]||{};
-    /* スケジュールと対になる工程は、同じ相手なので出さない */
-    if(RECMIRROR[x.k])return;
-    /* 日程待ちは、録りの日など「相手と決めた日」だけ出す。
-       自分で置いた締切まで並べると一覧が埋まってしまう */
-    const w0=waitDate(s,x);
-    if(w0){if(isMulti(x))push(x);return}
-    if(o.done||o.st!=="req")return;
-    const w=whoOf(s,x);if(w.c==="other"||w.c==="room")push(x)});
-  return out}
 function status(s){const i=curIdx(s),L=stages(s);
   if(i>=L.length)return{k:"fin",i:i,dl:"",left:null,lb:""};
   const x=L[i],o=stg(s,x.k);
@@ -740,9 +687,9 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 /* ===================== view state ===================== */
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
-  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode","flowDone"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
 function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
-  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",flowDone:V.flowDone!==false,calmode:V.calmode||"list"}))}catch(e){}}
+  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list"}))}catch(e){}}
 function pool(){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(V.fin==="hide"&&(typeof ShinkouProduction!=="undefined"&&productionReport(s).applicable?productionReport(s).archive:isFin(s)))return false;
@@ -768,15 +715,6 @@ function prio(s){
   const mine=ballOf(s).c==="me";
   return{sc:left-(mine?2:0),left:st.left,st:st}}
 const byPrio=(a,b)=>prio(a).sc-prio(b).sc||(a.title||"").localeCompare(b.title||"","ja");
-function prioBucket(p){
-  if(p.left===null)return{k:"none",t:"締切 未設定"};
-  if(p.left<0)return{k:"late",t:"超過している"};
-  if(p.left<=3)return{k:"now",t:"3日以内"};
-  if(p.left<=7)return{k:"soon",t:"今週"};
-  if(p.left<=21)return{k:"mid",t:"3週間以内"};
-  return{k:"far",t:"それ以降"}}
-
-/* ===================== render ===================== */
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function renderUse(){
@@ -997,87 +935,6 @@ function renderDirs(){
     V.dir=(V.dir===b.dataset.d&&b.dataset.d!=="__all")?"__all":b.dataset.d;render()})}
 
 /* 大きめの日付タイル。曲のカードと公演の見出しで共用する */
-function kdTile(lb,v,cls){if(!v)return"";
-  const n=D.to(v),past=n<0,sub=past?"済":n===0?"本日":"あと"+n+"日";
-  return'<span class="'+(past?"past":cls+(n<=7?" nxt":""))+'"><em>'+esc(lb)+'</em><b>'+D.md(v)+'</b>'+
-    '<u class="'+(!past&&n<=14?"soon":"")+'">'+sub+'</u></span>'}
-function cardHTML(s,rank){
-  const st=status(s),bl=ballOf(s),L=stages(s);
-  const fin=st.k==="fin";
-  let par=fin?"":(L[st.i].d===1?(function(){for(let j=st.i-1;j>=0;j--)if(L[j].d!==1)return L[j].n;return""})():"");
-  if(!fin&&!par&&L[st.i].gp&&(s.use||"master")!=="live")par=L[st.i].gp;
-  let stage=fin?"":L[st.i].n;
-  if(!fin&&isArr(L[st.i])){const ao=stg(s,L[st.i].k);
-    stage+="（"+(ao.prov?"ひとまずOK"+(ao.st==="req"?"・"+awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"+(ao.req&&D.to(ao.req)<0?(-D.to(ao.req))+"日":""):"")
-      :ao.st==="req"?awaitLabel(ao.rev,firstWord(L[st.i]))+"依頼中"+(ao.req&&D.to(ao.req)<0?(-D.to(ao.req))+"日":"")
-      :ao.st==="me"?haveLabel(ao.rev,firstWord(L[st.i]))+"確認中":"未依頼")+
-      (ao.size?"・"+sizeLabel(ao.size):"")+"）"}
-  const dl=fin?"":st.dl?('<b class="dln">'+(st.left<0?(-st.left)+"日超過":st.left===0?"本日":"あと"+st.left+"日")+'</b><span class="dld">'+D.md(st.dl)+'</span>'):'<span class="dld">締切 未設定</span>';
-  const dc=st.k==="late"?"late":st.k==="warn"?"warn":"";
-  /* 親レベルの工程を、済みとこれからに分ける */
-  const tops=[];
-  L.forEach((x,i)=>{if(x.d===1)return;
-    const kid=hasKids(L,i);
-    tops.push({x:x,i:i,kid:kid,ks:kid?kidStat(s,L,i):null,done:doneOf(s,L,i)})});
-  /* 段階ごとの進み具合。パッと見て「どこまで来たか」が分かるようにする */
-  const LVC=(s.use||"master")==="live";
-  const gps=[];
-  tops.forEach(t=>{
-    if(LVC){gps.push({g:t.x.n,n:1,d:t.done?1:0,cur:t.i===st.i,
-      prov:!t.done&&!!(s.stages[t.x.k]||{}).prov});return}
-    const g=t.x.gp||"—";
-    let b2=gps.length?gps[gps.length-1]:null;
-    if(!b2||b2.g!==g){b2={g:g,n:0,d:0,cur:false};gps.push(b2)}
-    b2.n++;if(t.done)b2.d++;if(t.i===st.i)b2.cur=true;
-    if(!t.done&&(s.stages[t.x.k]||{}).prov)b2.prov=true});
-  const allN=tops.length,allD=tops.filter(t=>t.done).length;
-  const bar='<div class="bar">'+gps.map(b2=>
-    '<i class="'+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'" style="flex:'+b2.n+'"></i>').join("")+'</div>';
-  const chips=bar+'<div class="gps">'+gps.map(b2=>
-    '<span class="gp1 '+(b2.d>=b2.n?"on":b2.cur?"cur":b2.prov?"prov":"")+'">'+esc(b2.g)+
-      (b2.d>=b2.n?'<u>✓</u>':b2.cur&&!LVC?'<u>'+b2.d+"/"+b2.n+'</u>':b2.prov?'<u>仮</u>':"")+'</span>').join("")+
-    '<span class="gp1 tot"><u>'+allD+'/'+allN+'</u></span></div>';
-  /* いま来ている工程のメモは、一覧でも読めるようにする */
-  const cm=fin?"":((s.stages[L[st.i].k]||{}).memo||"").trim();
-  const memoHTML=cm?'<div class="cmemo">✎ '+esc(cm)+'</div>':"";
-  const kd=[];
-  const dpush=(lb,v,cls)=>{const t=kdTile(lb,v,cls);if(t)kd.push(t)};
-  dpush("レッスン",s.dates.lesson,"k1");
-  dpush("MV撮影",s.dates.mv,"k2");
-  dpush("ライブ",s.dates.live,"k3");
-  dpush("マスタリング",masDate(s),"k4");
-  for(let i=0;i<L.length;i++){const x=L[i];
-    if(!isMulti(x)||doneOf(s,L,i))continue;
-    const sl=slotLine(s,x);if(!sl)continue;
-    const nx=slotsOf(s,x).filter(v=>!v.done).map(v=>v.date).filter(v=>D.to(v)>=0)[0];
-    const n=nx?D.to(nx):null;
-    kd.push('<span class="k5"><em>'+esc(x.n)+'</em><b>'+esc(sl)+'</b>'+
-      (n===null?"":'<u class="'+(n<=14?"soon":"")+'">'+(n===0?"本日":"あと"+n+"日")+'</u>')+'</span>');break}
-  const _L=stages(s),_dn=_L.filter((z,zi)=>doneOf(s,_L,zi)).length,
-    _p=_L.length?Math.round(_dn*100/_L.length):0,xp=!!AEXP[s.id];
-  return'<div class="card c2 '+(fin?"fin":st.k)+(xp?" xp":"")+'">'+
-    '<button class="c2h" data-cx="'+s.id+'">'+
-      (rank?'<span class="rank">'+rank+'</span>':"")+
-      '<span class="ct">'+esc(songTitle(s))+'</span>'+
-      (fin?'<span class="c2s ok">完了</span>'
-          :'<span class="c2s">'+esc(stage)+'</span><span class="dl '+dc+'">'+dl+'</span>')+
-    '</button>'+
-    '<div class="rbar"><i style="width:'+(fin?100:_p)+'%"></i></div>'+
-    '<div class="c2x">'+
-      '<div class="cardtop" style="margin:10px 0 6px">'+
-      ((s.use||"master")==="live"&&s.ltype&&s.ltype!==songTitle(s)?'<span class="sgl live">'+esc(s.ltype)+'</span>':"")+
-      ((s.use||"master")==="live"?"":'<span class="sgl">'+esc(sortTag(s))+'</span>')+
-      (par?'<span class="sgl">'+esc(par)+'</span>':"")+'</div>'+
-      (fin?"":'<div class="balls">'+ballsOf(s).map(w=>
-        '<span class="ball '+w.c+'"><i></i><span>'+esc(w.t)+'</span>'+
-        (w.g?'<u>'+esc(w.g)+'</u>':"")+'</span>').join("")+'</div>')+
-      (fin?"":chips)+memoHTML+
-      (kd.length?'<div class="kd">'+kd.join("")+'</div>':"")+
-      '<button class="btn sm w" style="margin-top:10px" data-song="'+s.id+'">開く ▸</button>'+
-    '</div></div>'}
-
-let AEXP={};
-// 一覧の描画先をここで決める。各画面が検索済みの曲を受け取る。
 function render(){
   viewSave();
   renderWorkspace();
@@ -1137,244 +994,14 @@ function syncLists(){
 /* ===================== song sheet ===================== */
 /* パート候補を出すのは楽器録りの工程だけ */
 const isInstRec=x=>x.k==="instrec"||(x.k!=="instdb"&&/楽器/.test(x.n||""));
-/* 日程にすぐ足せるパート候補。曲のクレジットにあるものを優先する */
-function recChips(s){
-  const out=[],skip={Programming:1};skip[MIXPART]=1;skip[MASPART]=1;skip[STUPART]=1;
-  (s.credits||[]).forEach(c=>{if(c.g!=="mus")return;
-    rowParts(c).forEach(p=>{if(p&&!skip[p]&&out.indexOf(p)<0)out.push(p)})});
-  RECPARTS.forEach(p=>{if(out.indexOf(p)<0)out.push(p)});
-  return out.slice(0,12)}
-function stageDrag(s,box,rf){
-  dragList(box,".st","[data-tg]",()=>{
-    const order=[...box.querySelectorAll(".st")].map(r=>r.dataset.srow);
-    const map={};s.stageList.forEach(x=>map[x.k]=x);
-    const chosen=order.map(k=>map[k]).filter(Boolean);
-    let pos=0;s.stageList=s.stageList.map(x=>order.includes(x.k)?chosen[pos++]:x);
-    mark();drawSong();rf()})}
-let cur=null,stOpen="",stAdv={},gpOpen={};
-function openSong(id){aiViewRevision++;cur=S.songs.find(s=>s.id===id);if(!cur)return;stOpen="";stAdv={};gpOpen={};songTab="summary";head();drawSong();show("sheet")}
+let cur=null;
+function openSong(id){aiViewRevision++;cur=S.songs.find(s=>s.id===id);if(!cur)return;songTab="summary";head();drawSong();show("sheet")}
 function head(){
-  document.getElementById("shTitle").textContent=songTitle(cur);
-  const st=status(cur),L=stages(cur);
-  document.getElementById("shEye").textContent=[cur.artist||"グループ未設定",
-    projTitle(projOf(cur.projectId)),typeof ShinkouProduction!=="undefined"&&productionReport(cur).applicable?(productionReport(cur).audioComplete?"音源制作完了":"制作の見通し"):st.k==="fin"?"完了":"現在 "+L[st.i].n].join(" · ")}
-
-/* 日程の1行 */
-function slotHTML(s,x,v,si,d){
-  return'<div class="slot'+(v.done?" on":"")+'">'+
-    '<div class="sl1"><button class="chk" role="checkbox" aria-checked="'+(!!v.done)+'" data-sc="'+x.k+'|'+si+'">✓</button>'+
-    dtIn("data-sl",x.k+"|"+si,v.date,d)+
-    (isInstRec(x)?'<input class="inp" list="dl_part" data-sm="'+x.k+'|'+si+'" '+
-      'placeholder="パート" value="'+esc(v.note||"")+'">':"")+'</div>'+
-    '<div class="sl2">'+
-    '<input class="inp" list="dl_'+whoList(x)+'" data-sp="'+x.k+'|'+si+'" '+
-      'placeholder="'+whoPh(x)+'" value="'+esc(v.who||"")+'">'+
-    '<button class="qc'+(v.swait?" on":"")+'" data-sw="'+x.k+'|'+si+'">返事待ち</button>'+
-    '<button class="xb" data-sx2="'+x.k+'|'+si+'">✕</button></div></div>'}
-function drawSong(){
-  if(songTab!=="flow"){drawSongPage();return}
-  const s=cur,b=document.getElementById("shBody"),bl=ballOf(s),p=projOf(s.projectId);
-  const popts='<option value="">案件を選択</option>'+S.projects.map(x=>
-    '<option value="'+x.id+'" '+(x.id===s.projectId?"selected":"")+'>'+esc((x.artist?x.artist+" / ":"")+projTitle(x))+'</option>').join("");
-  const LV=(s.use||"master")==="live";
-  let hI='<div class="sec">基本情報</div><div class="fg"><span class="lbl">'+(LV?"名称":"曲名")+'</span><input class="inp" data-f="title" value="'+esc(s.title)+'" placeholder="'+(LV?"例：Opening SE":"")+'"></div>'+
-  (LV?'<div class="fg"><span class="lbl">種類</span><div class="qadd" id="ltSeg">'+
-    LTYPES.map(t=>'<button class="qc'+(s.ltype===t?" on":"")+'" data-lt="'+esc(t)+'">'+esc(t)+'</button>').join("")+
-    '</div></div>':"")+
-  '<div class="row fg"><div><span class="lbl">'+(LV?"メモ・仮称":"仮題・原題")+'</span><input class="inp" data-f="work" value="'+esc(s.work)+'"></div>'+
-  '<div><span class="lbl">グループ</span><input class="inp" list="dl_artist" data-m="artist" data-f="artist" value="'+esc(s.artist)+'"></div></div>'+
-  '<div class="row fg"><div><span class="lbl">'+(LV?"公演":"案件")+'</span><select class="inp" data-f="projectId">'+popts+'</select></div>'+
-  '<div><span class="lbl">担当ディレクター</span><input class="inp" list="dl_director" data-m="director" data-f="director" value="'+esc(s.director)+'"></div></div>'+
-  '<div class="row fg"><div style="flex:0 0 auto"><button class="btn sm" id="newProj">＋ '+(LV?"公演":"案件")+'を作る</button></div>'+
-  (LV?"":'<div><div class="seg2" id="sglSeg">'+
-  SORTS.map(z=>'<button data-g="'+z[0]+'" aria-pressed="'+(sortOf(s)===z[0])+'">'+z[1]+'</button>').join("")+
-  '</div></div>')+'</div>'+
-  '<div class="fg"><div class="seg2" id="useSeg">'+
-  '<button data-u2="master" aria-pressed="'+((s.use||"master")==="master")+'">原盤</button>'+
-  '<button data-u2="live" aria-pressed="'+(s.use==="live")+'">ライブ</button></div></div>'+
-  '<div class="sec">基準日</div>';
-  const useKeys=(s.tplDates&&s.tplDates.length)?s.tplDates:Object.keys(ANCHORS);
-  useKeys.forEach(k=>{
-    if(!ANCHORS[k]||HIDE_ANCHOR[k]||(k==="mv"&&!songHasMV(s)))return;
-    if((k==="open"||k==="rehearsal")&&(s.use||"master")!=="live")return;
-    if(SINGLE_ONLY[k]&&s.single===false)return;
-    if(k==="release"||k==="open"){
-      const isO=k==="open";
-      hI+='<div class="fg"><span class="lbl">'+(isO?"公演初日":"発売日")+'</span>'+
-        dtIn("data-d",k,s.dates[k],"")+
-        '</div>'}
-    else if(k==="mastering"){const m=s.tplMastering;
-      hI+='<div class="fg"><span class="lbl">マスタリング日</span>'+dtIn("data-d","mastering",s.dates.mastering,relOf(s))+
-        '<p class="hint">'+(m?"自動："+esc(ANCHORS[m.anchor])+(m.off>0?"+":"")+m.off+(m.unit==="m"?"ヶ月":"日"):"手入力")+
-          ' <button class="btn sm" id="dateCfg">変更</button></p></div>'}
-    else hI+='<div class="fg"><span class="lbl">'+esc(anchorLabel(s,k))+'</span>'+dtIn("data-d",k,s.dates[k]||"",relOf(s))+'</div>'});
-  hI+='<div class="fg"><button class="btn sm" id="dateAdd">＋ 基準日を増やす</button></div>'+
-    '';
-
-  let h='<div class="sec">工程</div><div class="stlist" id="stList">';
-  const ci=curIdx(s),L=stages(s);let curGp="",gpShow=true;
-  L.forEach((x,i)=>{
-    if(x.gp&&x.gp!==curGp){curGp=x.gp;
-      const mem=L.filter(y=>y.gp===x.gp);
-      const done=mem.filter(y=>doneOf(s,L,L.indexOf(y))).length,tot=mem.length;
-      const cur=mem.some(y=>L.indexOf(y)===ci);
-      /* 手動で開閉した記録が無ければ、いま来ている段階だけ開く */
-      gpShow=gpOpen[x.gp]===undefined?cur:gpOpen[x.gp];
-      h+='<button class="gph'+(gpShow?" on":"")+'" data-gp="'+esc(x.gp)+'">'+
-        '<span class="cv">▼</span><span>'+esc(x.gp)+'</span>'+
-        '<b>'+done+'/'+tot+'</b></button>'}
-    if(x.gp&&!gpShow)return;
-    const o=stg(s,x.k),kid=hasKids(L,i),ks=kid?kidStat(s,L,i):null;
-    const dn=doneOf(s,L,i),w=whoOf(s,x),open=stOpen===x.k;
-    if(dn&&!flowDone)return;
-    const d=dlOf(s,x),mul=isMulti(x);
-    const cd=d;
-    const left=(cd&&!dn)?D.to(cd):null,late=left!==null&&left<0;
-    let sub;
-    /* bits は素の文字として入れ、表示のときにエスケープする。期限だけ色を付ける */
-    if(dn)sub=esc("完了 "+(o.date?D.md(o.date):"—"));
-    else if(kid)sub=esc(ks.d+"/"+ks.n+" 完了");
-    else{const bits=[];
-      if(isArr(x)){bits.push(o.prov?"ひとまずOK"+(o.st==="req"?"・"+awaitLabel(o.rev,firstWord(x))+"依頼中":"")
-        :o.st==="req"?awaitLabel(o.rev,firstWord(x))+" 依頼中"
-        :o.st==="me"?haveLabel(o.rev,firstWord(x))+" 確認中":"未依頼");
-        if(o.size)bits.push(sizeLabel(o.size));
-        }
-      if(mul){bits.push(recLabel(s,x));
-        if(schedFixed(s,x))bits.push(slotLine(s,x))}
-      if(d&&!(mul&&slotsOf(s,x).length))bits.push("締切 "+D.md(d));
-      if(o.memo)bits.push("✎ "+o.memo.split("\n")[0].slice(0,24));
-      sub=bits.map(esc).join(" · ");
-      if(left!==null){const t=left<0?(-left)+"日超過":left===0?"本日":"あと"+left+"日";
-        sub=(sub?sub+" · ":"")+(left<=0?'<em>'+esc(t)+'</em>':esc(t))}
-      if(!sub)sub=esc("締切なし")}
-    h+='<div class="st '+(dn?"on":"")+' '+(late?"late":"")+' '+(x.d===1?"kid":"")+' '+(i===ci?"cur":"")+'" data-srow="'+x.k+'">'+
-      '<button class="grip" data-tg="'+x.k+'">⠿</button>'+
-      '<button class="chk" role="checkbox" aria-label="'+esc(x.n)+'の完了" aria-checked="'+dn+'" data-k="'+x.k+'" data-ki="'+i+'">✓</button>'+
-      '<button class="nm" data-ex="'+x.k+'"><span class="t">'+esc(x.n)+
-        '</span><span class="s">'+sub+'</span></button>'+
-      (dn?"":'<span class="qdt"><input type="date" aria-label="'+esc(x.n)+'の日付" class="dtpick" data-qd="'+x.k+'" '+
-        'value="'+esc(/^\d{4}-\d{2}-\d{2}$/.test(d||"")?d:"")+'">'+
-        '<span class="qdb">'+(d?esc(D.md(d)):"日付")+'</span></span>')+
-      (dn||kid?"":'<button class="who '+w.c+'" data-bt="'+x.k+'" title="タップで状態を切替">'+esc(w.t)+'</button>')+
-      '</div>';
-    if(!open)return;
-    h+='<div class="dtl">'+
-      ((dn||kid)?"":('<div class="fg"><span class="lbl">状態</span><div class="seg2 stt">'+
-        stStates(x,s).map(z=>'<button data-ss2="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.st||"")===z[0])+'">'+
-          esc(z[1])+'</button>').join("")+'</div></div>'))+
-      (ORDERPAIR[x.k]?asgField(s,x):"");
-    if(ORDERPAIR[x.k]&&stages(s).some(z=>z.k===ORDERPAIR[x.k])){
-      const bx=stages(s).find(z=>z.k===ORDERPAIR[x.k]),bo=stg(s,bx.k);
-      h+='<div class="fg"><span class="lbl">この発注の先</span><div class="arrbox">'+
-        '<div class="arrnow"><b class="'+(bo.st==="req"?"c-other":bo.st==="me"?"c-me":"c-todo")+'">'+esc(bx.n)+' — '+
-          (bo.st==="req"?esc(awaitLabel(bo.rev,firstWord(bx)))+" 待ち"
-           :bo.st==="me"?esc(haveLabel(bo.rev,firstWord(bx)))+" 確認中":"まだ動いていません")+'</b>'+
-          '<span>'+(o.asg?esc(o.asg)+" に依頼":"担当者を入れると引き継がれます")+'</span></div>'+
-        '<p class="hint" style="margin:8px 0 0">この工程を済みにすると、'+esc(bx.n)+'が'+
-          esc(firstWord(bx))+'待ちになります。</p>'+
-        '</div></div>'}
-    if(isArr(x)){
-      h+='<div class="fg"><span class="lbl">進行</span><div class="arrbox">'+
-        '<div class="arrnow">'+(o.prov?'<b class="c-me">ひとまずOK'+(o.st==="req"?'・'+esc(awaitLabel(o.rev,firstWord(x)))+' 待ち':"")+'</b>'
-          :o.st==="req"?'<b class="c-other">'+esc(awaitLabel(o.rev,firstWord(x)))+' 待ち</b>'
-          :o.st==="me"?'<b class="c-me">'+esc(haveLabel(o.rev,firstWord(x)))+' 確認中</b>'
-          :'<b class="c-todo">まだ依頼していません</b>')+
-          '<span>受け取った版：'+(o.rev?o.rev+"版":"なし")+(o.prov?" · この先へ進めます":"")+'</span></div>'+
-        '<div class="arrbtn">'+
-          '<button class="btn sm" data-ao="'+x.k+'">'+(o.rev?"修正を返す":(x.k==="arr"?"アレンジ":x.n)+"を依頼")+'</button>'+
-          '<button class="btn sm pri" data-ar="'+x.k+'">'+awaitLabel(o.rev,firstWord(x))+'が届いた</button>'+
-          (o.rev?'<button class="xb" data-au="'+x.k+'" title="1つ戻す">↩</button>':"")+
-        '</div>'+
-        '<div class="arrbtn" style="margin-top:6px">'+
-          '<button class="btn sm'+(o.prov?" pri":"")+'" data-ap="'+x.k+'">'+
-          (o.prov?"ひとまずOK を取り消す":"ひとまずOK（この先へ進む）")+'</button>'+
-        '</div></div></div>'+
-        '<div class="fg"><span class="lbl">尺</span><div class="seg2" id="sz_'+x.k+'">'+
-          SIZES.map(z=>'<button data-sz="'+x.k+'|'+z[0]+'" aria-pressed="'+((o.size||"")===z[0])+'">'+z[1]+'</button>').join("")+
-        '</div></div>'+
-        ''}
-    if(mul){
-      const r=recPhase(s,x);
-      h+='<div class="fg"><span class="lbl">日程</span><div class="arrbox">'+
-        '<div class="arrnow"><b class="'+(r.p==="sched"||r.p==="studio"||r.p==="wait"?"c-other":r.p==="await"?"c-wait":r.p==="none"?"c-todo":"c-me")+'">'+
-          esc(recLabel(s,x))+'</b>'+
-          '<span>'+(schedFixed(s,x)?esc(slotLine(s,x)):"日程 未定")+'</span></div>'+
-        '<div class="arrbtn">'+
-          '<button class="btn sm'+(r.p==="sched"?" pri":"")+'" data-ro="'+x.k+'">'+(r.p==="sched"?"調整中…（押すと解除）":"日程調整を依頼")+'</button>'+
-          '<button class="btn sm'+(r.p==="studio"?" pri":"")+'" data-rs="'+x.k+'">'+(r.p==="studio"?"連絡待ち（押すと解除）":"スタジオ 連絡待ち")+'</button>'+
-          '<button class="btn sm pri" data-sa2="'+x.k+'">＋ 日程を追加</button>'+
-        '</div></div></div>'+
-        (o.slots.length?'<div class="fg">'+o.slots.map((v,si)=>slotHTML(s,x,v,si,d)).join("")+
-          (isInstRec(x)?'<div class="qadd">'+recChips(s).map(pt=>
-            '<button class="qc" data-qa="'+x.k+'|'+esc(pt)+'">＋'+esc(pt)+'</button>').join("")+'</div>':"")+
-          '</div>':"")}
-    h+='<div class="fg"><span class="lbl">'+(o.done?"完了した日":"締切")+'</span>'+
-      dtIn("data-sd",x.k,o.done?o.date:(o.dl||d),d)+'</div>'+
-      '<div class="fg"><span class="lbl">メモ</span>'+
-      '<textarea class="inp memo" data-mm="'+x.k+'" rows="2" placeholder="覚えておきたいこと">'+esc(o.memo||"")+'</textarea></div>'+
-
-      '<div class="fg" style="margin:2px 0 0">'+
-        '<button class="btn sm lnk" data-msg="'+x.k+'">連絡文を作る</button>'+
-        '<button class="btn sm lnk" style="margin-left:14px" data-ad2="'+x.k+'">'+
-        (stAdv[x.k]?"閉じる":"この工程を直す ▾")+'</button></div>'+
-      (stAdv[x.k]?'<div class="fg" style="margin-top:9px"><span class="lbl">工程名</span>'+
-        '<input class="inp" data-sn2="'+x.k+'" value="'+esc(x.n)+'"></div>'+
-        (ORDERPAIR[x.k]?"":asgField(s,x))+
-      '<div class="row"><button class="btn sm" data-skid="'+x.k+'">＋ 子工程</button>'+
-      '<button class="btn sm dgr" data-sx="'+x.k+'">この工程を削除</button></div>':"")+
-      '</div>'});
-  h+='</div>'+
-    '<div class="row fg" style="margin-top:12px">'+
-      '<select class="inp sm2" id="applyTpl" style="font-size:11.5px;padding:6px">'+
-      '<option value="">テンプレート読込</option>'+S.templates.map(x=>'<option value="'+x.id+'">'+esc(x.name)+'</option>').join("")+
-      '</select><button class="btn sm" id="sAdd">＋ 工程</button></div>'+hI;
-  if(!LV)h+='<div class="sec">制作クレジット</div>'+
-    '<div id="crW">'+crRows(s,"work")+'</div>'+
-    '<div class="fg"><button class="btn sm w" data-add="work">＋ 人を追加</button></div>'+
-    ''+
-
-    '<div class="sec">ミュージシャンクレジット<span class="r"><button class="btn sm" id="expCr">書き出し</button></span></div>'+
-    '<div id="crM">'+crRows(s,"mus")+'</div>'+
-    '<div class="fg"><button class="btn sm w" data-add="mus">＋ 人を追加</button></div>'+
-    '';
-  h+='<div class="fg" style="margin-top:18px"><span class="lbl">メモ・申し送り</span>'+
-    '<textarea class="inp" data-f="note" placeholder="仕様、注意点">'+esc(s.note)+'</textarea></div>';
-  b.innerHTML=h;foldSecs(b);wireSong();decorateSong()}
-
-
-/* 曲シートのセクションを折りたたみ式にし、工程を先頭に出す */
-let SECOPEN=null;
-function secLoad(){if(SECOPEN)return SECOPEN;
-  try{SECOPEN=JSON.parse(localStorage.getItem("shinkou_secs")||"null")}catch(e){}
-  if(!SECOPEN||typeof SECOPEN!=="object")SECOPEN={};
-  return SECOPEN}
-function secSave(){try{localStorage.setItem("shinkou_secs",JSON.stringify(SECOPEN))}catch(e){}}
-function foldSecs(b){
-  const so=secLoad();
-  const kids=[...b.childNodes];
-  const groups=[];let g=null;
-  kids.forEach(n=>{
-    if(n.nodeType===1&&n.classList&&n.classList.contains("sec")){g={sec:n,items:[]};groups.push(g)}
-    else if(g)g.items.push(n)});
-  if(!groups.length)return;
-  const first=["工程"];
-  groups.sort((a,b2)=>{
-    const ai=first.indexOf(a.sec.textContent.trim()),bi=first.indexOf(b2.sec.textContent.trim());
-    return (ai<0?99:ai)-(bi<0?99:bi)});
-  groups.forEach(gr=>{
-    const name=gr.sec.textContent.trim();
-    const open=so[name]!==undefined?!!so[name]:name==="工程";
-    const wrap=document.createElement("div");
-    wrap.className="secbody"+(open?"":" off");
-    gr.items.forEach(n=>wrap.appendChild(n));
-    gr.sec.classList.add("fold");
-    gr.sec.innerHTML='<i class="cv">'+(open?"▾":"▸")+'</i>'+esc(name);
-    b.appendChild(gr.sec);b.appendChild(wrap);
-    gr.sec.onclick=()=>{
-      const hid=wrap.classList.toggle("off");
-      so[name]=!hid;secSave();
-      gr.sec.querySelector(".cv").textContent=hid?"▸":"▾"}})}
+ document.getElementById("shTitle").textContent=songTitle(cur);
+ const r=productionReport(cur);
+ document.getElementById("shEye").textContent=[cur.artist||"アーティスト未登録",projTitle(projOf(cur.projectId)),r.archive?"制作完了":"制作の見通し"].filter(Boolean).join(" · ");
+}
+function drawSong(){drawSongPage()}
 
 function crRows(s,grp){
   const list=(s.credits||[]).filter(c=>c.g===grp);
@@ -1449,14 +1076,9 @@ function crRedraw(s){document.getElementById("crW").innerHTML=crRows(s,"work");
   document.getElementById("crM").innerHTML=crRows(s,"mus");wireSong()}
 
 function wireSong(){
-  const s=cur,b=document.getElementById("shBody"),rf=()=>{head();render()};
-  b.querySelectorAll("[data-f]").forEach(e=>{e.oninput=()=>{s[e.dataset.f]=e.value;mark();
-    if(e.dataset.f==="projectId"){fillDates(s,"");
-      const pr=projOf(s.projectId);if(pr&&pr.artist)s.artist=pr.artist;
-      applySort(s);applySolo(s);drawSong()}
-    if(e.dataset.f==="artist"&&applySolo(s))drawSong();
-    rf()};
-    if(e.dataset.m)e.onblur=()=>{mAdd(e.dataset.m,e.value);syncLists()}});
+ const s=cur,b=document.getElementById("shBody");if(RO)return;
+ const rf=()=>{head();render()};
+ b.querySelectorAll('[data-f="note"]').forEach(e=>e.oninput=()=>{s.note=e.value;mark()});
   /* 日付欄：入力中は何もせず、離れたときだけ確定する */
   const commitDate=(e,set)=>{
     const iso=parseDate(e.value,e.dataset.ref);
@@ -1467,12 +1089,6 @@ function wireSong(){
     e.onfocus=()=>{try{e.select()}catch(_){}};
     e.onkeydown=ev=>{if(ev.key==="Enter"){ev.preventDefault();e.blur()}};
     e.onblur=()=>commitDate(e,v=>set(e,v))});
-  wireDt("[data-d]",(e,v)=>{s.dates[e.dataset.d]=v});
-  wireDt("[data-sd]",(e,v)=>{const k=e.dataset.sd,o=stg(s,k);
-    if(o.done){o.date=v;return}
-    const x=s.stageList[s.stageList.findIndex(z=>z.k===k)];
-    o.dl=v});
-  wireDt("[data-sl]",(e,v)=>{const a=e.dataset.sl.split("|");stg(s,a[0]).slots[+a[1]].date=v;syncInstKids(s)});
   b.querySelectorAll("[data-for]").forEach(e=>e.onfocus=()=>{
     /* いま打ってある日付を、カレンダーの初期値にする */
     const f=document.getElementById(e.dataset.for);
@@ -1486,158 +1102,6 @@ function wireSong(){
       f.value=fmtDate(v);
       f.dispatchEvent(new Event("blur"));
       /* dispatchEventで一度だけ確定 */}});
-  b.querySelectorAll("[data-rs]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.rs);
-    o.st=o.st==="studio"?"":"studio";mark();drawSong();rf()});
-  b.querySelectorAll("[data-ro]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ro);
-    if(o.st==="req"){o.st=""}else{o.st="req";o.req=D.today();o.ret=""}
-    mark();drawSong();rf()});
-  b.querySelectorAll("[data-ao]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ao);
-    o.st="req";o.req=D.today();o.ret="";mark();drawSong();rf()});
-  b.querySelectorAll("[data-ap]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ap);
-    o.prov=!o.prov;mark();drawSong();rf()});
-  b.querySelectorAll("[data-ar]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.ar);
-    o.rev=(o.rev||0)+1;o.st="me";mark();drawSong();rf()});
-  b.querySelectorAll("[data-au]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.au);
-    o.rev=Math.max(0,(o.rev||0)-1);if(!o.rev)o.st="req";mark();drawSong();rf()});
-  b.querySelectorAll("[data-sz]").forEach(e=>e.onclick=()=>{const a=e.dataset.sz.split("|"),o=stg(s,a[0]);
-    o.size=(o.size===a[1])?"":a[1];mark();drawSong();rf()});
-  b.querySelectorAll("[data-sc]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.sc.split("|"),o=stg(s,a[0]),v=o.slots[+a[1]];
-    v.done=!v.done;
-    syncSlotDone(s,s.stageList[s.stageList.findIndex(z=>z.k===a[0])]);
-    syncInstKids(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-sm]").forEach(e=>{e.oninput=()=>{
-      const a=e.dataset.sm.split("|");stg(s,a[0]).slots[+a[1]].note=e.value;mark()};
-    e.onblur=()=>{const a=e.dataset.sm.split("|"),o=stg(s,a[0]);
-      o.slots[+a[1]].note=toEnPart(o.slots[+a[1]].note);mAdd("instrument",o.slots[+a[1]].note);
-      syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
-  b.querySelectorAll("[data-sp]").forEach(e=>{e.oninput=()=>{
-      const a=e.dataset.sp.split("|");stg(s,a[0]).slots[+a[1]].who=e.value;mark()};
-    e.onblur=()=>{const a=e.dataset.sp.split("|"),x=s.stageList[s.stageList.findIndex(z=>z.k===a[0])];
-      if(x)mAdd(whoList(x),e.value);
-      syncSlotAssign(s);syncSlotCredits(s);syncInstKids(s);syncLists();mark();drawSong();rf()}});
-  b.querySelectorAll("[data-sw]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.sw.split("|"),v=stg(s,a[0]).slots[+a[1]];
-    v.swait=!v.swait;v.swaitAt=v.swait?D.today():"";mark();drawSong();rf()});
-  b.querySelectorAll("[data-sx2]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.sx2.split("|");stg(s,a[0]).slots.splice(+a[1],1);syncInstKids(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-sa2]").forEach(e=>e.onclick=()=>{
-    const o=stg(s,e.dataset.sa2),xx=s.stageList[ix(e.dataset.sa2)];
-    if(xx&&!isArr(xx))xx.t="multi";
-    o.slots.push({date:"",note:"",who:""});o.st="";syncInstKids(s);mark();drawSong();
-    setTimeout(()=>{const l=b.querySelectorAll('[data-sl^="'+e.dataset.sa2+'|"]');
-      if(l.length)l[l.length-1].focus()},30)});
-  b.querySelectorAll("[data-k]").forEach(e=>e.onclick=()=>{
-    const i=+e.dataset.ki,L=stages(s);
-    if(hasKids(L,i)){const all=doneOf(s,L,i);
-      kidsOf(L,i).forEach(x=>{const o=stg(s,x.k);o.done=!all;if(o.done&&!o.date)o.date=D.today();
-        setKidDone(s,x.k,o.done)})}
-    else{const k=e.dataset.k,o=stg(s,k);o.done=!o.done;
-      if(o.done&&!o.date)o.date=D.today();if(o.done)o.st="";
-      setKidDone(s,k,o.done)}
-    syncOrder(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-gp]").forEach(e=>e.onclick=()=>{
-    const g=e.dataset.gp;gpOpen[g]=!(e.classList.contains("on"));drawSong()});
-  b.querySelectorAll("[data-ex]").forEach(e=>e.onclick=()=>{
-    const k=e.dataset.ex;
-    stOpen=stOpen===k?"":k;stAdv={};drawSong()});
-  b.querySelectorAll("[data-ss2]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.ss2.split("|"),o=stg(s,a[0]);
-    o.st=a[1];if(o.st!=="req")o.req="";
-    syncOrder(s);mark();drawSong();rf()});
-  b.querySelectorAll("[data-qd]").forEach(e=>{
-    /* iOSのホイールは回すたびchangeが飛ぶので、閉じてから一度だけ確定する */
-    e.onchange=()=>{e._pv=e.value};
-    e.onblur=()=>{
-      const v=e._pv;e._pv=null;
-      if(!v)return;
-      const k=e.dataset.qd,xx=s.stageList[ix(k)],o=stg(s,k);
-      if(xx&&isMulti(xx)){
-        if(!o.slots)o.slots=[];
-        if(!o.slots.some(z=>z.date===v))
-          o.slots.push({date:v,note:"",who:"",swait:false,done:false});
-        o.slots.sort((a,z)=>String(a.date).localeCompare(String(z.date)));
-        o.st="";syncInstKids(s)}
-      else o.dl=v;
-      fixDeps(s);mark();drawSong();rf()}});
-  b.querySelectorAll("[data-bt]").forEach(e=>e.onclick=()=>{const o=stg(s,e.dataset.bt);
-    const xx=s.stageList[ix(e.dataset.bt)];
-    /* 日程を持つ工程は「未依頼 ⇄ 日程調整 依頼中」だけ */
-    o.st=(xx&&isMulti(xx))?(o.st===""?"req":o.st==="req"?"studio":"")
-      :(xx&&xx.role==="me")?(o.st===""?"me":o.st==="me"?"req":"")
-      :(o.st===""?"req":o.st==="req"?"me":"");
-    if(o.st==="req"&&!o.req)o.req=D.today();
-    mark();drawSong();rf()});
-  const lt=b.querySelector("#ltSeg");if(lt)lt.onclick=e=>{const x=e.target.closest("[data-lt]");if(!x)return;
-    s.ltype=s.ltype===x.dataset.lt?"":x.dataset.lt;
-    if(s.ltype&&!s.title)s.title=s.ltype;
-    if(s.ltype&&!Object.keys(s.stages||{}).some(k=>(s.stages[k]||{}).done))
-      s.stageList=showStages(s.ltype);
-    mark();drawSong();rf()};
-  const ug=b.querySelector("#useSeg");if(ug)ug.onclick=async e=>{const x=e.target.closest("[data-u2]");if(!x)return;
-    const nu=x.dataset.u2;if(nu===(s.use||"master"))return;
-    const tid=nu==="live"?"tpl_show":"tpl_single";
-    const t=S.templates.find(z=>z.id===tid);
-    if(t&&!await ask(nu==="live"?"ライブ制作物に切り替えます。工程がライブ用（企画〜納品）に入れ替わります。"
-      :"原盤に切り替えます。工程が録音用に入れ替わります。"))return;
-    s.use=nu;
-    if(t){s.templateId=t.id;s.stageList=JSON.parse(JSON.stringify(t.stages));
-      s.tplDates=t.dates.slice();s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
-      if(nu==="live")s.single=false}
-    applySolo(s);mark();drawSong();rf()};
-  const sg=b.querySelector("#sglSeg");if(sg)sg.onclick=e=>{const x=e.target.closest("[data-g]");if(!x)return;
-    s.sort=x.dataset.g;s.sortSet=true;s.single=(s.sort==="single");
-    mark();drawSong();rf()};
-  const dc=b.querySelector("#dateCfg");if(dc)dc.onclick=()=>dateCfg(s);
-  const da=b.querySelector("#dateAdd");if(da)da.onclick=()=>dateCfg(s);
-  /* 工程はその場で編集する。キーから配列の位置を引く */
-  const ix=k=>s.stageList.findIndex(z=>z.k===k);
-  b.querySelectorAll("[data-sn2]").forEach(e=>e.oninput=()=>{s.stageList[ix(e.dataset.sn2)].n=e.value;mark()});
-  b.querySelectorAll("[data-as]").forEach(e=>{e.oninput=()=>{stg(s,e.dataset.as).asg=e.value;syncOrder(s);mark();rf()};
-    e.onblur=()=>{const x=s.stageList[ix(e.dataset.as)];
-      let r=x?x.role:"engineer";
-      if(x&&ORDERPAIR[x.k]){const bx=s.stageList.find(z=>z.k===ORDERPAIR[x.k]);if(bx)r=bx.role}
-      mAdd(r==="masEng"?"masEng":r==="director"?"director":
-        (r==="lyricist"||r==="composer"||r==="arranger")?r:"engineer",e.value);syncLists()}});
-  b.querySelectorAll("[data-msg]").forEach(e=>e.onclick=()=>{
-    const x=s.stageList[ix(e.dataset.msg)];if(!x)return;
-    const t=msgFor(s,x);
-    if(navigator.clipboard)navigator.clipboard.writeText(t)
-      .then(()=>toast("連絡文をコピーしました"),()=>showText(t));
-    else showText(t)});
-  b.querySelectorAll("[data-mm]").forEach(e=>{
-    const fit=()=>{e.style.height="auto";e.style.height=(e.scrollHeight+2)+"px"};
-    fit();e.oninput=()=>{stg(s,e.dataset.mm).memo=e.value;fit();mark()};
-    e.onblur=()=>{drawSong();rf()}});
-  b.querySelectorAll("[data-ad2]").forEach(e=>e.onclick=()=>{
-    stAdv[e.dataset.ad2]=!stAdv[e.dataset.ad2];drawSong()});
-  b.querySelectorAll("[data-skid]").forEach(e=>e.onclick=()=>{
-    const i=ix(e.dataset.skid),pa=s.stageList[i];
-    let j=i+1;while(j<s.stageList.length&&s.stageList[j].d===1)j++;
-    const k="k"+Date.now().toString(36)+Math.floor(Math.random()*99);
-    s.stageList.splice(j,0,{k:k,n:"新しい工程",role:pa.role,gp:pa.gp,d:1,lead:pa.lead==null?14:pa.lead,
-      anchor:pa.anchor,off:pa.off,unit:pa.unit,fb:pa.fb,t:""});
-    stOpen=k;mark();drawSong();rf()});
-  b.querySelectorAll("[data-sx]").forEach(e=>e.onclick=async()=>{const i=ix(e.dataset.sx);
-    if(!await ask("「"+s.stageList[i].n+"」を削除します。","削除"))return;
-    delete s.stages[s.stageList[i].k];s.stageList.splice(i,1);mark();drawSong();rf()});
-  b.querySelectorAll("[data-qa]").forEach(e=>e.onclick=()=>{
-    const a=e.dataset.qa.split("|"),o=stg(s,a[0]);
-    o.slots.push({date:"",note:a[1],who:"",swait:false});o.st="";syncInstKids(s);mark();drawSong();
-    setTimeout(()=>{const l=b.querySelectorAll('[data-sl^="'+a[0]+'|"]');
-      if(l.length)l[l.length-1].focus()},30)});
-  /* 工程の移動は全工程を保持する工程設定で行う */
-  const sa=b.querySelector("#sAdd");if(sa)sa.onclick=()=>{
-    const k="s"+Date.now()+Math.floor(Math.random()*99);
-    s.stageList.push({k:k,n:"新しい工程",role:"me",
-      anchor:(s.tplDates&&s.tplDates[0])||"release",off:0,unit:"d",d:0,lead:14,t:""});
-    stOpen=k;stAdv={};mark();drawSong();rf()};
-  const at=b.querySelector("#applyTpl");if(at)at.onchange=async()=>{
-    const t=S.templates.find(x=>x.id===at.value);if(!t)return;
-    if(!await ask("「"+t.name+"」の工程で置き換えます。完了記録は同じ工程のみ引き継ぎます。","置き換える")){at.value="";return}
-    s.templateId=t.id;s.stageList=JSON.parse(JSON.stringify(t.stages));
-    s.tplDates=t.dates.slice();s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
-    applySolo(s);mark();drawSong();rf()};
   /* credits */
   b.querySelectorAll("[data-rl]").forEach(e=>e.onclick=()=>{
     const a=e.dataset.rl.split("|"),c=crFind(s,a[0]);
@@ -1675,38 +1139,7 @@ function wireSong(){
         name:used?"":nameFor(s,"arranger"),inv:false,invDate:""})}
     mark();crRedraw(s);rf()});
   const ec=b.querySelector("#expCr");if(ec)ec.onclick=()=>creditSheet(s);
-  const np=b.querySelector("#newProj");if(np)np.onclick=()=>editProject(null,p=>{
-    s.projectId=p.id;if(!s.artist)s.artist=p.artist;if(!s.director)s.director=p.director;
-    applySort(s);mark();drawSong();rf()});
-  if(RO)b.querySelectorAll("input,textarea,select,button").forEach(e=>{if(e.id!=="expCr")e.disabled=true})}
-
-function dateCfg(s){
-  s3("DATES","使う基準日",
-    ANCHOR_KEYS.filter(k=>(s.use||"master")==="live"?(k==="open"||k==="rehearsal"):(k!=="open"&&k!=="rehearsal"))
-      .map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
-      ((s.tplDates||[]).indexOf(k)>=0?"checked":"")+'> '+esc(anchorLabel(s,k))+'</label>').join("")+
-    '<div class="sec">マスタリング日の自動計算</div>'+
-    '<div class="fg"><div class="seg2" id="masSeg">'+
-    '<button data-ms="auto" aria-pressed="'+(!!s.tplMastering)+'">自動で決める</button>'+
-    '<button data-ms="manual" aria-pressed="'+(!s.tplMastering)+'">手入力（後回し）</button></div></div>'+
-    (s.tplMastering?'<div class="row fg"><div><span class="lbl">基準</span><select class="inp" id="mA">'+
-      Object.keys(ANCHORS).filter(k=>k!=="mastering").map(k=>'<option value="'+k+'" '+(s.tplMastering.anchor===k?"selected":"")+'>'+esc(ANCHORS[k])+'</option>').join("")+
-      '</select></div><div style="flex:.6"><span class="lbl">ずらす</span><input type="number" class="inp" id="mO" value="'+s.tplMastering.off+'"></div>'+
-      '<div style="flex:.6"><span class="lbl">単位</span><select class="inp" id="mU"><option value="d" '+(s.tplMastering.unit==="d"?"selected":"")+'>日</option>'+
-      '<option value="m" '+(s.tplMastering.unit==="m"?"selected":"")+'>ヶ月</option></select></div></div>':
-      ''),
-    [{sp:1},{t:"閉じる",c:"btn pri",f:()=>{hide("sheet3");drawSong();render()}}]);
-  const B=document.getElementById("s3Body");
-  B.querySelectorAll("[data-dk]").forEach(e=>e.onchange=()=>{const k=e.dataset.dk;
-    if(!s.tplDates)s.tplDates=[];const i=s.tplDates.indexOf(k);
-    if(e.checked&&i<0)s.tplDates.push(k);if(!e.checked&&i>=0)s.tplDates.splice(i,1);mark()});
-  B.querySelector("#masSeg").onclick=e=>{const x=e.target.closest("[data-ms]");if(!x)return;
-    s.tplMastering=x.dataset.ms==="auto"?{anchor:"release",off:-2,unit:"m"}:null;
-    if(s.tplMastering&&s.tplDates.indexOf("mastering")<0)s.tplDates.push("mastering");mark();dateCfg(s)};
-  const mA=B.querySelector("#mA");if(mA){
-    mA.onchange=()=>{s.tplMastering.anchor=mA.value;mark()};
-    B.querySelector("#mO").oninput=e=>{s.tplMastering.off=+e.target.value||0;mark()};
-    B.querySelector("#mU").onchange=e=>{s.tplMastering.unit=e.target.value;mark()}}}
+}
 
 document.getElementById("shDel").onclick=async()=>{if(!cur||RO)return;
   if(!await ask("「"+songTitle(cur)+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。","ゴミ箱へ"))return;
@@ -1722,15 +1155,6 @@ function projShort(p){if(!p)return"";
   return (NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+(KABBR[p.kind]||p.kind)}
 const joinNames=a=>a.join(a.every(n=>/^[\x20-\x7E]+$/.test(n))?",":"、");
 /* パートの並び順。PARTSに載っているものはその順、載っていないものは後ろ */
-/* 担当者・発注先の入力欄 */
-function asgField(s,x){
-  const o=stg(s,x.k);
-  const rr=ORDERPAIR[x.k]?((stages(s).find(z=>z.k===ORDERPAIR[x.k])||{}).role||x.role):x.role;
-  const dl=rr==="masEng"?"masEng":rr==="director"?"director":
-    (rr==="lyricist"||rr==="composer"||rr==="arranger")?rr:"engineer";
-  return'<div class="fg"><span class="lbl">'+(ORDERPAIR[x.k]?"発注先":"担当者")+'</span>'+
-    '<input class="inp" list="dl_'+dl+'" data-as="'+x.k+'" value="'+esc(o.asg)+'" '+
-    'placeholder="'+esc(nameFor(s,rr)||ROLES[rr]||"")+'"></div>'}
 /* その工程で待つ相手の呼び名 */
 function foeLabel(s,x){
   const o=(s&&s.stages&&s.stages[x.k])||{};
@@ -1738,13 +1162,6 @@ function foeLabel(s,x){
   if(STUDIOK[x.k])return "スタジオ";
   if(x.role==="me")return "相手";
   return ROLES[x.role]||"相手"}
-/* その工程で選べる状態 */
-function stStates(x,s){
-  const foe=foeLabel(s,x);
-  if(isMulti(x))return [["","未依頼"],["req","日程調整を依頼"],["studio",foe+" 連絡待ち"]];
-  if(x.role==="room")return [["","未依頼"],["req","会議待ち"],["me","自分の番"]];
-  if(x.role==="me")return [["","未依頼"],["me","自分の番"],["req",foe+" 待ち"]];
-  return [["","未依頼"],["req",foe+" 待ち"],["me","自分の番"]]}
 const partRank=pt=>{const i=PARTS.indexOf(pt);return i<0?900:i};
 const byPart=(a,b)=>partRank(a)-partRank(b);
 /* 「Alto Saxophone・Tenor Saxophone」→「Alto,Tenor Saxophone」のようにまとめてから & でつなぐ */
@@ -2052,75 +1469,6 @@ function editProject(id,after){
   draw()}
 const gv=id=>document.getElementById(id).value;
 
-/* ===================== templates (presets) ===================== */
-function tplList(){
-  s2("TEMPLATES","工程テンプレート（新規曲の初期値）",
-    S.templates.map(t=>'<div class="st"><span class="nm"><span class="t">'+esc(t.name)+'</span>'+
-      '<span class="s">'+t.stages.length+'工程 · '+(t.mastering?"マスタリング自動":"マスタリング手入力")+'</span></span>'+
-      '<button class="btn sm" data-et="'+t.id+'">編集</button>'+
-      '<button class="btn sm" data-ct="'+t.id+'">複製</button></div>').join("")+
-    '<div class="fg" style="margin-top:14px"><button class="btn w" id="tNew">＋ テンプレートを追加</button></div>'+
-    '',
-    [{sp:1},{t:"閉じる",c:"btn pri",f:()=>hide("sheet2")}]);
-  const B=document.getElementById("s2Body");
-  B.querySelectorAll("[data-et]").forEach(b=>b.onclick=()=>editTemplate(b.dataset.et));
-  B.querySelectorAll("[data-ct]").forEach(b=>b.onclick=()=>{
-    const src=S.templates.find(t=>t.id===b.dataset.ct),c=JSON.parse(JSON.stringify(src));
-    c.id=uid();c.name=src.name+" のコピー";S.templates.push(c);mark();tplList();toast("複製しました")});
-  B.querySelector("#tNew").onclick=()=>{
-    const t={id:uid(),name:"新しいテンプレート",dates:["release"],mastering:null,
-      stages:[{k:"s"+Date.now(),n:"工程1",role:"me",anchor:"release",off:-30,unit:"d"}]};
-    S.templates.push(t);mark();editTemplate(t.id)}}
-
-function editTemplate(id){
-  const t=S.templates.find(x=>x.id===id);if(!t)return;
-  const draw=()=>{
-    let h='<div class="fg"><span class="lbl">名前</span><input class="inp" id="tN" value="'+esc(t.name)+'"></div>'+
-    '<div class="sec">使う基準日</div><div class="fg">'+
-    ANCHOR_KEYS.map(k=>'<label class="pill"><input type="checkbox" data-dk="'+k+'" '+
-      (t.dates.indexOf(k)>=0?"checked":"")+'> '+esc(ANCHORS[k])+'</label>').join("")+'</div>'+
-    '<div class="sec">マスタリング日の自動計算</div><div class="fg"><div class="seg2" id="masSeg">'+
-      '<button data-ms="auto" aria-pressed="'+(!!t.mastering)+'">自動で決める</button>'+
-      '<button data-ms="manual" aria-pressed="'+(!t.mastering)+'">手入力（後回し）</button></div></div>'+
-    (t.mastering?'<div class="row fg"><div><span class="lbl">基準</span><select class="inp" id="mA">'+
-      Object.keys(ANCHORS).filter(k=>k!=="mastering").map(k=>'<option value="'+k+'" '+(t.mastering.anchor===k?"selected":"")+'>'+esc(ANCHORS[k])+'</option>').join("")+
-      '</select></div><div style="flex:.6"><span class="lbl">ずらす</span><input type="number" class="inp" id="mO" value="'+t.mastering.off+'"></div>'+
-      '<div style="flex:.6"><span class="lbl">単位</span><select class="inp" id="mU"><option value="d" '+(t.mastering.unit==="d"?"selected":"")+'>日</option>'+
-      '<option value="m" '+(t.mastering.unit==="m"?"selected":"")+'>ヶ月</option></select></div></div>':"")+
-    '<div class="sec">工程<span class="r"><button class="btn sm" id="sAdd">＋ 追加</button></span></div>';
-    t.stages.forEach((x,i)=>{
-      h+='<div class="ed"><div class="row" style="margin-bottom:7px">'+
-      '<input class="inp" data-sn="'+i+'" value="'+esc(x.n)+'">'+
-      '<div style="flex:0 0 auto;display:flex;gap:5px"><button class="xb" data-up="'+i+'">↑</button>'+
-      '<button class="xb" data-dn="'+i+'">↓</button><button class="xb" data-sx="'+i+'">✕</button></div></div>'+
-      '<div class="row"><div><span class="lbl">担当</span><select class="inp" data-sr="'+i+'">'+
-        Object.keys(ROLES).map(r=>'<option value="'+r+'" '+(x.role===r?"selected":"")+'>'+ROLES[r]+'</option>').join("")+'</select></div>'+
-      '</div></div>'});
-    document.getElementById("s2Body").innerHTML=h;wire()};
-  const wire=()=>{const B=document.getElementById("s2Body");
-    B.querySelector("#tN").oninput=e=>{t.name=e.target.value;mark()};
-    B.querySelectorAll("[data-dk]").forEach(e=>e.onchange=()=>{const k=e.dataset.dk,i=t.dates.indexOf(k);
-      if(e.checked&&i<0)t.dates.push(k);if(!e.checked&&i>=0)t.dates.splice(i,1);mark()});
-    B.querySelector("#masSeg").onclick=e=>{const x=e.target.closest("[data-ms]");if(!x)return;
-      t.mastering=x.dataset.ms==="auto"?{anchor:"release",off:-2,unit:"m"}:null;
-      if(t.mastering&&t.dates.indexOf("mastering")<0)t.dates.push("mastering");mark();draw()};
-    const mA=B.querySelector("#mA");if(mA){mA.onchange=()=>{t.mastering.anchor=mA.value;mark()};
-      B.querySelector("#mO").oninput=e=>{t.mastering.off=+e.target.value||0;mark()};
-      B.querySelector("#mU").onchange=e=>{t.mastering.unit=e.target.value;mark()}}
-    B.querySelectorAll("[data-sn]").forEach(e=>e.oninput=()=>{t.stages[+e.dataset.sn].n=e.value;mark()});
-    B.querySelectorAll("[data-sr]").forEach(e=>e.onchange=()=>{t.stages[+e.dataset.sr].role=e.value;mark()});
-    B.querySelectorAll("[data-up]").forEach(e=>e.onclick=()=>{const i=+e.dataset.up;if(i<1)return;
-      t.stages.splice(i-1,0,t.stages.splice(i,1)[0]);mark();draw()});
-    B.querySelectorAll("[data-dn]").forEach(e=>e.onclick=()=>{const i=+e.dataset.dn;if(i>=t.stages.length-1)return;
-      t.stages.splice(i+1,0,t.stages.splice(i,1)[0]);mark();draw()});
-    B.querySelectorAll("[data-sx]").forEach(e=>e.onclick=async()=>{if(!await ask("削除します。","削除"))return;
-      t.stages.splice(+e.dataset.sx,1);mark();draw()});
-    B.querySelector("#sAdd").onclick=()=>{t.stages.push({k:"s"+Date.now()+Math.floor(Math.random()*99),
-      n:"新しい工程",role:"me",anchor:t.dates[0]||"release",off:0,unit:"d"});mark();draw()}};
-  s2("TEMPLATE",t.name,"",[{t:"一覧へ",c:"btn sm",f:tplList},{sp:1},
-    {t:"閉じる",c:"btn pri",f:()=>{hide("sheet2");render()}}]);
-  draw()}
-
 /* ===================== masters ===================== */
 function masterSheet(){
   const draw=()=>{
@@ -2346,8 +1694,7 @@ function openSettings(){
       (ms.map(row).join("")||'<p class="hint">まだありません。</p>')+
       '<p class="hint" style="margin:14px 0 6px">ライブ公演</p>'+
       (lv.map(row).join("")||'<p class="hint">まだありません。</p>')+
-      '<div class="fg" style="margin-top:12px"><button class="btn w" id="mMaster">メンバー管理</button></div>'+
-      '<div class="fg"><button class="btn w" id="mTpl">工程テンプレートを編集</button></div>'}},
+      '<div class="fg" style="margin-top:12px"><button class="btn w" id="mMaster">メンバー管理</button></div>'}},
     {id:"cred",t:"クレジット書き出し",h:()=>{
       const ms=S.projects.filter(p=>!isShow(p))
         .filter(p=>S.songs.some(z=>z.projectId===p.id))
@@ -2432,7 +1779,7 @@ function wireSettings(B){
   const on=(id,f)=>{const e=q(id);if(e)e.onclick=f};
   on("#addP",()=>editProject(null));
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
-  on("#mMaster",masterSheet);on("#mTpl",tplList);on("#mInv",invSheet);on("#mTrash",trashSheet);
+  on("#mMaster",masterSheet);on("#mInv",invSheet);on("#mTrash",trashSheet);
   {const k=q("#aiK");if(k)k.onblur=()=>{aiCfg().key=k.value.trim();mark()}}
   {const nm=q("#aiN");if(nm)nm.onblur=()=>{aiCfg().name=nm.value.trim();mark()}}
   on("#mLog",logSheet);
@@ -2574,21 +1921,6 @@ function exportICS(){
   dlFile("shinkou-"+D.today()+".ics",buildICS(),"text/calendar");
   toast(n+"件を書き出しました")}
 
-/* ===================== 連絡文 ===================== */
-/* 工程から、そのまま送れる文を作る */
-function msgFor(s,x){
-  const o=stg(s,x.k),ttl=songTitle(s),ar=s.artist||"";
-  const head=(ar?ar+"「"+ttl+"」":"「"+ttl+"」")+" の"+x.n;
-  if(isMulti(x)){
-    const v=(o.slots||[]).filter(a=>a.date);
-    if(!v.length)return head+"の日程をご相談させてください。\n候補をいくつかいただけますと助かります。";
-    return head+"の日程です。\n"+
-      v.map(a=>"・"+D.md(a.date)+(a.note?"　"+a.note:"")+(a.who?"　"+a.who:"")).join("\n")+
-      "\nよろしくお願いいたします。"}
-  const d=dlOf(s,x);
-  return head+"をお願いできますでしょうか。"+
-    (d?"\n締切は"+D.md(d)+"を予定しております。":"")+
-    "\nよろしくお願いいたします。"}
 function dlFile(n,t,ty){const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([t],{type:ty||"application/json"}));a.download=n;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
@@ -2683,21 +2015,6 @@ document.getElementById("btnSort").onclick=()=>{
   document.getElementById("btnSort").setAttribute("aria-pressed",V.reorder);
   render();toast(V.reorder?"⠿ をドラッグして曲順を入れ替えます":"並び替えを終了しました")};
 /* いま画面に開いているライブ公演。1つだけ開いていればそれを使う */
-function openShow(){
-  const ps=S.projects.filter(p=>isShow(p)&&S.songs.some(z=>z.projectId===p.id));
-  const shown=ps.filter(p=>!V.collapsed[(p.artist||"")+"|"+p.id]);
-  if(shown.length===1)return shown[0];
-  /* どれも畳んでいなければ、いちばん近い公演 */
-  if(!shown.length&&ps.length){
-    const key=p=>{const r=p.rehearsal||p.release||"9999-99-99";return (r>=D.today()?"0":"1")+r};
-    return ps.slice().sort((a,b)=>key(a).localeCompare(key(b)))[0]}
-  if(shown.length>1){
-    const key=p=>{const r=p.rehearsal||p.release||"9999-99-99";return (r>=D.today()?"0":"1")+r};
-    return shown.slice().sort((a,b)=>key(a).localeCompare(key(b)))[0]}
-  return null}
-document.getElementById("fab").onclick=()=>{if(RO)return toast("閲覧専用です");cur=null;plannerSheet("新しい曲の制作を始めたいです。まず必要なことを聞いてください。")};
-
-/* ===================== 作業ログ・元に戻す・確認シート ===================== */
 function logAdd(t){if(!S.log)S.log=[];
   S.log.unshift({id:uid(),at:Date.now(),by:(S.settings.ai&&S.settings.ai.name)||"",t:String(t).slice(0,200)});
   if(S.log.length>500)S.log.length=500}
@@ -2947,7 +2264,7 @@ const AI_SYS=[
 "- 依頼・返事待ちの記録: multi工程はslot_add/slot_updのswait、それ以外はstatusを\"req\"にし、あわせて {\"t\":\"memo\"} で「M/D 相手 手段(LINE/メール) 依頼」の形の1行を残す。返事が来たら該当を解消し「M/D 返事あり」をmemoで残す。",
 "- 完了は明示された工程だけに記録する。前提工程が完了したと推測して変更しない。不明点は質問する。",
 "- 1文に複数の操作があれば複数opにする。意味が取れない・対象を特定できない部分は無理にopにせず、noteで短く伝える。",
-"- 対応するopが無い指示（案件やゴミ箱の削除、テンプレート編集など）はopにせず、noteで「アプリの設定から操作してください」と伝える。"
+"- 対応するopが無い指示（案件やゴミ箱の削除など）はopにせず、noteで「アプリの設定から操作してください」と伝える。"
 ].join("\n");
 
 let aiSending=false;
@@ -3048,8 +2365,8 @@ function aiResolve(op){
     r.song=(typeof op.s==="number"&&S.songs[op.s])||null;
     if(!r.song){r.ok=false;r.why="曲を特定できませんでした";return r}}
   if(op.t==="production"){
-    if(typeof op.id!=="string"||!Object.hasOwn(ShinkouProduction.byId,op.id)||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
-    r.productionBefore=JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]).map(k=>r.song.stages?.[k])});
+    if(typeof op.id!=="string"||!ShinkouProduction.resolve(r.song,op.id)||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
+    r.productionBefore=JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:ShinkouProduction.keysFor(r.song,ShinkouProduction.resolve(r.song,op.id)).map(k=>r.song.stages?.[k])});
   }
   if(op.t==="production_options"){
     if(!op.set||Object.keys(op.set).some(k=>!["instruments","chorus","choreography"].includes(k))||Object.entries(op.set).some(([k,v])=>k==="choreography"?typeof v!=="boolean":!["unknown","required","none"].includes(v))){r.ok=false;r.why="対象の指定が不正です";return r}
@@ -3071,7 +2388,7 @@ const AI_STLBL={"":"未依頼",req:"相手待ち",me:"自分の番",studio:"連�
 function aiSummary(r){
   const op=r.op,sn=r.song?songTitle(r.song):"",xn=r.x?r.x.n:"";
   switch(op.t){
-    case "production":return sn+"｜"+ShinkouProduction.byId[op.id].label+"："+Object.entries(op.set).map(([k,v])=>( {state:"状態",owner:"いま対応する人",recipient:"連絡相手",channel:"連絡手段",due:"締切・予定日",dueKind:"日程の状態",memo:"メモ"}[k])+" → "+(k==="state"?ShinkouProduction.STATES[v]:k==="dueKind"?{registered:"登録日",confirmed:"確定",tentative:"仮"}[v]:v||"未設定")).join("、");
+    case "production":return sn+"｜"+ShinkouProduction.resolve(r.song,op.id).label+"："+Object.entries(op.set).map(([k,v])=>( {state:"状態",owner:"いま対応する人",recipient:"連絡相手",channel:"連絡手段",due:"締切・予定日",dueKind:"日程の状態",memo:"メモ"}[k])+" → "+(k==="state"?ShinkouProduction.STATES[v]:k==="dueKind"?{registered:"登録日",confirmed:"確定",tentative:"仮"}[v]:v||"未設定")).join("、");
     case "production_options":return sn+"｜制作条件："+Object.entries(op.set).map(([k,v])=>({instruments:"楽器録音",chorus:"コーラス",choreography:"振付"}[k])+" → "+({unknown:"未確認",required:"必要",none:"不要",true:"あり",false:"なし"}[v]||v)).join("、");
     case "remember":return "今後に活かす（"+ruleScopeLabel({scope:op.scope,songId:r.song?.id,director:op.director})+"）: "+op.text;
     case "stage_add":return sn+"｜工程を追加: "+op.name;
@@ -3124,7 +2441,7 @@ function aiApply(r){
   if(r.proj&&S.projects.find(p=>p.id===r.proj.id)!==r.proj)throw new Error("案件が更新されました。AI入力をやり直してください");
   switch(op.t){
     case "production":{
-      const keys=ShinkouProduction.keysFor(r.song,ShinkouProduction.byId[op.id]);
+      const keys=ShinkouProduction.keysFor(r.song,ShinkouProduction.resolve(r.song,op.id));
       if(r.productionBefore!==JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:keys.map(k=>r.song.stages?.[k])}))throw new Error("作業の記録が更新されました。もう一度確認してください");
       ShinkouProduction.apply(r.song,op.id,op.set,D.today());if(op.set.state)keys.forEach(k=>setKidDone(r.song,k,!!r.song.stages?.[k]?.done));break;
     }

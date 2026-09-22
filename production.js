@@ -32,10 +32,49 @@ function active(s){let excluded=false;return(s.stageList||[]).filter(x=>{if(x.d!
 function keysFor(s,d){const L=active(s),out=[];for(const key of d.keys){const i=L.findIndex(x=>x.k===key);if(i<0)continue;if(L[i+1]?.d===1){for(let j=i+1;j<L.length&&L[j].d===1;j++)out.push(L[j].k)}else out.push(key)}return [...new Set(out)]}
 function aggregate(states){if(!states.length)return 'unknown';if(states.every(s=>s==='done'||s==='na'))return states.every(s=>s==='na')?'na':'done';for(const state of ['revision','review','received','requested','doing','waiting','todo'])if(states.includes(state))return state;return states.includes('done')?'partial':'unknown'}
 function stageState(o){if(o.done)return 'done';if(o.excluded)return 'na';if(o.st==='req')return ['revision'].includes(o.workState)?o.workState:'requested';if(o.st==='me')return ['received','review'].includes(o.workState)?o.workState:'doing';if(o.st==='wait'||o.st==='studio')return 'waiting';if(o.workState&&!['done','na','requested','revision','doing','review','received'].includes(o.workState))return o.workState;return o.prov?'review':'unknown'}
+// All saved tasks use the same checklist. Stage IDs keep old records addressable.
+const stageLabels={sdemo:'音デモ',stemO:'ステムの依頼',stemM:'ステムの取りまとめ',voes:'歌の編集日程',cho:'コーラスの日程確保',choes:'コーラス編集日程',instrec:'楽器録音の日程確保',revo:'追加歌録りの日程確保',revodb:'追加歌録り',revoes:'追加歌録りの編集日程',revoR:'追加歌録りのタイミング編集',revoT:'追加歌録りのつなぎ編集',revoP:'追加歌録りの音程編集',paraO:'パラデータの依頼',paraR:'パラデータの受領',paraM:'パラデータの取りまとめ',paraS:'パラデータの送付'};
+const isShow=s=>s.templateId==='tpl_show'||s.use==='live';
+function stageDefinition(s,x){
+ const group=isShow(s)?'custom:'+(x.gp||'作業'):(GROUPS.some(g=>g[0]===x.productionGroup)?x.productionGroup:'')||(/^stem/.test(x.k)?'arrange':/^revo/.test(x.k)?'vocal':({'デモ制作':'plan','アレンジ':'arrange','VoDB':'vocal','ChoDB':'chorus','楽器DB':'instrument','ReVoDB':'vocal','仕上げ':'finish'}[x.gp]||'delivery'));
+ return {id:'stage:'+x.k,label:x.productionLabel||stageLabels[x.k]||x.n||'作業',group,keys:[x.k],deps:[],stage:true};
+}
+function resolve(s,id){if(typeof id!=='string')return null;if(Object.hasOwn(byId,id))return byId[id];if(!id.startsWith('stage:'))return null;const x=(s.stageList||[]).find(x=>x.k===id.slice(6));return x?stageDefinition(s,x):null}
+function definitions(s){
+ const base=isShow(s)?[]:defs,L=s.stageList||[],covered=new Set(base.flatMap(d=>d.keys));
+ for(let i=0;i<L.length;i++)if(covered.has(L[i].k))for(let j=i+1;j<L.length&&L[j].d===1;j++)covered.add(L[j].k);
+ return base.concat(L.filter((x,i)=>!covered.has(x.k)&&L[i+1]?.d!==1).map(x=>stageDefinition(s,x)));
+}
+function stageNode(s,d,today){
+ const rec=s.production?.tasks?.[d.id]||{},keys=keysFor(s,d),gs=keys.map(k=>s.stages?.[k]||{}),state=keys.length?aggregate(gs.map(stageState)):'na';
+ const slots=gs.flatMap(g=>g.slots||[]).filter(v=>validDate(v.date));
+ const scheduled=slots.filter(v=>!v.done).map(v=>v.date).sort()[0]||'';
+ const value=gs.map(g=>g.dl).filter(validDate).sort()[0]||rec.due||scheduled;
+ const due={value:validDate(value)?value:'',kind:rec.dueKind||'registered',source:''};
+ const owner=rec.owner!==undefined?rec.owner:gs.find(g=>g.asg)?.asg||(gs.some(g=>g.st==='me')?'自分':'');
+ return {...d,keys,state,done:state==='done'||state==='na',excluded:!keys.length,applicability:'required',due,owner,wait:['requested','revision'].includes(state),recipient:rec.recipient||(owner==='自分'?'':owner),channel:rec.channel||'',memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',derived:false,blockers:[],left:due.value?Math.round((stamp(due.value)-stamp(today))/864e5):null};
+}
+function task(s,id,opt={}){const n=report(s,opt).node[id];if(n)return n;const d=resolve(s,id);return d?.stage?stageNode(s,d,opt.today||new Date().toISOString().slice(0,10)):null}
+function showReport(s,today){
+ const nodes=definitions(s).map(d=>stageNode(s,d,today)),node=Object.fromEntries(nodes.map(n=>[n.id,n]));
+ const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
+ const pending=nodes.filter(n=>!n.done),actions=pending.map(n=>({id:n.id,title:n.label+(n.wait?'の返答を確認':''),reason:n.due.value?'予定 '+n.due.value:'状況と次の日程を確認します',score:n.left??100})).sort((a,b)=>a.score-b.score);
+ const dates=Object.fromEntries(['open','rehearsal','deliver','live'].map(k=>[k,{value:s.dates?.[k]||'',kind:s.production?.dateKinds?.[k]||'registered',source:''}]));
+ return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length,actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.owner||'担当未確認',state:n.state})),gaps:[],extra:[],admin:[],today};
+}
+// Exclusion keeps records. Restoring a child also restores its parent container.
+function setIncluded(s,id,included){
+ const d=resolve(s,id);if(!d)throw Error('作業が見つかりません');
+ const L=s.stageList||[],keys=[];
+ for(const key of d.keys){const i=L.findIndex(x=>x.k===key);if(i<0)continue;keys.push(key);for(let j=i+1;j<L.length&&L[j].d===1;j++)keys.push(L[j].k);if(included&&L[i].d===1){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)keys.push(L[j].k)}}
+ if(keys.length){s.stages||={};for(const k of keys){s.stages[k]||={};s.stages[k].excluded=!included}}
+ else{s.production||={};s.production.tasks||={};const rec=s.production.tasks[id]||={};rec.state=included?'unknown':'na'}
+}
 function report(s,opt={}){
  const today=opt.today||new Date().toISOString().slice(0,10),p=s.production||{},tasks=p.tasks||{},kind=s.sort||(s.single===false?'album':'single');
  const mv=typeof s.mvEnabled==='boolean'?s.mvEnabled:!!s.dates?.mv||kind==='single';
- const applicable=s.templateId!=='tpl_show'&&s.use!=='live';
+ if(isShow(s))return showReport(s,today);
+ const applicable=true;
  const release=s.dates?.release||opt.release||'',live=s.dates?.live||'';
  const date=(value,kind='registered',source='')=>({value:validDate(value)?value:'',kind,source});
  const dk=k=>p.dateKinds?.[k]||'registered';
@@ -48,7 +87,8 @@ function report(s,opt={}){
  dates.vocal=nextSlot?date(nextSlot,dk('vo')):date(days(months(release,-2),-15),'target','発売の2か月半前');
  dates.teacher=date(days(mvDate.value,-21),'target','MV撮影の3週間前');
  dates.lyricCheck=date(days(masterDate.value,-7),'target','マスタリングの1週間前');dates.credits=dates.lyricCheck;
- const nodes=defs.map(d=>{
+ const nodes=definitions(s).map(d=>{
+   if(d.stage){const n=stageNode(s,d,today);if(n.group==='chorus'&&p.chorus==='none'||n.group==='instrument'&&p.instruments==='none'){n.state='na';n.done=true}return n;}
    const rec=tasks[d.id]||{},keys=keysFor(s,d),gs=keys.map(k=>s.stages?.[k]||{});
    let state=keys.length?aggregate(gs.map(stageState)):(Object.hasOwn(STATES,rec.state)?rec.state:'unknown');
    const excluded=d.keys.length&&!keys.length&&d.keys.some(k=>(s.stageList||[]).some(x=>x.k===k));
@@ -61,12 +101,12 @@ function report(s,opt={}){
    }
    if(['rough','teacher','almost'].includes(d.id)&&!mv&&p.choreography!==true)state='na';
    if(p.chorus==='none'&&['chorusRequest','chorus'].includes(d.id))state='na';
-   const dl=gs.map(g=>g.dl).filter(validDate).sort()[0];
-   const due=dl?date(dl,rec.dueKind||'registered'):rec.due?date(rec.due,rec.dueKind||'registered'):dates[d.id]||date('');
+   const dl=gs.map(g=>g.dl).filter(validDate).sort()[0]||gs.flatMap(g=>g.slots||[]).filter(v=>!v.done&&validDate(v.date)).map(v=>v.date).sort()[0];
+   const due=dl?date(dl,rec.dueKind||p.dateKinds?.[d.keys[0]]||'registered'):rec.due?date(rec.due,rec.dueKind||'registered'):dates[d.id]||date('');
    const asg=rec.owner||gs.find(g=>g.asg)?.asg||'';
    const wait=['requested','revision'].includes(state),me=gs.some(g=>g.st==='me');
-   const owner=rec.owner!==undefined?rec.owner:me?'自分':asg;
-   return {...d,keys,state,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||(asg==='自分'?'':asg),memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
+   const owner=rec.owner!==undefined?rec.owner:asg||(me?'自分':'');
+   return {...d,keys,state,excluded,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||(asg==='自分'?'':asg),memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
  });
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
@@ -81,7 +121,8 @@ function report(s,opt={}){
    if(id==='arrange')text=node.arrange.state==='done'?'最終完成':node.recordable.done?'歌録り可能':text;
    if(id==='finish')text=node.master.state==='done'?'マスタリング済み':node.mix.state==='done'?'ミックス済み':text;
    if(id==='instrument'&&node.instrument.applicability==='unknown')text='必要か確認';
-   const done=id==='plan'?node.selection.state==='done':id==='vocal'?node.edit.done&&node.split.done:id==='arrange'?node.arrange.state==='done':id==='finish'?node.master.state==='done':list.every(n=>n.done);
+   let done=id==='plan'?node.selection.state==='done':id==='vocal'?node.edit.done&&node.split.done:id==='arrange'?node.arrange.state==='done':id==='finish'?node.master.state==='done':list.every(n=>n.done);
+   if(done&&list.some(n=>n.stage&&!n.done&&(n.state!=='unknown'||n.due.value))){done=false;text+=' · 残りを確認'}
    return {id,label,state,text,done};
  });
  const sequence=['selection','recordable','vocal','edit','chorus','mix','master'];
@@ -89,7 +130,7 @@ function report(s,opt={}){
  const level={theme:0,order:0,lyricOrder:0,lyrics:0,guide:0,demo:0,selection:0,full:1,recordable:1,stems:1,arrange:3,vocalBooking:1,vocal:2,split:3,edit:3,chorusRequest:4,chorus:4,instrument:3,almost:3,rough:3,teacher:3,mixBooking:1,materials:5,mix:5,master:6,lyricCheck:4,credits:4,invoice:6};
  const pending=nodes.filter(n=>!n.done);
  function score(n){let v=(n.left===null?100:Math.max(-120,n.left))+(n.due.kind==='target'?8:0);if(n.left!==null&&n.left<0)v-=120;if(n.state==='unknown')v+=10;if(n.blockers.length)v+=20;if(['vocalBooking','mixBooking'].includes(n.id))v-=20;return v}
- const actions=pending.filter(n=>n.state!=='unknown'||(level[n.id]>=Math.max(0,frontier-1)&&level[n.id]<=Math.max(1,frontier))||n.left!==null&&n.left<=14);
+ const actions=pending.filter(n=>n.stage||n.state!=='unknown'||(level[n.id]>=Math.max(0,frontier-1)&&level[n.id]<=Math.max(1,frontier))||n.left!==null&&n.left<=14);
  if(node.master.state==='done')for(const n of pending.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)))if(!actions.includes(n))actions.push(n);
  for(const a of actions.slice())if(a.left!==null&&a.left<=21)for(const id of a.blockers)if(!actions.includes(node[id]))actions.push(node[id]);
  const urgency=new Map();
@@ -102,10 +143,7 @@ function report(s,opt={}){
    return {id:n.id,title,reason,score:Math.min(score(n),inherited?.score??Infinity)};
  }).sort((a,b)=>a.score-b.score||nodes.indexOf(node[a.id])-nodes.indexOf(node[b.id]));
  const balls=pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.state==='waiting'?'日程待ち':n.wait?(n.owner||'相手未登録')+'の対応待ち':n.owner||'担当未確認',state:n.state}));
- const extra=active(s).filter(x=>!nodes.some(n=>n.keys.includes(x.k))&&!defs.some(d=>d.keys.includes(x.k))).filter((x,i,L)=>!L[i+1]||L[i+1].d!==1);
- const unfinishedExtra=extra.filter(x=>!s.stages?.[x.k]?.done);
- for(const x of unfinishedExtra){const g=s.stages?.[x.k]||{},state=stageState(g);if(g.st||g.dl){const id='legacy:'+x.k;ranked.push({id,title:x.n+'の状況を確認',reason:g.dl?'登録済みの期限 '+g.dl:'追加の作業記録に対応待ちがあります',score:g.dl?Math.round((stamp(g.dl)-stamp(today))/864e5)-60:50});if(g.st)balls.push({id,label:x.n,who:g.st==='me'?'自分':g.asg?g.asg+'の対応待ち':'担当未確認',state})}}
- ranked.sort((a,b)=>a.score-b.score);
+
  const alerts=[];
  if(validDate(live)&&dates.vocal.value&&dates.vocal.kind!=='completed'&&live<dates.vocal.value){alerts.push({id:'vocalBooking',title:'ライブ披露に必要な音源と日程を確認',reason:'ライブ披露 '+live+' が歌録り '+dates.vocal.value+' より先です。必要な音源と納期を決めて前倒しを相談します',score:-20})}
  if(dates.master.value&&dates.master.kind!=='completed'&&dates.vocal.value&&dates.vocal.kind!=='completed'&&dates.master.value<dates.vocal.value){alerts.push({id:'vocalBooking',title:'歌録りとマスタリングの日程を見直す',reason:'歌録り '+dates.vocal.value+' がマスタリング '+dates.master.value+' より後になっています',score:-20})}
@@ -114,8 +152,8 @@ function report(s,opt={}){
  const admin=nodes.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)&&!n.done);
  const gaps=pending.filter(n=>n.state==='unknown'&&level[n.id]<Math.max(0,frontier-1));
  const audioComplete=node.master.state==='done';
- const archive=audioComplete&&!admin.length&&!pending.some(n=>n.state!=='unknown')&&!unfinishedExtra.some(x=>{const g=s.stages?.[x.k]||{};return g.st||g.dl});
- return {applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,extra,admin,liveOnly:!validDate(release)&&validDate(live),today};
+ const archive=audioComplete&&!admin.length&&!pending.some(n=>n.state!=='unknown'||n.stage&&n.due.value);
+ return {applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,admin,liveOnly:!validDate(release)&&validDate(live),today};
 }
 function validatePatch(patch){
  if(!patch||typeof patch!=='object'||Array.isArray(patch))return '変更内容が不正です';
@@ -130,14 +168,14 @@ function validatePatch(patch){
  }return '';
 }
 function apply(s,id,patch,today){
- const d=Object.hasOwn(byId,id)?byId[id]:null;if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
+ const d=resolve(s,id);if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
  const keys=keysFor(s,d),completeGroup=keys.length>0&&keys.every(k=>s.stages?.[k]?.done),allKeys=(s.stageList||[]).map(x=>x.k);
- if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。作業記録で対象を確認してください');
- if(patch.state==='na'&&keys.length)throw Error('既存の作業は作業記録から対象外にしてください');
+ if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。一覧から対象に戻してください');
+ if(patch.state==='na'&&keys.length)throw Error('一覧の「対象外にする」を使ってください');
  s.production||={};s.production.tasks||={};const rec=s.production.tasks[id]||={};
  for(const [k,v]of Object.entries(patch))if(k!=='state'||!keys.length)rec[k]=v;
  if(patch.state){
-   if(patch.state==='na'&&keys.length)throw Error('既存の作業は作業記録から対象外にしてください');
+   if(keys.length&&patch.state!=='na')delete rec.completedAt;
    if(!keys.length){if(patch.state==='done')rec.completedAt=rec.completedAt||today;else rec.completedAt=''}
    for(const k of keys){s.stages||={};const g=s.stages[k]||={};if(patch.state!=='done'&&g.done&&!completeGroup)continue;if(patch.state==='done'){if(!g.done)g.date=today;g.done=true;g.st='';g.prov=false}
     else{if(g.done)g.date='';g.done=false;g.prov=false;g.st=['requested','revision'].includes(patch.state)?'req':['doing','review','received'].includes(patch.state)?'me':patch.state==='waiting'?'wait':'';if(g.st==='req')g.req=g.req||today}
@@ -155,6 +193,6 @@ function draft(s,n,channel){
  const body=channel==='line'?who+'さん\nお疲れさまです。'+title+artist+'の'+action+'\n'+date+'\nよろしくお願いします。':who+' 様\n\nお世話になっております。\n'+title+artist+'の'+action+'\n'+date+'\n\nご確認のほど、よろしくお願いいたします。';
  return {subject:title+'｜'+n.label,body};
 }
-root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,validatePatch,apply,draft};
+root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
