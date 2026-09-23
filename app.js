@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-23-d";
+const APP_VER="2026-09-23-e";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -711,6 +711,7 @@ const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 function renderUse(){
   const bar=document.getElementById("useBar");
   bar.setAttribute("aria-label","表示する制作");
+  document.getElementById("q").placeholder=V.use==="live"?"公演名・グループ・制作物":"曲名・グループ・クレジット";
   bar.innerHTML=[["master","原盤"],["live","ライブ"],["all","すべて"],["cal","予定"]].map(x=>
     '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+'</button>').join("");
   bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
