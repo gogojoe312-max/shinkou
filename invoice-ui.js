@@ -22,7 +22,8 @@ function invoiceSheet(s){
  let h=productionFolderLink(s)+'<div class="invoice-status '+(r.done?'complete':'')+'"><b>'+esc(r.title)+'</b><p>'+esc(r.receivedComplete?(r.done?'受領・送付の記録を以下で確認できます。':'受領は完了です。小森さんへのメールを作成できます。'):'届いた相手の丸を押すと、受領済みになります。')+'</p></div>';
  const groups=[['未受領',r.missing],['請求が必要か確認',r.unknown],['小森さんへ送付待ち',r.ready],['送付済み',r.sent]];
  h+=groups.filter(([,items])=>items.length).map(([label,items])=>'<section class="invoice-section"><h3>'+label+'</h3>'+items.map(invoiceRow).join('')+'</section>').join('');
- if(!r.items.length)h+='<p class="hint">請求先が未登録です。クレジットから候補が表示されます。スタジオなどは下から追加できます。</p>';
+ if(!r.items.length)h+='<p class="hint">回収対象の請求先はありません。スタジオなどの請求があれば下から追加できます。</p>';
+ h+='<p class="hint">作詞・作曲は請求書不要です。編曲・演奏などの請求書を確認します。</p>';
  const exempt=r.items.filter(x=>x.required===false);if(exempt.length)h+='<details class="production-omitted"><summary>請求不要の相手</summary>'+exempt.map(invoiceRow).join('')+'</details>';
  h+='<button class="production-more" id="invoiceAdd">＋ 請求先を追加</button>';
  if(!r.confirmed)h+='<div class="invoice-roster"><p class="hint">クレジットにない請求先も含め、漏れがないか確認してください。</p>'+(r.unknown.length?'<p class="hint">未確認の相手は名前を押して「必要／不要」を選んでください。</p>':'<button class="btn w" id="invoiceConfirm">'+(r.expected.length?'請求先はこれで全部':'この曲には請求書はありません')+'</button>')+'</div>';

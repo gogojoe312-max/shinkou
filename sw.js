@@ -1,6 +1,6 @@
 /* 同じ版のHTML・ロジック・スタイルをオフライン用に保持する。 */
-const CACHE='shinkou-v5-20260923k';
-const ASSETS=['./','./index.html','./core.js?v=20260923k','./invoices.js?v=20260923k','./workflow.js?v=20260923k','./workflow-ui.js?v=20260923k','./connections.js?v=20260923k','./invoice-ui.js?v=20260923k','./production.js?v=20260923k','./production-ui.js?v=20260923k','./app.js?v=20260923k','./ui.js?v=20260923k','./ui.css?v=20260923k'];
+const CACHE='shinkou-v5-20260923l';
+const ASSETS=['./','./index.html','./core.js?v=20260923l','./invoices.js?v=20260923l','./workflow.js?v=20260923l','./workflow-ui.js?v=20260923l','./connections.js?v=20260923l','./invoice-ui.js?v=20260923l','./production.js?v=20260923l','./production-ui.js?v=20260923l','./app.js?v=20260923l','./ui.js?v=20260923l','./ui.css?v=20260923l'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('shinkou-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

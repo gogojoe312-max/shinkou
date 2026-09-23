@@ -5,20 +5,37 @@ const names={lyricist:'作詞',composer:'作曲',arranger:'編曲'};
 const clean=v=>String(v||'').normalize('NFC').trim();
 const date=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&Number.isFinite(Date.parse(v+'T00:00:00Z'))&&new Date(v+'T00:00:00Z').toISOString().slice(0,10)===v;
 function rows(s){return [...(s.credits||[]).map(c=>({key:'credit:'+c.id,c})),...(s.invoiceItems||[]).map(c=>({key:'extra:'+c.id,c}))].filter(x=>clean(x.c.name))}
-function required(c){if(typeof c.invoiceRequired==='boolean')return c.invoiceRequired;return c.g==='invoice'||c.g==='mus'&&(!(c.parts||[]).length||c.parts.some(p=>p!=='Mastering Engineer'))?true:null}
+function roles(c){return [...(c.roles||[]).map(r=>names[r]||r),...(c.parts||[]),c.role||''].filter(Boolean)}
+function writingRole(role){return clean(role).split(/[・･、,／/+＋&＆\s]+/).every(r=>/^(作詞(?:料|費)?|作曲(?:料|費)?|作詞作曲|lyricist|composer|songwriter|lyrics|composition)$/i.test(r))}
+function writingOnly(c){const r=roles(c);return r.length>0&&r.every(writingRole)}
+function required(c){if(typeof c.invoiceRequired==='boolean')return c.invoiceRequired;return c.g==='invoice'||(c.roles||[]).includes('arranger')||c.g==='mus'&&(!(c.parts||[]).length||c.parts.some(p=>p!=='Mastering Engineer'))?true:null}
+// 旧確認に作詞・作曲が含まれていても、実際の請求先に変更がなければ確認を維持する。
+function confirmedRoster(saved,roster,excluded){
+ if(saved===roster)return true;
+ try{
+  const entries=JSON.parse(saved);if(!Array.isArray(entries))return false;
+  const normalized=entries.flatMap(([id,name,roleList,need,sources])=>{
+   if(!Array.isArray(roleList)||!Array.isArray(sources))throw Error('invalid roster');
+   if(roleList.length&&roleList.every(writingRole))return [];
+   const kept=sources.filter(key=>!excluded.has(key));if(!kept.length)return [];
+   return [[kept[0],name,roleList.filter(r=>!writingRole(r)).sort(),need,kept]];
+  });
+  return JSON.stringify(normalized)===roster;
+ }catch{return false}
+}
 function report(s){
- const groups=new Map();
- for(const row of rows(s)){const name=clean(row.c.name);if(!groups.has(name))groups.set(name,[]);groups.get(name).push(row)}
+ const groups=new Map(),excluded=new Set();
+ for(const row of rows(s)){if(writingOnly(row.c)){excluded.add(row.key);continue}const name=clean(row.c.name);if(!groups.has(name))groups.set(name,[]);groups.get(name).push(row)}
  const items=[...groups].map(([name,rs])=>{
   rs.sort((a,b)=>a.key.localeCompare(b.key));
   const applicable=rs.filter(x=>required(x.c)===true),need=applicable.length?true:rs.every(x=>required(x.c)===false)?false:null;
   const got=applicable.length>0&&applicable.every(x=>!!x.c.inv),sent=got&&applicable.every(x=>date(x.c.invoiceSentAt));
-  const roles=[...new Set(rs.flatMap(x=>[...(x.c.roles||[]).map(r=>names[r]||r),...(x.c.parts||[]),x.c.role||'']).filter(Boolean))];
-  return {id:rs[0].key,name,roles,required:need,received:got,sent,receivedAt:got?applicable.map(x=>x.c.invDate).filter(date).sort().at(-1)||'':'',sentAt:sent?applicable.map(x=>x.c.invoiceSentAt).sort().at(-1):'',sources:rs.map(x=>x.key)};
+  const invoiceRoles=[...new Set(rs.flatMap(x=>roles(x.c)).filter(r=>!writingRole(r)))];
+  return {id:rs[0].key,name,roles:invoiceRoles,required:need,received:got,sent,receivedAt:got?applicable.map(x=>x.c.invDate).filter(date).sort().at(-1)||'':'',sentAt:sent?applicable.map(x=>x.c.invoiceSentAt).sort().at(-1):'',sources:rs.map(x=>x.key)};
  }).sort((a,b)=>a.name.localeCompare(b.name,'ja'));
  // 対象者・役割の変更で再確認を促す。受領日や送付日だけの変更では無効にしない。
  const roster=JSON.stringify(items.map(x=>[x.id,x.name,x.roles.slice().sort(),x.required,x.sources]));
- const confirmed=s.invoiceTracking?.roster===roster;
+ const confirmed=confirmedRoster(s.invoiceTracking?.roster,roster,excluded);
  const expected=items.filter(x=>x.required===true),unknown=items.filter(x=>x.required===null),missing=expected.filter(x=>!x.received),ready=expected.filter(x=>x.received&&!x.sent),sent=expected.filter(x=>x.sent);
  const receivedComplete=confirmed&&!unknown.length&&!missing.length,done=receivedComplete&&!ready.length;
  const title=done?(expected.length?'小森さんへ送付完了':'請求書なし'):missing.length?'未受領があります':unknown.length?'請求対象を確認':!confirmed?'請求先の漏れを確認':'全員分を受領・小森さんへ送付待ち';
@@ -55,6 +72,7 @@ function apply(s,op,today){
 }
 function add(s,name,role,id){
  name=clean(name);role=clean(role);if(!name||name.length>120||role.length>120)throw Error('請求先の名前・内容を確認してください');
+ if(writingOnly({role}))throw Error('作詞・作曲は請求書不要のため、回収対象には追加しません');
  if(report(s).items.some(x=>x.name===name))throw Error('同じ名前の請求先が登録されています');
  if(!id||(s.invoiceItems||[]).some(x=>x.id===id))throw Error('請求先の識別子を確認してください');
  s.invoiceItems||=[];s.invoiceItems.push({id,g:'invoice',name,role,invoiceRequired:true,inv:false,invDate:'',invoiceSentAt:''});
