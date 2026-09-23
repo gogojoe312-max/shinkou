@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-22-j";
+const APP_VER="2026-09-23-a";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1032,7 +1032,7 @@ function dragList(box,itemSel,gripSel,onDrop){
       if(ev.button!==undefined&&ev.button!==0)return;
       if(ev.cancelable)ev.preventDefault();
       row.classList.add("drag");
-      const sc=box.closest(".sbody")||document.scrollingElement||document.documentElement;
+      const sc=box.closest(".sbody,#main")||document.getElementById("main");
       const move=e=>{
         const y=py(e);if(y==null)return;
         if(e.cancelable)e.preventDefault();

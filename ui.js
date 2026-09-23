@@ -81,6 +81,37 @@ if(DEMO){
   const realBoot=boot;
   boot=async function(){await realBoot();if(!S.songs.length){seed();const active=S.songs[0],L=stages(active);L.forEach(x=>{const o=stg(active,x.k);o.done=['gather','sdemo','lyric','kario','demo','meeting','arr','stemO','stemR','stemM','vo','vodb','warigo','voes','rhythm','tsunagi'].includes(x.k)});stg(active,'pitch').st='me';stg(active,'pitch').dl=D.today();stg(active,'pitch').memo='歌の編集内容を確認して、ラフミックスへ進める';S.songs.forEach(s=>{s.dlFixed=true});mark();render()}document.body.classList.add('demo-mode');document.querySelector('.top .brand small').textContent='デモ · サンプルデータ'};
 }
+// キーボードを除いた表示範囲に画面を固定し、本文だけをスクロールする。
+function setupFixedViewport(){
+ const viewport=window.visualViewport,root=document.documentElement;
+ function revealInput(){
+  const input=document.activeElement;
+  if(!input||!input.matches('input,textarea,select')||input.closest('[inert]'))return;
+  const scroller=input.closest('.sbody,#main,.top');if(!scroller)return;
+  const field=input.getBoundingClientRect(),area=scroller.getBoundingClientRect();
+  const visibleHeight=area.height-24;
+  if(visibleHeight<=0)return;
+  if(field.top<area.top+12)scroller.scrollTop+=field.top-area.top-12;
+  else if(field.bottom>area.bottom-12)scroller.scrollTop+=Math.min(field.bottom-area.bottom+12,field.top-area.top-12);
+ }
+ function update(){
+  // ピンチ拡大を許可するブラウザーでは、拡大そのものをリサイズと扱わない。
+  if(viewport&&viewport.scale!==1)return;
+  const height=viewport?viewport.height:window.innerHeight;
+  root.style.setProperty('--app-height',Math.round(height)+'px');
+  root.style.setProperty('--app-top',Math.round(viewport?viewport.offsetTop:0)+'px');
+  document.body.classList.toggle('keyboard-open',window.innerHeight-height>100);
+  revealInput();
+ }
+ viewport?.addEventListener('resize',update);
+ viewport?.addEventListener('scroll',update);
+ window.addEventListener('resize',update);
+ window.addEventListener('pageshow',update);
+ document.addEventListener('focusin',()=>requestAnimationFrame(revealInput));
+ update();
+}
+setupFixedViewport();
+
 // 重なったシートでは最前面だけを操作・読み上げ対象にする。
 const sheetFocus=new Map(),originalShow=show,originalHide=hide;
 function modalState(){
@@ -88,8 +119,8 @@ function modalState(){
   sheets.forEach(e=>{e.inert=e!==top;e.setAttribute('aria-modal',e===top?'true':'false');e.setAttribute('aria-hidden',e===top?'false':'true')});
   return top;
 }
-show=function(id){sheetFocus.set(id,document.activeElement);originalShow(id);const top=modalState();if(top){top.setAttribute('tabindex','-1');top.focus()}};
-hide=function(id){originalHide(id);const top=modalState(),previous=sheetFocus.get(id);if(previous&&previous.isConnected&&!previous.closest('[inert]'))previous.focus();else if(top)top.focus()};
+show=function(id){sheetFocus.set(id,document.activeElement);document.getElementById(id).classList.toggle('input-sheet',!!document.getElementById(id).querySelector('#plannerText'));originalShow(id);const top=modalState();if(top){top.setAttribute('tabindex','-1');top.focus({preventScroll:true})}};
+hide=function(id){originalHide(id);const top=modalState(),previous=sheetFocus.get(id);if(previous&&previous.isConnected&&!previous.closest('[inert]'))previous.focus({preventScroll:true});else if(top)top.focus({preventScroll:true})};
 document.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const top=modalState();if(!top)return;
   const candidates=[...top.querySelectorAll('button,input,select,textarea,[tabindex="0"]')].filter(x=>!x.disabled&&x.getClientRects().length),first=candidates[0],last=candidates.at(-1);
   if(!first){e.preventDefault();return}if(e.shiftKey&&(document.activeElement===first||document.activeElement===top)){e.preventDefault();last.focus()}else if(!e.shiftKey&&(document.activeElement===last||document.activeElement===top)){e.preventDefault();first.focus()}
@@ -129,16 +160,19 @@ function plannerSheet(initial=''){
  if(RO)return toast('閲覧専用です');
  const scope=conversationScope();
  s3('AIアシスタント',cur?songTitle(cur)+'の相談':'制作全体の相談',
- '<p class="planner-lead">決まっていることも、迷っていることも、そのままお話しください。</p><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div><textarea id="plannerText" class="inp" rows="6" placeholder="例：来月発売で、歌録りは来週の予定です。何から決めればいいですか？"></textarea>'+aiChoiceHTML('plannerMode')+'<p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
+ '<label class="planner-lead" for="plannerText">今の状況を、そのままどうぞ。</label><textarea id="plannerText" class="inp" rows="4" inputmode="text" placeholder="例：歌録りが終わりました。次に何をすればいいですか？"></textarea><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div>'+aiChoiceHTML('plannerMode')+'<p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
  [{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'相談する',c:'btn pri',f:async()=>{
    const text=document.getElementById('plannerText').value.trim();if(!text)return;
    const error=document.getElementById('plannerError'),button=document.querySelector('#s3Foot .pri');button.disabled=true;error.textContent='状況を整理しています…';const stopWaiting=aiWait(error);
    const revision=aiViewRevision;
    try{const r=await aiCall(text,scope,document.getElementById('plannerMode').value);if(revision!==aiViewRevision||scope!==conversationScope()||!error.isConnected)return;aiPreview(r.out,r.msgs,text,r.scope)}catch(e){if(revision!==aiViewRevision||!error.isConnected)return;error.textContent=e.message||String(e);button.disabled=false}finally{stopWaiting()}
  }}]);
- document.getElementById('plannerText').value=initial;
- const updateModel=wireAIChoice('plannerMode',document.getElementById('plannerText'),scope);
- document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{document.getElementById('plannerText').value=b.dataset.prompt;updateModel();document.getElementById('plannerText').focus()});
+ const input=document.getElementById('plannerText');input.value=initial;
+ const updateModel=wireAIChoice('plannerMode',input,scope);
+ document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{input.value=b.dataset.prompt;updateModel();input.focus({preventScroll:true});input.setSelectionRange(input.value.length,input.value.length)});
+ // iPhoneはタップの処理中にfocusする必要がある。タイマーや通信の後へ移さない。
+ input.focus({preventScroll:true});
+ input.setSelectionRange(input.value.length,input.value.length);
 }
 
 function setupActionDock(){

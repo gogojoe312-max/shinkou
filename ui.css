@@ -100,7 +100,6 @@ main{padding:18px 28px 150px}
 .tools select.sel{flex:1;min-width:0;font-size:13px}
 .tools .field:focus-within ~ select.sel{display:none}
 main{padding:15px 16px 140px}
-#sheet{top:0;height:100dvh;border-radius:0}
 .shead{padding:16px;padding-top:calc(16px + env(safe-area-inset-top,0px))}
 .shead #shTitle{font-size:21px!important}
 .sbody{padding:0 16px 30px}
@@ -126,7 +125,7 @@ main{padding:15px 16px 140px}
 .sfoot{padding-left:16px;padding-right:16px}
 .conflict-banner{margin-left:16px;margin-right:16px}
 }
-.sheet{max-height:100dvh;overscroll-behavior:contain}
+.sheet{max-height:100%;overscroll-behavior:contain}
 .sbody{min-height:0;overscroll-behavior:contain;scroll-padding:16px}
 .shead>div{min-width:0}
 .eyebrow{line-height:1.6;overflow-wrap:anywhere}
@@ -314,9 +313,10 @@ body{font-family:var(--jp);background:var(--bg);letter-spacing:0;line-height:1.6
 #s2Body .inp{background:#2c2c2e;border:1px solid transparent;border-radius:10px;min-height:44px}
 #s2Body .hint{line-height:1.8}
 #s2Body .btn.w{text-align:left;padding:13px 16px;border:0;background:#2c2c2e}
-.planner-lead{font-size:17px;line-height:1.8;color:#bdbdc5;margin:4px 0 24px}
-.planner-prompts{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px}
-#plannerText{width:100%;padding:16px;font-size:16px;line-height:1.8;resize:vertical;background:#202024;border:1px solid #39393f;border-radius:16px}
+.planner-lead{display:block;font-size:14px;line-height:1.6;color:#bdbdc5;margin:12px 0}
+.planner-prompts{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0 18px}
+#plannerText{display:block;width:100%;height:126px;padding:12px 14px;font-size:16px;line-height:1.6;resize:none;background:#202024;border:1px solid #39393f;border-radius:16px;scroll-margin:12px}
+.sheet.input-sheet{transition:none}
 .planner-questions{background:#1e2b3d;border:1px solid #34485f;border-radius:16px;padding:20px;margin:18px 0}
 .planner-questions ol{padding-left:22px;margin-bottom:0}
 .planner-questions li{margin:12px 0}
@@ -657,4 +657,24 @@ body.assistant-first .workspace-heading{display:none}
 .production-parts{margin-top:24px}
 .production-schedule button{display:flex;justify-content:space-between;gap:16px;padding:16px 0;border-bottom:1px solid #ffffff12;font:inherit;font-size:14px;width:100%;text-align:left;min-height:64px}
 .production-schedule button>span{min-width:0}
+/* 全画面で同じ固定枠を使う。キーボード表示中も本文だけがスクロールする。 */
+:root{--app-height:100dvh;--app-top:0px}
+html{height:100%;overflow:hidden;overscroll-behavior:none}
+body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height);min-height:0;overflow:hidden;display:flex;flex-direction:column;overscroll-behavior:none}
+.top{flex:0 0 auto;width:100%;margin-top:0;margin-bottom:0;max-height:55%;overflow-y:auto;overscroll-behavior:contain}
+#main{flex:1 1 0;min-height:0;width:100%;margin-top:0;margin-bottom:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-padding:16px}
+#overviewBar{flex-shrink:0;width:100%}
+.sheet{overflow:hidden}
+.sheet:not(.on){visibility:hidden;pointer-events:none}
+.shead,.sfoot{flex-shrink:0}
+.sbody{overflow-x:hidden;overflow-y:auto}
+.scrim,.cfm,.toast,.aibar,.fab{position:absolute}
+.cfm .cfmbox{max-height:100%;overflow:auto;overscroll-behavior:contain}
+.keyboard-open .sfoot{padding-bottom:12px}
+.keyboard-open .sbody textarea{min-height:80px;max-height:max(80px,calc(var(--app-height) - 220px))}
+@media(max-width:660px){
+ .sheet,#sheet{height:100%;max-height:100%;border-radius:0}
+ textarea.inp,.assistant-composer textarea{resize:none}
+ .shead{padding-top:calc(12px + env(safe-area-inset-top,0px))}
+}
 .chk[aria-checked="true"]{background:#30d158;border-color:#30d158;color:#092510}
