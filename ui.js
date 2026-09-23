@@ -12,7 +12,6 @@ function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-so
 function songOverview(list){return productionOverview(list)}
 function refreshCompletion(s){
  document.querySelectorAll('[data-snapshot-song]').forEach(root=>{if(root.dataset.snapshotSong===s.id){root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root)}});
- const brief=document.getElementById('homeBrief');if(brief){brief.innerHTML=assistantBriefHTML(pool());wireBriefLinks(brief)}
  refreshProductionShows();
  if(cur?.id===s.id)head();
 }
@@ -243,22 +242,15 @@ function wireBriefLinks(root){
  root.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
  root.querySelectorAll('[data-ask-song]').forEach(b=>b.onclick=()=>{cur=S.songs.find(s=>s.id===b.dataset.askSong);plannerSheet('この曲の今の状況と次の予定を整理したいです。必要なことを質問してください。')});
 }
-function assistantBriefHTML(list){
- const items=list.flatMap(s=>{const r=productionReport(s);return r.applicable?r.actions.slice(0,1).map(a=>({s,a,r})):[]}).sort((a,b)=>a.a.score-b.a.score).slice(0,3);
- return items.length?'<section class="assistant-brief"><h3>先に確認しておきたいこと</h3><small>記録と日程から優先順に表示</small>'+items.map(({s,a})=>'<button class="brief-row" data-brief-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small>'+esc(a.title)+'</small></span><span>›</span></button>').join('')+'</section>':'';
-}
 function renderAssistantHome(el,list){
  const history=(aiCfg().conversations||[]).find(r=>r.scope==='global');
  document.body.classList.add('assistant-first');
- el.innerHTML=songOverview(list)+'<section class="assistant-welcome"><div><small>'+esc(new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'}))+'</small><h2>今日は、どこから進めますか。</h2></div><button class="btn sm" id="assistantMemory">覚えていること</button></section><section class="assistant-composer"><label for="assistantInput">状況や予定を、そのまま話してください。</label><textarea id="assistantInput" rows="3" placeholder="歌録りが終わりました。来月発売に向けて、次を一緒に考えたいです。"></textarea>'+aiChoiceHTML('homeAIMode')+'<div><button class="btn" id="assistantReview">不足を一緒に確認</button><button class="btn pri" id="assistantSend">相談する ↑</button></div><p id="assistantError" role="status"></p></section>'+(history?'<button class="continue-chat" id="assistantContinue">前の相談の続きから ›</button>':'')+'<div id="homeBrief">'+assistantBriefHTML(list)+'</div>';
+ el.innerHTML=songOverview(list)+'<footer class="workflow-home-footer"><button class="production-more" id="assistantMemory">覚えていること</button>'+(history?'<button class="production-more" id="assistantContinue">前の相談の続き</button>':'')+'</footer>';
  el.querySelector('#assistantMemory').onclick=()=>{cur=null;assistantKnowledge()};
  wireBriefLinks(el);wireSnapshotEditors(el);
- wireAIChoice('homeAIMode',el.querySelector('#assistantInput'),'global');
- const send=async()=>{const input=el.querySelector('#assistantInput'),text=input.value.trim();if(!text)return;if(RO)return;cur=null;const button=el.querySelector('#assistantSend'),error=el.querySelector('#assistantError');button.disabled=true;input.disabled=true;error.textContent='状況を整理しています…';const stopWaiting=aiWait(error);const revision=aiViewRevision;try{const r=await aiCall(text,'global',document.getElementById('homeAIMode').value);if(revision!==aiViewRevision||conversationScope()!=='global'||!input.isConnected)return;aiPreview(r.out,r.msgs,text,r.scope);error.textContent='';input.value=''}catch(e){error.textContent=e.message||String(e)}finally{stopWaiting();if(error.textContent==='状況を整理しています…')error.textContent='';button.disabled=false;input.disabled=false}};
- el.querySelector('#assistantSend').onclick=send;
- el.querySelector('#assistantReview').onclick=()=>{cur=null;plannerSheet('現在の記録をもとに、抜けている可能性のある情報や次の段取りを一緒に整理してください。不明なことは質問してください。')};
  const resume=el.querySelector('#assistantContinue');if(resume)resume.onclick=()=>{cur=null;resumeAssistantConversation()};
 }
+
 
 
 boot();
