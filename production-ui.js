@@ -42,7 +42,7 @@ function productionShowGroups(list,matched=pool({includeCompleted:true})){
   g.archive=g.items.length>0&&g.items.every(x=>x.r.archive);
   g.visible=g.items.filter(x=>visible.has(x.s.id)&&!x.r.archive).sort((a,b)=>(a.r.actions[0]?.score??1000)-(b.r.actions[0]?.score??1000)||(a.s.ord||0)-(b.s.ord||0));
   g.completed=g.items.filter(x=>scope.has(x.s.id)&&x.r.archive);
-  g.deadline=g.items.flatMap(({s,r})=>r.nodes.filter(n=>!n.done&&n.due.value).map(n=>({s,n}))).sort((a,b)=>a.n.due.value.localeCompare(b.n.due.value))[0];
+  g.deadline=g.items.flatMap(({s,r})=>r.nodes.filter(n=>!n.done&&!n.actionCoveredBy&&n.due.value).map(n=>({s,n}))).sort((a,b)=>a.n.due.value.localeCompare(b.n.due.value))[0];
   g.open=productionShowDate(g,'open');g.rehearsal=productionShowDate(g,'rehearsal');
   return g;
  }).filter(g=>{
@@ -58,6 +58,8 @@ function productionShowDate(g,key){
  return {value:'',kind:'registered',different:values.length>1};
 }
 function productionBallText(b){
+ if(b.text)return b.text;
+ if(['requested','revision'].includes(b.state)&&(!b.who||b.who==='担当未確認'))return b.state==='revision'?'相手の修正待ち':'相手の対応待ち';
  if(b.state==='waiting')return '日程待ち'+(b.who&&b.who!=='担当未確認'?' · '+b.who:'');
  if(!b.who||b.who==='担当未確認')return '担当未確認';
  return b.who+(['requested','revision'].includes(b.state)?'の返答待ち':'が対応中');
@@ -135,8 +137,8 @@ function productionTask(s,id){return ShinkouProduction.task(s,id,{today:D.today(
 function productionTaskRow(s,n){
  if(n.id==='invoice')return '<div class="production-task-row"><button type="button" class="production-task-name invoice-task" data-production-edit="invoice"><b>請求書</b><small>'+esc(n.invoice.title)+'</small></button><span aria-hidden="true">›</span></div>';
  const done=n.state==='done',na=n.state==='na';
- const status=done?'完了'+(n.date?' · '+productionDate({value:n.date}):''):(ShinkouProduction.STATES[n.state]||'一部完了')+(n.owner?' · '+n.owner:'')+(n.due.value?' · '+productionDate(n.due)+' '+productionDateKind(n.due):'');
- const late=!n.done&&n.left!==null&&n.left<0?' · '+(-n.left)+'日超過':'';
+ const status=n.actionCoveredBy?'依頼済みの記録あり · 関連する制作状況から判断':done?'完了'+(n.date?' · '+productionDate({value:n.date}):''):(ShinkouProduction.STATES[n.state]||'一部完了')+(n.owner?' · '+n.owner:'')+(n.due.value?' · '+productionDate(n.due)+' '+productionDateKind(n.due):'');
+ const late=!n.done&&!n.actionCoveredBy&&n.left!==null&&n.left<0?' · '+(-n.left)+'日超過':'';
  return '<div class="production-task-row'+(na?' not-applicable':'')+'"><button type="button" class="production-check '+(done?'complete':'')+'" aria-label="'+esc(n.label+(done?'を未完了に戻す':'を完了にする'))+'" role="checkbox" aria-checked="'+(n.state==='partial'?'mixed':done)+'" data-production-check="'+esc(n.id)+'" '+(na?'disabled':'')+'><span aria-hidden="true">'+(done?'✓':na?'−':n.state==='partial'?'−':'')+'</span></button><button type="button" class="production-task-name" data-production-edit="'+esc(n.id)+'"><b>'+esc(n.label)+'</b><small>'+esc(status)+'<em>'+esc(late)+'</em></small></button></div>';
 }
 function productionToggleTask(s,id,redraw){

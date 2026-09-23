@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-23-j";
+const APP_VER="2026-09-23-k";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -440,11 +440,10 @@ function syncOrder(s){
     if(!L.some(x=>x.k===ok)||!L.some(x=>x.k===bk))return;
     const o=stg(s,ok),b=stg(s,bk);
     /* 担当者を引き継ぐ */
-    if(o.asg&&b.asg!==o.asg){b.asg=o.asg;ch=true}
+    if(o.asg&&!b.asg){b.asg=o.asg;ch=true}
     /* 発注が済んだら、初稿待ちにする */
     if(o.done&&!b.rev&&!b.st&&!b.done){b.st="req";if(!b.req)b.req=o.date||o.req||D.today();ch=true}
-    /* 発注を取り消したら、まだ何も届いていなければ戻す */
-    if(!o.done&&b.st==="req"&&!b.rev&&!b.done){b.st="";ch=true}});
+    /* 発注欄の未チェックだけでは、明示された相手待ちを取り消さない。 */});
   return ch}
 const RECMIRROR={vodb:"vo",chodb:"cho",revodb:"revo",instdb:"instrec",lrec:"lrecS"};
 function lastRec(s,x){const v=slotsOf(s,x);return v.length?v[v.length-1].date:""}

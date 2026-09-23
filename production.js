@@ -56,15 +56,50 @@ function stageNode(s,d,today){
  return {...d,keys,state,done:state==='done'||state==='na',excluded:!keys.length,applicability:'required',due,owner,wait:['requested','revision'].includes(state),recipient:rec.recipient||(owner==='自分'?'':owner),channel:rec.channel||'',memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',derived:false,blockers:[],left:due.value?Math.round((stamp(due.value)-stamp(today))/864e5):null};
 }
 function task(s,id,opt={}){const n=report(s,opt).node[id];if(n)return n;const d=resolve(s,id);return d?.stage?stageNode(s,d,opt.today||new Date().toISOString().slice(0,10)):null}
+// Read related records together without changing saved completion checks or dates.
+function interpretFlow(s,nodes){
+ const byKey=k=>nodes.find(n=>n.keys.includes(k)),byTask=id=>nodes.find(n=>n.id===id),live=isShow(s);
+ for(const n of nodes){
+  const contacts=(s.workflow?.communications||[]).filter(c=>c.taskId===n.id&&c.state!=='done').sort((a,b)=>(Number(b.updatedAt)||0)-(Number(a.updatedAt)||0));
+  const c=contacts[0];
+  if(c&&['unknown','todo'].includes(n.state)&&['waiting','reply','review'].includes(c.state)){
+   n.state=c.state==='waiting'?'requested':c.state==='reply'?'doing':'review';n.wait=c.state==='waiting';
+   n.owner=c.state==='reply'||c.state==='review'?'自分':c.person||n.owner;n.recipient=c.person||n.recipient;n.communicationId=c.id;
+  }
+ }
+ const pairs=live?[[byKey('order'),byKey('build')||byKey('rec2')]]:[[byKey('stemO'),byTask('stems')],[byKey('paraO'),byKey('paraR')],[byTask('lyricOrder'),byTask('lyrics')],[byTask('chorusRequest'),byTask('chorus')]];
+ for(const [order,work]of pairs)if(order&&work&&!order.done&&!order.wait&&['requested','revision','received','review','done'].includes(work.state))order.actionCoveredBy=work.id;
+ if(live){
+  const deps={build:['order'],rec2:['order'],lrec:['lrecS'],lrecE:['lrec'],td2:['build','make','rec2','lrec','lrecE'],deliv2:['td2','build','make','rec2','lrec']};
+  for(const n of nodes)n.deps=[...new Set(n.keys.flatMap(k=>deps[k]||[]).map(byKey).filter(x=>x&&x!==n).map(x=>x.id))];
+ }
+}
+function ball(n){
+ const owner=n.owner||n.recipient||'',other=owner&&owner!=='自分'?owner:'相手';
+ const who=n.wait?other+(n.state==='revision'?'の修正待ち':'の対応待ち'):n.state==='waiting'?'日程待ち':owner||(['received','review'].includes(n.state)?'自分の確認待ち':'担当未確認');
+ return {id:n.id,label:n.label,who,text:who,owner,state:n.state};
+}
+function nextAction(n){
+ let title=n.state==='unknown'?n.label+'の状況を確認':n.state==='received'||n.state==='review'?n.label+'の内容を確認':n.state==='waiting'?n.label+'の日程を確認':n.label;
+ let reason=n.due.value?'予定 '+n.due.value:'状況と次の日程を確認します';
+ if(n.wait){
+  const overdue=n.left!==null&&n.left<=0,soon=n.left!==null&&n.left<=3;
+  title=n.label+(n.state==='revision'?'の修正状況を確認':overdue?'の納期を確認':soon?'の進捗を確認':n.due.value?'の返答・納品を待つ':'の返答・納期を確認');
+  reason=(n.state==='revision'?'修正依頼済み':'依頼済み')+'・相手待ちです。'+(n.due.value?(overdue?'予定 '+n.due.value+' に対する進捗と納期を確認します':'予定 '+n.due.value+'。'+(soon?'納品見込みを確認します':'返答・納品が届いたら内容を確認します')):'返答と納期を確認します');
+ }else if(n.left!==null&&n.left<0)reason='登録日 '+n.due.value+' を'+(-n.left)+'日過ぎています';
+ return {id:n.id,title,reason,score:n.left??100};
+}
 function workflowPending(s){return (s.workflow?.communications||[]).some(c=>c.state!=='done')||(s.workflow?.issues||[]).some(i=>!i.resolved)}
 function showReport(s,today){
  const nodes=definitions(s).map(d=>stageNode(s,d,today));
  if(invoices.report(s).items.length||s.invoiceTracking)nodes.push(invoiceNode(s,{...byId.invoice,keys:[],group:'custom:請求書',due:{value:'',kind:'registered'},blockers:[],left:null}));
+ interpretFlow(s,nodes);
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
- const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
- const pending=nodes.filter(n=>!n.done),actions=pending.map(n=>({id:n.id,title:n.label+(n.wait?'の返答を確認':''),reason:n.due.value?'予定 '+n.due.value:'状況と次の日程を確認します',score:n.left??100})).sort((a,b)=>a.score-b.score);
+ for(const n of nodes)n.blockers=n.deps.filter(id=>!node[id].done&&!node[id].actionCoveredBy);
+ const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id&&!n.actionCoveredBy),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
+ const pending=nodes.filter(n=>!n.done&&!n.actionCoveredBy),actions=pending.filter(n=>!n.blockers.length||!['unknown','todo'].includes(n.state)).map(nextAction).sort((a,b)=>a.score-b.score);
  const dates=Object.fromEntries(['open','rehearsal','deliver','live'].map(k=>[k,{value:s.dates?.[k]||'',kind:s.production?.dateKinds?.[k]||'registered',source:''}]));
- return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length&&!workflowPending(s),actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.owner||'担当未確認',state:n.state})),gaps:[],extra:[],admin:[],today};
+ return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length&&!workflowPending(s),actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(ball),gaps:[],extra:[],admin:[],today};
 }
 // Exclusion keeps records. Restoring a child also restores its parent container.
 function setIncluded(s,id,included){
@@ -114,13 +149,14 @@ function report(s,opt={}){
    return {...d,keys,state,excluded,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||(asg==='自分'?'':asg),memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
  });
  Object.assign(nodes.find(n=>n.id==='invoice'),invoiceNode(s,nodes.find(n=>n.id==='invoice')));
+ interpretFlow(s,nodes);
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
  if(node.arrange.state==='done')for(const id of ['recordable','almost'])if(node[id].state==='unknown'){Object.assign(node[id],{state:'done',done:true,derived:true})}
  for(const id of ['vocal','master'])if(node[id].state==='done')dates[id]=date(node[id].date,'completed','完了記録');
- for(const n of nodes){n.blockers=n.deps.filter(k=>!node[k].done);n.left=n.due.value?Math.round((stamp(n.due.value)-stamp(today))/864e5):null}
+ for(const n of nodes){n.blockers=n.deps.filter(k=>!node[k].done&&!node[k].actionCoveredBy);n.left=n.due.value?Math.round((stamp(n.due.value)-stamp(today))/864e5):null}
  const groups=GROUPS.map(([id,label])=>{
-   const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));
+   const list=nodes.filter(n=>n.group===id&&!n.actionCoveredBy),state=aggregate(list.map(n=>n.state));
    let text=STATES[state]||'一部完了';
    if(id==='plan')text=node.selection.state==='done'?'曲確定':node.demo.state==='done'?'デモ完成・曲確定へ':text;
    if(id==='vocal')text=node.edit.done?'編集済み'+(!node.split.done?'・歌割確認':''):node.vocal.done?'録音済み・編集'+(node.edit.state==='doing'?'中':'へ'):text;
@@ -134,22 +170,23 @@ function report(s,opt={}){
  const sequence=['selection','recordable','vocal','edit','chorus','mix','master'];
  let frontier=0;sequence.forEach((id,i)=>{if(node[id].state==='done')frontier=i+1});
  const level={theme:0,order:0,lyricOrder:0,lyrics:0,guide:0,demo:0,selection:0,full:1,recordable:1,stems:1,arrange:3,vocalBooking:1,vocal:2,split:3,edit:3,chorusRequest:4,chorus:4,instrument:3,almost:3,rough:3,teacher:3,mixBooking:1,materials:5,mix:5,master:6,lyricCheck:4,credits:4,invoice:6};
- const pending=nodes.filter(n=>!n.done);
+ const pending=nodes.filter(n=>!n.done&&!n.actionCoveredBy);
  function score(n){let v=(n.left===null?100:Math.max(-120,n.left))+(n.due.kind==='target'?8:0);if(n.left!==null&&n.left<0)v-=120;if(n.state==='unknown')v+=10;if(n.blockers.length)v+=20;if(['vocalBooking','mixBooking'].includes(n.id))v-=20;return v}
  const actions=pending.filter(n=>n.stage||n.state!=='unknown'||(level[n.id]>=Math.max(0,frontier-1)&&level[n.id]<=Math.max(1,frontier))||n.left!==null&&n.left<=14);
  if(node.master.state==='done')for(const n of pending.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)))if(!actions.includes(n))actions.push(n);
  for(const a of actions.slice())if(a.left!==null&&a.left<=21)for(const id of a.blockers)if(!actions.includes(node[id]))actions.push(node[id]);
  const urgency=new Map();
- for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'登録日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
+ for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||n.actionCoveredBy||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'登録日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
  const ranked=actions.map(n=>{
-   let title=n.wait?n.label+'の返答を確認':n.state==='unknown'?n.label+'の状況を確認':n.label;
+   let title=nextAction(n).title;
    let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
+   if(n.wait)reason=nextAction(n).reason;
    if(n.blockers.length)reason+='。先に '+n.blockers.map(k=>node[k].label).join('・')+' を確認';
    if(n.id==='invoice'){const inv=n.invoice;title=inv.missing.length?'未受領の請求書を確認':inv.unknown.length||!inv.confirmed?'請求先の漏れを確認':'小森さんへ請求書を送付';reason=inv.missing.length?inv.missing.map(x=>x.name).join('、')+' から未受領です':inv.unknown.length?inv.unknown.map(x=>x.name).join('、')+' の請求が必要か確認します':!inv.confirmed?'請求先が揃っているか確認してください':inv.ready.map(x=>x.name).join('、')+' の請求書を受領済みです'}
-   const inherited=urgency.get(n.id);if(inherited&&inherited.score<score(n))reason=inherited.reason+(n.blockers.length?'。未確認の前提：'+n.blockers.map(k=>node[k].label).join('・'):'');
+   const inherited=urgency.get(n.id);if(inherited&&inherited.score<score(n))reason=(n.wait?nextAction(n).reason+'。':'')+inherited.reason+(n.blockers.length?'。未確認の前提：'+n.blockers.map(k=>node[k].label).join('・'):'');
    return {id:n.id,title,reason,score:Math.min(score(n),inherited?.score??Infinity)};
  }).sort((a,b)=>a.score-b.score||nodes.indexOf(node[a.id])-nodes.indexOf(node[b.id]));
- const balls=pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.state==='waiting'?'日程待ち':n.wait?(n.owner||'相手未登録')+'の対応待ち':n.owner||'担当未確認',state:n.state}));
+ const balls=pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(ball);
  if(node.invoice.invoice.missing.length)balls.push({id:'invoice',label:'請求書が未受領',who:node.invoice.invoice.missing.map(x=>x.name).join('、'),state:'todo'});
 
  const alerts=[];
