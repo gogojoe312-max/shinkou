@@ -684,10 +684,10 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 .show-status{font-size:11px;color:#b5c8e6;background:#2b3340;padding:5px 9px;border-radius:8px;flex-shrink:0;margin-top:3px}
 .show-status.complete{color:#30d158;background:#30d15812}
 .show-venue{margin:8px 0 0;overflow-wrap:anywhere}
-.show-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}
+.show-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:16px 0}
 .show-dates>div{display:flex;flex-direction:column;gap:4px;min-width:0}
 .show-dates small,.show-deadline small{color:#98989f;font-size:11px;font-weight:400}
-.show-dates b{font-size:20px;font-weight:550;letter-spacing:-.02em}
+.show-dates b{line-height:1.3;font-size:20px;font-weight:550;letter-spacing:-.02em}
 .show-dates em{font-size:11px;font-style:normal;color:#98989f}
 .show-deadline{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;text-align:left;padding:13px 14px;background:#28282c;border-radius:12px;color:inherit;font:inherit;margin-bottom:12px}
 .show-deadline>span{min-width:0;display:grid;gap:5px}
