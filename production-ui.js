@@ -20,11 +20,99 @@ function productionSnapshot(s){
  if(RO)h+=dateHTML;
  return h;
 }
+function productionIsLive(s){return s.use==='live'||s.templateId==='tpl_show'||isShow(projOf(s.projectId))}
 function productionOverview(list){
- const sorted=list.map(s=>({s,r:productionReport(s)})).sort((a,b)=>Number(a.r.archive)-Number(b.r.archive)||(a.r.actions[0]?.score??1000)-(b.r.actions[0]?.score??1000));
- return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+(RO?'楽曲の状況':'進行中の曲')+'</h2>'+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':'完了した曲も見る')+'</button>':'')+'</div><p class="production-intro">'+(RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>'+(!RO?'<button class="production-report-entry" data-production-report><span>状況を伝える・相談する</span><span aria-hidden="true">↑</span></button>':'')+'<div class="snapshot-list">'+(sorted.map(({s,r})=>'<article class="production-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><small>'+esc(s.artist||'アーティスト未登録')+'</small><b>'+esc(songTitle(s))+'</b></button>'+songSnapshotHTML(s)+'</article>').join('')||'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認するか、「＋」から曲を追加してください。</p></div>')+'</div></section>';
+ const live=V.use==='live',mixed=V.use==='all',sorted=list.filter(s=>!productionIsLive(s)).map(s=>({s,r:productionReport(s)})).sort((a,b)=>Number(a.r.archive)-Number(b.r.archive)||(a.r.actions[0]?.score??1000)-(b.r.actions[0]?.score??1000));
+ const cards=sorted.map(({s})=>'<article class="production-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><small>'+esc(s.artist||'アーティスト未登録')+'</small><b>'+esc(songTitle(s))+'</b></button>'+songSnapshotHTML(s)+'</article>').join('');
+ const heading=live?'ライブ公演':mixed?'制作の状況':RO?'楽曲の状況':'進行中の曲';
+ return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+heading+'</h2>'+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':live?'完了した公演も見る':'完了した曲も見る')+'</button>':'')+'</div><p class="production-intro">'+(live?'公演ごとに、準備の状況と次の締切。':RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>'+(!RO?'<button class="production-report-entry" data-production-report><span>状況を伝える・相談する</span><span aria-hidden="true">↑</span></button>':'')+(live?'':(mixed&&cards?'<h3 class="production-section-title">原盤</h3>':'')+'<div class="snapshot-list">'+(cards||(!mixed?'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認してください。</p></div>':''))+'</div>')+((live||mixed)?'<section class="production-live">'+productionLiveContents(list)+'</section>':'')+'</section>';
+}
+// 公演IDでまとめる。同名の公演や、原盤の「ライブ初披露」を混ぜない。
+function productionShowGroups(list,matched=pool({includeCompleted:true})){
+ const groups=new Map(),visible=new Set(list.map(s=>s.id)),scope=new Set(matched.map(s=>s.id));
+ for(const p of S.projects.filter(isShow))groups.set(p.id,{id:p.id,p,items:[]});
+ for(const s of S.songs.filter(productionIsLive)){
+  const p=projOf(s.projectId),id=isShow(p)?p.id:'unassigned:'+String(s.artist||'');
+  if(!groups.has(id))groups.set(id,{id,p:null,artist:s.artist||'',items:[]});
+  groups.get(id).items.push({s,r:productionReport(s)});
+ }
+ return [...groups.values()].map(g=>{
+  g.archive=g.items.length>0&&g.items.every(x=>x.r.archive);
+  g.visible=g.items.filter(x=>visible.has(x.s.id)&&!x.r.archive).sort((a,b)=>(a.r.actions[0]?.score??1000)-(b.r.actions[0]?.score??1000)||(a.s.ord||0)-(b.s.ord||0));
+  g.completed=g.items.filter(x=>scope.has(x.s.id)&&x.r.archive);
+  g.deadline=g.items.flatMap(({s,r})=>r.nodes.filter(n=>!n.done&&n.due.value).map(n=>({s,n}))).sort((a,b)=>a.n.due.value.localeCompare(b.n.due.value))[0];
+  g.open=productionShowDate(g,'open');g.rehearsal=productionShowDate(g,'rehearsal');
+  return g;
+ }).filter(g=>{
+  if(g.items.length)return g.visible.length>0||(g.completed.length>0&&(V.fin==='show'||!g.archive));
+  const q=(V.q||'').trim().toLowerCase();
+  return !!g.p&&(V.who||'all')==='all'&&(!V.dir||V.dir==='__all'||g.p.director===V.dir)&&(!q||[g.p.custom,g.p.artist,g.p.venue].join(' ').toLowerCase().includes(q));
+ }).sort((a,b)=>Number(a.archive)-Number(b.archive)||(a.open.value||'9999').localeCompare(b.open.value||'9999')||(a.deadline?.n.due.value||'9999').localeCompare(b.deadline?.n.due.value||'9999'));
+}
+function productionShowDate(g,key){
+ const parent=g.p?.[key==='open'?'release':key]||'',values=[...new Set(g.items.map(x=>x.s.dates?.[key]).filter(ShinkouProduction.validDate))].sort();
+ if(parent)return {value:parent,kind:g.p.dateKinds?.[key]||'registered',different:values.some(v=>v!==parent)};
+ if(values.length===1){const kinds=[...new Set(g.items.filter(x=>x.s.dates?.[key]===values[0]).map(x=>x.s.production?.dateKinds?.[key]||'registered'))];return {value:values[0],kind:kinds.length===1?kinds[0]:'registered',source:'制作物の日程'}}
+ return {value:'',kind:'registered',different:values.length>1};
+}
+function productionShowItem({s,r}){
+ const current=r.nodes.find(n=>!n.done&&['revision','requested','received','review','doing','waiting'].includes(n.state)),last=r.nodes.filter(n=>n.state==='done').at(-1),next=r.actions[0],n=next&&r.node[next.id];
+ const status=r.archive?'準備完了':current?current.label+' · '+ShinkouProduction.STATES[current.state]:last?last.label+'まで完了':'状況未確認';
+ const who=r.balls.map(b=>b.who+(b.state==='requested'||b.state==='revision'?'の返答待ち':b.state==='waiting'?'・日程待ち':'が対応中')).filter((v,i,a)=>a.indexOf(v)===i).join(' / ');
+ const detail=!r.archive&&n?'<small class="show-item-next">次：'+esc(next.title)+(n.due.value?' · <em class="'+(n.left<0?'late':'')+'">'+esc(productionDate(n.due))+' '+productionDateKind(n.due)+'</em>':'')+'</small>':'';
+ return '<button class="show-item'+(r.archive?' complete':'')+'" data-brief-song="'+esc(s.id)+'"><span><b>'+esc(songTitle(s))+'</b><small class="show-item-status">'+(r.archive?'✓ ':'')+esc(status)+'</small>'+(!RO&&who?'<small class="show-item-who">'+esc(who)+'</small>':'')+detail+'</span><span class="show-item-chevron" aria-hidden="true">›</span></button>';
+}
+function productionLiveContents(list){
+ const groups=productionShowGroups(list);
+ const header='<div class="show-section-heading">'+(V.use==='all'?'<h3 class="production-section-title">ライブ公演</h3>':'<span></span>')+(!RO?'<button class="production-more" data-show-new>＋ 公演を追加</button>':'')+'</div>';
+ return header+((V.q||V.dir!=='__all'||V.who!=='all')?'<p class="show-filter-note">絞り込み中。日程は公演全体の情報です。</p>':'')+(groups.map(g=>{
+  const title=g.p?projTitle(g.p):'公演未設定',state=g.archive?'準備完了':g.items.length?'準備中':'準備内容未登録';
+  const date=(label,d)=>'<div><small>'+label+'</small><b>'+esc(d.different&&!d.value?'要確認':productionDate(d))+'</b><em>'+esc(d.different?'個別の日程あり':d.source||productionDateKind(d))+'</em></div>';
+  const next=g.deadline;
+  return '<article class="show-card" data-show-card="'+esc(g.id)+'"><header><div><small>'+esc(g.p?.artist||g.artist||'アーティスト未登録')+'</small><h3>'+esc(title)+'</h3></div><span class="show-status '+(g.archive?'complete':'')+'">'+state+'</span></header>'+(g.p?.venue?'<p class="show-venue">'+esc(g.p.venue)+'</p>':'')+'<div class="show-dates">'+date('公演初日',g.open)+date('リハーサル',g.rehearsal)+'</div>'+(next?'<button class="show-deadline" data-brief-song="'+esc(next.s.id)+'"><span><small>次の締切</small><b>'+esc(songTitle(next.s))+' · '+esc(next.n.label)+'</b></span><strong class="'+(next.n.left<0?'late':'')+'">'+esc(productionDate(next.n.due))+'<small>'+productionDateKind(next.n.due)+'</small></strong></button>':'')+'<div class="show-items">'+g.visible.map(productionShowItem).join('')+'</div>'+(g.completed.length?'<details class="show-completed" data-show-completed-group="'+esc(g.id)+'"><summary>完了した制作物を見る<span aria-hidden="true">⌄</span></summary>'+g.completed.map(productionShowItem).join('')+'</details>':'')+(!g.items.length?'<p class="hint">SE・歌割・カラオケなど、この公演で準備するものを追加できます。</p>':'')+(!g.p?'<p class="hint">制作物を開き、「情報を編集」から公演を設定できます。</p>':'')+(!RO&&g.p?'<footer><button class="production-more" data-show-edit="'+esc(g.p.id)+'">公演情報・日程</button><button class="production-more" data-show-add="'+esc(g.p.id)+'">＋ 制作物を追加</button></footer>':'')+'</article>';
+ }).join('')||'<div class="production-empty"><b>表示する公演がありません</b><p>'+((V.q||V.dir!=='__all'||V.who!=='all')?'絞り込み条件を確認してください。':'公演を追加すると、制作物と日程をまとめて確認できます。')+'</p></div>');
+}
+function refreshProductionShows(){
+ const container=document.querySelector('.production-live');if(!container)return;
+ const main=document.getElementById('main'),top=main.scrollTop,opened=new Set([...container.querySelectorAll('[data-show-completed-group][open]')].map(x=>x.dataset.showCompletedGroup));
+ container.innerHTML=productionLiveContents(pool());
+ container.querySelectorAll('[data-show-completed-group]').forEach(x=>x.open=opened.has(x.dataset.showCompletedGroup));
+ wireProduction(container);wireBriefLinks(container);main.scrollTop=top;
+}
+function productionSaveShow(p,patch){
+ if(RO)return false;
+ const old={...p};Object.assign(p,patch);
+ // 個別指定や確定・仮の日程を、公演の編集で書き換えない。
+ for(const s of S.songs.filter(s=>s.projectId===p.id&&productionIsLive(s))){
+  s.dates||={};
+  for(const [field,key]of [['release','open'],['rehearsal','rehearsal']])if(old[field]!==p[field]&&(!s.dates[key]||(s.dates[key]===old[field]&&!(s.production?.dateKinds?.[key]&&s.production.dateKinds[key]!=='registered'))))s.dates[key]=p[field]||'';
+ }
+ return true;
+}
+function productionShowEditor(id){
+ if(RO)return;const existing=id?projOf(id):null;if(id&&!existing)return;
+ const p=existing||{id:uid(),mode:'live',kind:'ライブ',custom:'',artist:'',release:'',rehearsal:'',venue:'',note:'',director:V.dir!=='__all'?V.dir:''},initial=JSON.stringify(p);
+ const fields=[['公演名','custom'],['アーティスト','artist'],['公演初日','release','date'],['リハーサル','rehearsal','date'],['会場','venue']];
+ const h=fields.map(([label,k,type])=>productionField(label,'show_'+k,p[k],type)).join('')+'<label class="quick-field">メモ<textarea class="inp" id="show_note" rows="3">'+esc(p.note||'')+'</textarea></label><p class="hint">個別に変えた制作物の日程は保持します。</p>';
+ s3('ライブ公演',existing?'公演情報・日程':'公演を追加',h,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{
+  if(RO)return;if(existing&&(!S.projects.includes(p)||initial!==JSON.stringify(p)))return toast('公演が更新されています。開き直してください');
+  const patch=Object.fromEntries(fields.map(([,k])=>[k,document.getElementById('show_'+k).value.trim()]));patch.note=document.getElementById('show_note').value.trim();
+  if(!patch.custom)return toast('公演名を入力してください');if([patch.release,patch.rehearsal].some(d=>d&&!ShinkouProduction.validDate(d)))return toast('日付を確認してください');
+  if(!productionSaveShow(p,patch))return;if(!existing)S.projects.push(p);mark();hide('sheet3');render();toast('公演を保存しました');
+ }}]);
+}
+function productionShowAddItem(id){
+ if(RO)return;const p=projOf(id);if(!p||!isShow(p))return;
+ s3(projTitle(p),'制作物を追加','<label class="quick-field">準備するもの<select class="inp" id="show_item_type">'+LTYPES.map(t=>'<option value="'+esc(t)+'">'+esc(t)+'</option>').join('')+'</select></label>'+productionField('名前（必要な場合）','show_item_title','')+'<p class="hint">複数のSEなどは名前を付けて分けられます。</p>',[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'追加',c:'btn pri',f:()=>{
+  if(RO||!S.projects.includes(p))return;const type=document.getElementById('show_item_type').value;if(!LTYPES.includes(type))return;
+  const s=newSong({templateId:'tpl_show'});s.title=document.getElementById('show_item_title').value.trim()||type;s.ltype=type;s.stageList=showStages(type);s.projectId=p.id;s.artist=p.artist||'';s.director=p.director||'';s.dates.open=p.release||'';s.dates.rehearsal=p.rehearsal||'';s.dlFixed=true;
+  S.songs.push(s);mark();hide('sheet3');render();openSong(s.id);
+ }}]);
 }
 function wireProduction(root){
+ root.querySelectorAll('[data-show-new]').forEach(b=>b.onclick=()=>productionShowEditor());
+ root.querySelectorAll('[data-show-edit]').forEach(b=>b.onclick=()=>productionShowEditor(b.dataset.showEdit));
+ root.querySelectorAll('[data-show-add]').forEach(b=>b.onclick=()=>productionShowAddItem(b.dataset.showAdd));
  root.querySelectorAll('[data-production-report]').forEach(b=>b.onclick=()=>{if(RO)return;cur=null;plannerSheet()});
  root.querySelectorAll('[data-production-song]').forEach(b=>b.onclick=()=>{
    const s=S.songs.find(s=>s.id===b.dataset.productionSong);if(!s)return;

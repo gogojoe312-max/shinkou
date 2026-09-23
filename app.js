@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-23-c";
+const APP_VER="2026-09-23-d";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -690,13 +690,13 @@ try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
   if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
 function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
   JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list"}))}catch(e){}}
-function pool(){const q=V.q.trim().toLowerCase();
+function pool({includeCompleted=false}={}){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
-    if(V.fin==="hide"&&productionReport(s).archive)return false;
+    if(!includeCompleted&&V.fin==="hide"&&productionReport(s).archive)return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
-    if(V.use!=="all"&&(s.use||"master")!==V.use)return false;
+    if(V.use!=="all"&&(productionIsLive(s)?"live":"master")!==V.use)return false;
     if(!matchesWho(s))return false;
-    if(q){const h=[s.title,s.work,s.artist,s.director].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||"")))
+    if(q){const p=projOf(s.projectId),h=[s.title,s.work,s.artist,s.director,p?.custom,p?.artist,p?.venue].concat((s.credits||[]).map(c=>c.name+" "+(c.inst||"")))
         .concat(productionReport(s).nodes.map(n=>n.label+" "+n.owner+" "+n.memo))
         .concat(stages(s).map(x=>{const o=s.stages[x.k]||{};
           return x.n+" "+(o.memo||"")+" "+(o.asg||"")+" "+((o.slots||[]).map(v=>(v.who||"")+" "+(v.note||"")).join(" "))}))
@@ -709,12 +709,10 @@ const byOrd=(a,b)=>(a.ord||0)-(b.ord||0);
 const esc=v=>String(v==null?"":v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 
 function renderUse(){
-  const c={all:0,master:0,live:0};
-  S.songs.forEach(s=>{if(isFin(s))return;c.all++;c[(s.use||"master")]++});
   const bar=document.getElementById("useBar");
-  bar.innerHTML=[["master","原盤",c.master],["live","ライブ",c.live],["all","すべて",c.all],
-      ["cal","予定",agenda().length]].map(x=>
-    '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+' <b>'+x[2]+'</b></button>').join("");
+  bar.setAttribute("aria-label","表示する制作");
+  bar.innerHTML=[["master","原盤"],["live","ライブ"],["all","すべて"],["cal","予定"]].map(x=>
+    '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+'</button>').join("");
   bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
   const fab=document.getElementById("fab");
   fab.style.display=V.use==="cal"?"none":"";
@@ -1337,6 +1335,7 @@ function showStat(s){const L=stages(s);
   const n=L.filter(x=>x.d!==1).length,d=L.filter((x,i)=>x.d!==1&&doneOf(s,L,i)).length;
   return d>=n?"✓":d+"/"+n}
 function editProject(id,after){
+  if(id&&isShow(projOf(id)))return productionShowEditor(id);
   /* 入力したそばから保存する。新規もこの時点で作ってしまう */
   let p=id?projOf(id):null,isNew=false;
   if(!p){p={id:uid(),artist:"",kind:"シングル",num:1,custom:"",release:"",director:"",note:"",mtime:Date.now()};
