@@ -668,6 +668,7 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 .sheet:not(.on){visibility:hidden;pointer-events:none}
 .shead,.sfoot{flex-shrink:0}
 .sbody{overflow-x:hidden;overflow-y:auto}
+#main,.sbody{scrollbar-gutter:stable}
 .scrim,.cfm,.toast,.aibar,.fab{position:absolute}
 .cfm .cfmbox{max-height:100%;overflow:auto;overscroll-behavior:contain}
 .keyboard-open .sfoot{padding-bottom:12px}
