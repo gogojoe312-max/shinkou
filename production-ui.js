@@ -14,8 +14,9 @@ function productionSnapshot(s){
   h+='<div class="production-balls"><span class="production-caption">今のボール</span>'+(r.balls.length?r.balls.slice(0,2).map(x=>b('task',x.id,'production-ball','<b>'+esc(x.who)+'</b><span>'+esc(x.label)+'</span>')).join('')+(r.balls.length>2?b('all','','production-more','ほか '+(r.balls.length-2)+'件の対応待ち'):''):'<p>対応中の記録はまだありません。状況を伝えるか、作業をタップして記録できます。</p>')+'</div>';
   if(r.actions[0]){const a=r.actions[0];h+=b('task',a.id,'production-next','<small>次にすること</small><strong>'+esc(a.title)+' <span aria-hidden="true">›</span></strong><p>'+esc(a.reason)+'</p>')}
   h+=dateHTML;
-  if(!r.custom)h+='<div class="production-admin">'+['lyricCheck','credits','invoice'].map(id=>{const n=r.node[id];return b('task',id,n.done?'complete':'','<span aria-hidden="true">'+(n.done?'✓':'○')+'</span> '+({lyricCheck:'歌詞確認',credits:'クレジット',invoice:'請求書'}[id])+(n.done?'済み':''))}).join('')+'</div>';
-  h+='<div class="production-footer">'+b('all','','production-more','作業・提出をすべて見る')+b('dates','','production-more','日程の見通し')+'</div>';
+  if(!r.custom)h+='<div class="production-admin">'+['lyricCheck','credits'].map(id=>{const n=r.node[id];return b('task',id,n.done?'complete':'','<span aria-hidden="true">'+(n.done?'✓':'○')+'</span> '+({lyricCheck:'歌詞確認',credits:'クレジット'}[id])+(n.done?'済み':''))}).join('')+'</div>';
+  if(r.node.invoice&&typeof invoiceSummary==='function')h+=invoiceSummary(s);
+  h+='<div class="production-footer">'+b('all','','production-more','作業・提出をすべて見る')+b('dates','','production-more','日程の見通し')+b('workflow','','production-more','連絡・資料')+'</div>';
  }
  if(RO)h+=dateHTML;
  return h;
@@ -24,8 +25,9 @@ function productionIsLive(s){return s.use==='live'||s.templateId==='tpl_show'||i
 function productionOverview(list){
  const live=V.use==='live',mixed=V.use==='all',sorted=list.filter(s=>!productionIsLive(s)).map(s=>({s,r:productionReport(s)})).sort((a,b)=>Number(a.r.archive)-Number(b.r.archive)||(a.r.actions[0]?.score??1000)-(b.r.actions[0]?.score??1000));
  const cards=sorted.map(({s})=>'<article class="production-card"><button class="snapshot-title" data-brief-song="'+esc(s.id)+'"><small>'+esc(s.artist||'アーティスト未登録')+'</small><b>'+esc(songTitle(s))+'</b></button>'+songSnapshotHTML(s)+'</article>').join('');
+ const today=typeof workflowToday==='function'?workflowToday(list):'';
  const heading=live?'ライブ公演':mixed?'制作の状況':RO?'楽曲の状況':'進行中の曲';
- return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+heading+'</h2>'+(live&&!RO?'<button class="show-add-button" data-show-new aria-label="公演を追加">＋</button>':'')+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':live?'完了した公演も見る':'完了した曲も見る')+'</button>':'')+'</div>'+(live?'':'<p class="production-intro">'+(RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>')+(!RO?'<button class="production-report-entry" data-production-report><span>状況を伝える・相談する</span><span aria-hidden="true">↑</span></button>':'')+(live?'':(mixed&&cards?'<h3 class="production-section-title">原盤</h3>':'')+'<div class="snapshot-list">'+(cards||(!mixed?'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認してください。</p></div>':''))+'</div>')+((live||mixed)?'<section class="production-live">'+productionLiveContents(list)+'</section>':'')+'</section>';
+ return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+heading+'</h2>'+(live&&!RO?'<button class="show-add-button" data-show-new aria-label="公演を追加">＋</button>':'')+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':live?'完了した公演も見る':'完了した曲も見る')+'</button>':'')+'</div>'+(live?'':'<p class="production-intro">'+(RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>')+(!RO?'<button class="production-report-entry" data-production-report><span>状況を伝える・相談する</span><span aria-hidden="true">↑</span></button>':'')+today+(live?'':(mixed&&cards?'<h3 class="production-section-title">原盤</h3>':'')+'<div class="snapshot-list">'+(cards||(!mixed?'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認してください。</p></div>':''))+'</div>')+((live||mixed)?'<section class="production-live">'+productionLiveContents(list)+'</section>':'')+'</section>';
 }
 // 公演IDでまとめる。同名の公演や、原盤の「ライブ初披露」を混ぜない。
 function productionShowGroups(list,matched=pool({includeCompleted:true})){
@@ -115,6 +117,7 @@ function productionShowAddItem(id){
  }}]);
 }
 function wireProduction(root){
+ if(typeof wireWorkflow==='function')wireWorkflow(root);
  root.querySelectorAll('[data-show-new]').forEach(b=>b.onclick=()=>productionShowEditor());
  root.querySelectorAll('[data-show-edit]').forEach(b=>b.onclick=()=>productionShowEditor(b.dataset.showEdit));
  root.querySelectorAll('[data-show-add]').forEach(b=>b.onclick=()=>productionShowAddItem(b.dataset.showAdd));
@@ -123,19 +126,21 @@ function wireProduction(root){
    const s=S.songs.find(s=>s.id===b.dataset.productionSong);if(!s)return;
    const kind=b.dataset.productionKind,key=b.dataset.productionKey;
    if(RO){if(kind==='group')productionReadGroup(s,key);return}
-   if(kind==='task')productionTaskEditor(s,key);else if(kind==='group'||kind==='all')productionTasksSheet(s,kind==='all'?'all':key);else if(kind==='dates')productionDatesSheet(s);else if(kind==='date')productionDateEditor(s,key);
+   if(kind==='task')productionTaskEditor(s,key);else if(kind==='workflow')workflowHub(s);else if(kind==='folder')productionFolderSheet(s);else if(kind==='group'||kind==='all')productionTasksSheet(s,kind==='all'?'all':key);else if(kind==='dates')productionDatesSheet(s);else if(kind==='date')productionDateEditor(s,key);
  });
 }
-function productionAfterSave(s){mark();refreshCompletion(s)}
+function productionAfterSave(s){mark();refreshCompletion(s);if(typeof refreshWorkflow==='function')refreshWorkflow()}
 function productionReadGroup(s,id){const r=productionReport(s),g=r.groups.find(x=>x.id===id);if(!g)return;s3(songTitle(s),g.label,'<p class="production-read-summary">'+esc(g.text)+'</p>',[{sp:1},{t:'閉じる',c:'btn',f:()=>hide('sheet3')}])}
 function productionTask(s,id){return ShinkouProduction.task(s,id,{today:D.today(),release:relOf(s)})}
 function productionTaskRow(s,n){
+ if(n.id==='invoice')return '<div class="production-task-row"><button type="button" class="production-task-name invoice-task" data-production-edit="invoice"><b>請求書</b><small>'+esc(n.invoice.title)+'</small></button><span aria-hidden="true">›</span></div>';
  const done=n.state==='done',na=n.state==='na';
  const status=done?'完了'+(n.date?' · '+productionDate({value:n.date}):''):(ShinkouProduction.STATES[n.state]||'一部完了')+(n.owner?' · '+n.owner:'')+(n.due.value?' · '+productionDate(n.due)+' '+productionDateKind(n.due):'');
  const late=!n.done&&n.left!==null&&n.left<0?' · '+(-n.left)+'日超過':'';
  return '<div class="production-task-row'+(na?' not-applicable':'')+'"><button type="button" class="production-check '+(done?'complete':'')+'" aria-label="'+esc(n.label+(done?'を未完了に戻す':'を完了にする'))+'" role="checkbox" aria-checked="'+(n.state==='partial'?'mixed':done)+'" data-production-check="'+esc(n.id)+'" '+(na?'disabled':'')+'><span aria-hidden="true">'+(done?'✓':na?'−':n.state==='partial'?'−':'')+'</span></button><button type="button" class="production-task-name" data-production-edit="'+esc(n.id)+'"><b>'+esc(n.label)+'</b><small>'+esc(status)+'<em>'+esc(late)+'</em></small></button></div>';
 }
 function productionToggleTask(s,id,redraw){
+ if(id==='invoice'){invoiceSheet(s);return}
  if(RO||!S.songs.includes(s))return;const n=productionTask(s,id);if(!n||n.state==='na')return;
  if(n.derived){toast('アレンジ最終完成から判断しています。項目名から記録を確認できます');return}
  const before=ShinkouCore.copy(s),state=n.done?'todo':'done';
@@ -174,6 +179,7 @@ function productionTasksSheet(s,group='all'){
 }
 function productionField(label,id,value,type='text'){return '<label class="quick-field">'+esc(label)+'<input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value||'')+'"></label>'}
 function productionTaskEditor(s,id,back='all'){
+ if(id==='invoice'){invoiceSheet(s);return}
  if(RO)return;const r=productionReport(s),n=productionTask(s,id);if(!n)return;
  if(n.state==='na'){
   s3(songTitle(s),n.label,'<p class="hint">この曲では対象外です。保存した日程・メモ・完了記録は残っています。</p>',[{t:'戻る',c:'btn',f:()=>productionTasksSheet(s,back)},{sp:1},{t:'この曲でも使う',c:'btn pri',f:()=>{
@@ -185,6 +191,7 @@ function productionTaskEditor(s,id,back='all'){
  let h='<label class="quick-field">状態<select class="inp" id="productionState" aria-label="状態">'+(n.state==='partial'?'<option value="partial" selected>一部完了</option>':'')+Object.entries(ShinkouProduction.STATES).filter(([k])=>k!=='na').map(([k,v])=>'<option value="'+k+'" '+(n.state===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label>';
  if(n.derived)h+='<p class="hint">アレンジ最終完成の記録から、歌録り可能と判断しています。</p>';
  h+=field('いま対応する人','productionOwner',n.owner)+field('締切・予定日','productionDue',n.due.kind==='target'?'':n.due.value,'date')+'<label class="quick-field">日程の状態<select class="inp" id="productionDueKind" aria-label="日程の状態">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(n.due.kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';
+ h+='<div id="workflowImpact"></div>';
  if(n.due.kind==='target'&&n.due.value)h+='<p class="hint">目安 '+esc(productionDate(n.due))+' · '+esc(n.due.source)+'</p>';
  if(n.done)h+=field('完了日','productionCompleted',n.date,'date');
  if(schedule.length)h+='<button class="btn" id="productionSchedule">日程・'+esc(whoPh(schedule[0]))+'を編集</button>';
@@ -204,6 +211,7 @@ function productionTaskEditor(s,id,back='all'){
  };
  s3(songTitle(s),n.label,h,[{t:'戻る',c:'btn',f:()=>productionTasksSheet(s,back)},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(save()){productionTasksSheet(s,back);toast('保存しました')}}}]);
  document.getElementById('productionState').onchange=()=>stateChanged=true;
+ document.getElementById('productionDue').onchange=e=>{if(typeof workflowImpact==='function')workflowImpact(s,id,e.target.value,document.getElementById('workflowImpact'))};
  document.getElementById('productionDraft').onclick=()=>{if(save())productionDraftSheet(s,productionTask(s,id),back)};
  const sched=document.getElementById('productionSchedule');if(sched)sched.onclick=()=>{if(save())productionScheduleEditor(s,schedule[0].k,()=>productionTaskEditor(s,id,back))};
  document.getElementById('productionExclude').onclick=()=>{if(save()){ShinkouProduction.setIncluded(s,id,false);productionAfterSave(s);productionTasksSheet(s,back);toast('対象外にしました')}};
@@ -234,20 +242,39 @@ function productionScheduleEditor(s,key,back=()=>hide('sheet3')){
  };draw();
 }
 function productionSongInfo(s){
- if(RO)return;const fields=['title','work','artist','director','projectId','sort','single','sortSet','mvEnabled'],initial=JSON.stringify(fields.map(k=>s[k]));
+ if(RO)return;const fields=['title','work','artist','director','projectId','sort','single','sortSet','mvEnabled','dropboxUrl'],initial=JSON.stringify(fields.map(k=>s[k]));
  const h=productionField('正式タイトル','songInfoTitle',s.title)+productionField('仮題・原題','songInfoWork',s.work)+productionField('アーティスト','songInfoArtist',s.artist)+'<label class="quick-field">案件<select class="inp" id="songInfoProject" aria-label="案件"><option value="">未設定</option>'+S.projects.map(p=>'<option value="'+esc(p.id)+'" '+(p.id===s.projectId?'selected':'')+'>'+esc(projTitle(p))+'</option>').join('')+'</select></label>'+productionField('担当ディレクター','songInfoDirector',s.director)+(s.use==='live'?'':'<label class="quick-field">曲の種類<select class="inp" id="songInfoSort" aria-label="曲の種類">'+SORTS.map(([v,l])=>'<option value="'+v+'" '+(sortOf(s)===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label><label class="quick-check"><input type="checkbox" id="songInfoMV" '+(songHasMV(s)?'checked':'')+'>MVあり</label><p class="hint">アルバムリードなど、必要な曲だけMVありにできます。</p>');
- s3(songTitle(s),'曲の情報',h,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{
+ s3(songTitle(s),'曲の情報',h+productionField('曲のDropboxフォルダ','songInfoDropbox',s.dropboxUrl,'url'),[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{
   if(RO||!S.songs.includes(s))return;if(initial!==JSON.stringify(fields.map(k=>s[k])))return toast('曲の情報が更新されました。開き直してください');
+  let folder;try{folder=ShinkouProduction.dropboxURL(document.getElementById('songInfoDropbox').value)}catch(e){return toast(e.message)}
+  s.dropboxUrl=folder;
   for(const [k,id]of [['title','songInfoTitle'],['work','songInfoWork'],['artist','songInfoArtist'],['director','songInfoDirector'],['projectId','songInfoProject']])s[k]=document.getElementById(id).value.trim();
   if(s.use!=='live'){s.sort=document.getElementById('songInfoSort').value;s.single=s.sort==='single';s.sortSet=true;s.mvEnabled=document.getElementById('songInfoMV').checked}
   mAdd('artist',s.artist);mAdd('director',s.director);syncLists();productionAfterSave(s);hide('sheet3');render();if(cur===s)drawSong();toast('保存しました');
  }}]);const sort=document.getElementById('songInfoSort');if(sort)sort.onchange=()=>document.getElementById('songInfoMV').checked=sort.value==='single';
 }
 function productionDraftSheet(s,n,back){
- if(RO)return;const kind=n.channel||'email',draft=ShinkouProduction.draft(s,n,kind);
- const text=()=>document.getElementById('productionDraftBody').value;
- s3(songTitle(s),'連絡文の下書き','<label class="quick-field">連絡手段<select class="inp" id="draftChannel" aria-label="連絡手段"><option value="email" '+(kind==='email'?'selected':'')+'>メール</option><option value="line" '+(kind==='line'?'selected':'')+'>LINE</option></select></label><label class="quick-field">文面<textarea class="inp production-draft" id="productionDraftBody" aria-label="文面" rows="12">'+esc((kind==='email'?'件名：'+draft.subject+'\n\n':'')+draft.body)+'</textarea></label><p class="hint">宛先・添付資料・日程を確認してから、ご自身で送信してください。内容はここで編集できます。</p><p class="hint" id="draftCopyStatus" role="status"></p>',[{t:'戻る',c:'btn',f:()=>productionTaskEditor(s,n.id,back)},{sp:1},{t:'コピー',c:'btn pri',f:async()=>{try{await navigator.clipboard.writeText(text());document.getElementById('draftCopyStatus').textContent='コピーしました。メールやLINEに貼り付けられます。'}catch{const input=document.getElementById('productionDraftBody');input.focus();input.select();document.getElementById('draftCopyStatus').textContent='文面を選択しました。長押ししてコピーしてください。'}}}]);
- document.getElementById('draftChannel').onchange=e=>{const d=ShinkouProduction.draft(s,n,e.target.value);document.getElementById('productionDraftBody').value=(e.target.value==='email'?'件名：'+d.subject+'\n\n':'')+d.body};
+ if(RO)return;const draft=ShinkouProduction.draft(s,n,n.channel||'email'),initial=JSON.stringify(s.workflow||{});
+ workflowDraft(s,draft,()=>productionTaskEditor(s,n.id,back),()=>{
+  if(!wfGuard(s,initial))return false;
+  WF.saveCommunication(s,{id:uid(),subject:n.label,person:n.recipient,channel:n.channel||'email',state:'waiting',due:n.due.kind==='target'?'':n.due.value,taskId:n.id,memo:n.memo});productionAfterSave(s);return true;
+ },{channel:n.channel});
+}
+function productionFolderURL(s){try{return ShinkouProduction.dropboxURL(s.dropboxUrl)}catch{return ''}}
+function productionFolderLink(s){const url=productionFolderURL(s);return url?'<a class="production-more folder-link" href="'+esc(url)+'" target="_blank" rel="noopener noreferrer">曲のDropboxフォルダを開く ↗</a>':''}
+function productionFolderControls(s){return '<div class="production-folder">'+(productionFolderLink(s)||productionButton(s,'folder','','production-more','Dropboxフォルダを登録'))+(productionFolderURL(s)?productionButton(s,'folder','','production-more','リンク編集'):'')+'</div>'}
+function productionFolderSheet(s){
+ if(RO)return;const initial=s.dropboxUrl;
+ s3(songTitle(s),'Dropboxフォルダ',productionField('この曲のフォルダURL','productionFolderURL',s.dropboxUrl,'url')+'<p class="hint">Dropboxで曲のフォルダの「リンクをコピー」を押し、ここに貼り付けてください。曲の状況・請求書の画面から直接開けます。</p>'+productionFolderLink(s)+'<p class="hint">資料は「連絡・資料」から確認できます。共有権限はここでは変更しません。</p>',[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{
+  if(RO||!S.songs.includes(s))return;if(initial!==s.dropboxUrl)return toast('フォルダのリンクが更新されています。開き直してください');
+  try{s.dropboxUrl=ShinkouProduction.dropboxURL(document.getElementById('productionFolderURL').value)}catch(e){return toast(e.message)}
+  productionAfterSave(s);hide('sheet3');toast(s.dropboxUrl?'Dropboxフォルダを登録しました':'リンクを解除しました');
+ }}]);
+}
+function productionInsertFolderButton(s,textareaId,bodyId){
+ const url=productionFolderURL(s);if(!url)return;
+ const b=document.createElement('button');b.className='production-more';b.type='button';b.textContent='曲フォルダのリンクを文面に入れる';
+ b.onclick=()=>{const input=document.getElementById(textareaId);if(!input.value.includes(url))input.value+='\n\n制作資料\n'+url;toast('フォルダのリンクを文面に入れました')};document.getElementById(bodyId).appendChild(b);
 }
 function productionDatesSheet(s){
  const r=productionReport(s),rows=r.custom?[['open','公演初日'],['rehearsal','リハーサル'],['deliver','音源提出'],['live','ライブ披露']]:[['selection','曲確定'],['vocal','歌録り'],...(r.mv?[['teacher','先生へ歌割・ラフ提出'],['mv','MV撮影']]:[]),['lyricCheck','歌詞確認'],['credits','クレジット提出'],['master','マスタリング'],['release','発売'],['live','ライブ披露']];

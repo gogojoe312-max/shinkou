@@ -1,6 +1,7 @@
 /* 制作の見通し。記録の読み取り・目安の計算は通信も保存も行わない。 */
 (function(root){
 'use strict';
+const invoices=root.ShinkouInvoices||(typeof module!=='undefined'?require('./invoices.js'):null);
 const STATES={unknown:'未確認',todo:'これから',doing:'作業中',requested:'依頼済み・相手待ち',received:'受領・確認前',review:'確認中',revision:'修正待ち',waiting:'日程待ち',done:'完了',na:'対象外'};
 const GROUPS=[['plan','企画・デモ'],['arrange','アレンジ'],['vocal','歌録り・編集'],['chorus','コーラス'],['instrument','楽器'],['finish','仕上げ'],['delivery','確認・提出']];
 const defs=[
@@ -21,7 +22,7 @@ const defs=[
  ['materials','全素材が揃ったか確認','finish',[],['arrange','edit','chorus','instrument']],
  ['mix','ミックス','finish',['td'],['materials','mixBooking']],['master','マスタリング','finish',['mas'],['mix']],
  ['lyricCheck','歌詞の音・文字・表記確認','delivery',[],['vocal']],
- ['credits','クレジットをデスクへ提出','delivery',[],[]],['invoice','請求書をデスクへ送付','delivery',[],[]]
+ ['credits','クレジットをデスクへ提出','delivery',[],[]],['invoice','請求書の受領・小森さんへ送付','delivery',[],[]]
 ].map(([id,label,group,keys,deps])=>({id,label,group,keys,deps}));
 const byId=Object.fromEntries(defs.map(d=>[d.id,d]));
 const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
@@ -56,7 +57,9 @@ function stageNode(s,d,today){
 }
 function task(s,id,opt={}){const n=report(s,opt).node[id];if(n)return n;const d=resolve(s,id);return d?.stage?stageNode(s,d,opt.today||new Date().toISOString().slice(0,10)):null}
 function showReport(s,today){
- const nodes=definitions(s).map(d=>stageNode(s,d,today)),node=Object.fromEntries(nodes.map(n=>[n.id,n]));
+ const nodes=definitions(s).map(d=>stageNode(s,d,today));
+ if(invoices.report(s).items.length||s.invoiceTracking)nodes.push(invoiceNode(s,{...byId.invoice,keys:[],group:'custom:請求書',due:{value:'',kind:'registered'},blockers:[],left:null}));
+ const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
  const pending=nodes.filter(n=>!n.done),actions=pending.map(n=>({id:n.id,title:n.label+(n.wait?'の返答を確認':''),reason:n.due.value?'予定 '+n.due.value:'状況と次の日程を確認します',score:n.left??100})).sort((a,b)=>a.score-b.score);
  const dates=Object.fromEntries(['open','rehearsal','deliver','live'].map(k=>[k,{value:s.dates?.[k]||'',kind:s.production?.dateKinds?.[k]||'registered',source:''}]));
@@ -64,6 +67,7 @@ function showReport(s,today){
 }
 // Exclusion keeps records. Restoring a child also restores its parent container.
 function setIncluded(s,id,included){
+ if(id==='invoice')throw Error('請求書の画面で、相手ごとの必要・不要を確認してください');
  const d=resolve(s,id);if(!d)throw Error('作業が見つかりません');
  const L=s.stageList||[],keys=[];
  for(const key of d.keys){const i=L.findIndex(x=>x.k===key);if(i<0)continue;keys.push(key);for(let j=i+1;j<L.length&&L[j].d===1;j++)keys.push(L[j].k);if(included&&L[i].d===1){let j=i-1;while(j>=0&&L[j].d===1)j--;if(j>=0)keys.push(L[j].k)}}
@@ -108,6 +112,7 @@ function report(s,opt={}){
    const owner=rec.owner!==undefined?rec.owner:asg||(me?'自分':'');
    return {...d,keys,state,excluded,applicability,due,owner,wait,channel:rec.channel||'',recipient:rec.recipient||(asg==='自分'?'':asg),memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',done:state==='done'||state==='na',derived:false};
  });
+ Object.assign(nodes.find(n=>n.id==='invoice'),invoiceNode(s,nodes.find(n=>n.id==='invoice')));
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
  if(node.arrange.state==='done')for(const id of ['recordable','almost'])if(node[id].state==='unknown'){Object.assign(node[id],{state:'done',done:true,derived:true})}
@@ -139,10 +144,12 @@ function report(s,opt={}){
    let title=n.wait?n.label+'の返答を確認':n.state==='unknown'?n.label+'の状況を確認':n.label;
    let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
    if(n.blockers.length)reason+='。先に '+n.blockers.map(k=>node[k].label).join('・')+' を確認';
+   if(n.id==='invoice'){const inv=n.invoice;title=inv.missing.length?'未受領の請求書を確認':inv.unknown.length||!inv.confirmed?'請求先の漏れを確認':'小森さんへ請求書を送付';reason=inv.missing.length?inv.missing.map(x=>x.name).join('、')+' から未受領です':inv.unknown.length?inv.unknown.map(x=>x.name).join('、')+' の請求が必要か確認します':!inv.confirmed?'請求先が揃っているか確認してください':inv.ready.map(x=>x.name).join('、')+' の請求書を受領済みです'}
    const inherited=urgency.get(n.id);if(inherited&&inherited.score<score(n))reason=inherited.reason+(n.blockers.length?'。未確認の前提：'+n.blockers.map(k=>node[k].label).join('・'):'');
    return {id:n.id,title,reason,score:Math.min(score(n),inherited?.score??Infinity)};
  }).sort((a,b)=>a.score-b.score||nodes.indexOf(node[a.id])-nodes.indexOf(node[b.id]));
  const balls=pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.state==='waiting'?'日程待ち':n.wait?(n.owner||'相手未登録')+'の対応待ち':n.owner||'担当未確認',state:n.state}));
+ if(node.invoice.invoice.missing.length)balls.push({id:'invoice',label:'請求書が未受領',who:node.invoice.invoice.missing.map(x=>x.name).join('、'),state:'todo'});
 
  const alerts=[];
  if(validDate(live)&&dates.vocal.value&&dates.vocal.kind!=='completed'&&live<dates.vocal.value){alerts.push({id:'vocalBooking',title:'ライブ披露に必要な音源と日程を確認',reason:'ライブ披露 '+live+' が歌録り '+dates.vocal.value+' より先です。必要な音源と納期を決めて前倒しを相談します',score:-20})}
@@ -154,6 +161,10 @@ function report(s,opt={}){
  const audioComplete=node.master.state==='done';
  const archive=audioComplete&&!admin.length&&!pending.some(n=>n.state!=='unknown'||n.stage&&n.due.value);
  return {applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,admin,liveOnly:!validDate(release)&&validDate(live),today};
+}
+function invoiceNode(s,n){
+ const r=invoices.report(s),state=r.done?'done':r.ready.length?'received':r.missing.length?'todo':'unknown';
+ return {...n,state,done:r.done,excluded:false,derived:true,wait:false,owner:r.ready.length?'自分':'',recipient:'小森',channel:'email',invoice:r,date:r.done?r.sent.map(x=>x.sentAt).sort().at(-1)||'':'',memo:r.title};
 }
 function validatePatch(patch){
  if(!patch||typeof patch!=='object'||Array.isArray(patch))return '変更内容が不正です';
@@ -169,6 +180,7 @@ function validatePatch(patch){
 }
 function apply(s,id,patch,today){
  const d=resolve(s,id);if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
+ if(id==='invoice'&&Object.hasOwn(patch,'state'))throw Error('請求書は相手ごとの受領・送付記録から自動で判定します');
  const keys=keysFor(s,d),completeGroup=keys.length>0&&keys.every(k=>s.stages?.[k]?.done),allKeys=(s.stageList||[]).map(x=>x.k);
  if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。一覧から対象に戻してください');
  if(patch.state==='na'&&keys.length)throw Error('一覧の「対象外にする」を使ってください');
@@ -193,6 +205,10 @@ function draft(s,n,channel){
  const body=channel==='line'?who+'さん\nお疲れさまです。'+title+artist+'の'+action+'\n'+date+'\nよろしくお願いします。':who+' 様\n\nお世話になっております。\n'+title+artist+'の'+action+'\n'+date+'\n\nご確認のほど、よろしくお願いいたします。';
  return {subject:title+'｜'+n.label,body};
 }
-root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft};
+function dropboxURL(value){
+ if(!String(value||'').trim())return '';
+ try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
+}
+root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);

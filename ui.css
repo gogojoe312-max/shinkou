@@ -593,6 +593,33 @@ body{background:#000;font-family:var(--jp)}
 .production-admin button{font-size:11px;min-height:44px;color:#98989f}
 .production-admin .complete{color:#a1c4aa}
 .production-admin span{margin-right:3px}
+.invoice-summary{display:flex;align-items:center;justify-content:space-between;gap:16px;width:100%;padding:14px 0;margin-bottom:6px;border-top:1px solid #ffffff10;text-align:left}
+.invoice-summary>span:first-child{display:grid;gap:5px;min-width:0}
+.invoice-summary b{font-size:14px;font-weight:600}
+.invoice-summary small{font-size:12px;color:#98989f;line-height:1.6;overflow-wrap:anywhere}
+.invoice-summary.complete small,.invoice-sent{color:#9bc9a8!important}
+.invoice-status{margin:4px 0 24px;padding:0 0 18px;border-bottom:1px solid #ffffff12}
+.invoice-status>b{display:block;font-size:20px;line-height:1.5;letter-spacing:-.03em}
+.invoice-status>p{font-size:14px;line-height:1.7;color:#98989f;margin:8px 0 0}
+.invoice-status.complete>b{color:#9bc9a8}
+.invoice-section{margin:20px 0 26px}
+.invoice-section>h3{font-size:13px;font-weight:500;color:#98989f;margin:0 0 6px}
+.invoice-row{display:flex;align-items:center;gap:14px;min-height:92px;border-bottom:1px solid #ffffff10}
+.invoice-row>.production-check{flex:0 0 44px}
+.invoice-person{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px;padding:14px 0;text-align:left;overflow-wrap:anywhere}
+.invoice-person>b{font-size:17px;font-weight:550;line-height:1.4}
+.invoice-person>small{font-size:13px;line-height:1.5;color:#98989f}
+.invoice-actions{display:grid;gap:10px;margin:20px 0}
+.invoice-roster{border-top:1px solid #ffffff10;padding-top:12px;margin:8px 0 20px}
+.invoice-person-detail{font-size:14px;color:#98989f;line-height:1.6}
+.invoice-task{padding-left:0!important}
+.invoice-overview-row{display:flex;flex-direction:column;gap:5px;width:100%;padding:18px 0;text-align:left;border-bottom:1px solid #ffffff12;overflow-wrap:anywhere}
+.invoice-overview-row>b{font-size:18px;line-height:1.5}
+.invoice-overview-row>span{font-size:14px;color:#c8c8ce}
+.invoice-overview-row>small{font-size:13px;color:#98989f;line-height:1.5}
+#invoiceFiles{max-width:100%;font-size:16px}
+.production-folder{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%}
+.folder-link{display:inline-flex;align-items:center;text-decoration:none;font-size:13px;line-height:1.5;overflow-wrap:anywhere}
 .song-snapshot>.production-footer{display:flex;flex-direction:row;justify-content:space-between;flex-wrap:wrap;gap:0 12px;border-top:1px solid #ffffff0b;padding-top:7px}
 .production-more{font-size:12px;color:#8cbfff;min-height:44px;line-height:1.5}
 .production-empty{padding:26px 22px;border-radius:20px;background:#1c1c1e}
@@ -731,3 +758,37 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 .show-preparation>summary::-webkit-details-marker{display:none}
 .show-preparation[open]>summary>span{transform:rotate(180deg)}
 .show-preparation[open]>summary{border-bottom:1px solid #ffffff0c}
+/* 連絡・資料・実績：既存のシートと同じ余白、固定枠を使う。 */
+.workflow-today{margin:20px 0 24px;border-top:1px solid #ffffff16;border-bottom:1px solid #ffffff16;padding:8px 0}
+.workflow-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}
+.workflow-heading h3{font-size:17px;font-weight:650;margin:0;letter-spacing:0}
+.workflow-heading .production-more{font-size:13px;min-height:44px}
+.workflow-priority,.workflow-row{display:flex;align-items:center;gap:12px;width:100%;padding:15px 0;background:none;border:0;border-bottom:1px solid #ffffff12;color:var(--text,#f5f5f7);text-align:left;font:inherit;min-height:58px}
+.workflow-priority>span:nth-child(2),.workflow-row>span:first-child{flex:1;min-width:0}
+.workflow-priority b,.workflow-row b{display:block;font-size:16px;font-weight:550;line-height:1.45;overflow-wrap:anywhere}
+.workflow-priority small,.workflow-row small{display:block;color:#99999f;font-size:13px;line-height:1.5;overflow-wrap:anywhere;margin:3px 0}
+.workflow-priority>span:last-child,.workflow-row>span:last-child{color:#66666d;font-size:23px;padding:0 4px;flex:none}
+.workflow-number{font-size:14px;color:#8ebaff;width:20px;align-self:flex-start;padding-top:8px;flex:none;text-align:center}
+.workflow-footnote{font-size:11px;color:#85858d;margin:12px 0 6px;line-height:1.5}
+.workflow-secondary{margin-top:24px;border-top:1px solid #ffffff20}
+.workflow-section{margin:24px 0}
+.workflow-section h3{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:16px;margin:0 0 8px}
+.workflow-section h3 small{font-size:12px;font-weight:400;color:#95959d}
+.workflow-actions{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0}
+.workflow-actions .btn{flex:1;min-width:min(130px,100%)}
+.workflow-check{display:flex;gap:12px;align-items:center;line-height:1.5;min-height:48px;font-size:15px;padding:8px 0;overflow-wrap:anywhere}
+.workflow-check input{width:22px;height:22px;flex:none;accent-color:#30d158}
+.workflow-two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.workflow-two input{min-width:0;width:100%;box-sizing:border-box}
+.workflow-message{white-space:pre-wrap;overflow-wrap:anywhere;max-width:100%;font:15px/1.65 -apple-system,BlinkMacSystemFont,sans-serif;background:#ffffff06;border-radius:14px;padding:16px;user-select:text}
+.workflow-mail-meta{font-size:13px;line-height:1.5;color:#aaaab2;overflow-wrap:anywhere}
+.workflow-notice{padding:16px;border-radius:14px;background:#8ebaff0d;color:#c7dafa;line-height:1.6;font-size:14px;margin:0 0 20px;overflow-wrap:anywhere}
+.workflow-connection{padding:20px 0;border-bottom:1px solid #ffffff16}
+.workflow-connection>b{display:block;font-size:20px;font-weight:600}
+.workflow-connection>small{display:block;font-size:13px;color:#99999f;margin:8px 0 12px}
+.workflow-impact{font-size:14px;padding:10px 12px;border-left:2px solid #54545b;margin:8px 0}
+.workflow-impact small{display:block;font-size:12px;color:#96969d;line-height:1.5;margin-top:4px}
+.workflow-impact.risk{border-color:#ff9f0a;color:#ffcc80}
+#s3Body .workflow-connection+.hint,#wfConnectStatus{overflow-wrap:anywhere}
+#s3Body textarea,#s3Body input,#s3Body select{max-width:100%}
+#s3Body .workflow-check input{max-width:22px}
