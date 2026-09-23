@@ -659,12 +659,12 @@ body.assistant-first .workspace-heading{display:none}
 .production-schedule button>span{min-width:0}
 /* 全画面で同じ固定枠を使う。キーボード表示中も本文だけがスクロールする。 */
 :root{--app-height:100dvh;--app-top:0px}
-html{height:100%;overflow:hidden;overscroll-behavior:none}
-body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height);min-height:0;overflow:hidden;display:flex;flex-direction:column;overscroll-behavior:none}
+html{height:100%;overflow:hidden;overflow:clip;overscroll-behavior:none}
+body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height);min-height:0;overflow:hidden;overflow:clip;display:flex;flex-direction:column;overscroll-behavior:none}
 .top{flex:0 0 auto;width:100%;margin-top:0;margin-bottom:0;max-height:55%;overflow-y:auto;overscroll-behavior:contain}
 #main{flex:1 1 0;min-height:0;width:100%;margin-top:0;margin-bottom:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scroll-padding:16px}
 #overviewBar{flex-shrink:0;width:100%}
-.sheet{overflow:hidden}
+.sheet{overflow:hidden;overflow:clip}
 .sheet:not(.on){visibility:hidden;pointer-events:none}
 .shead,.sfoot{flex-shrink:0}
 .sbody{overflow-x:hidden;overflow-y:auto}

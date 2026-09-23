@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-23-b";
+const APP_VER="2026-09-23-c";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -1965,9 +1965,9 @@ async function publish(){
 /* ===================== plumbing ===================== */
 let aiViewRevision=0;
 function show(id){document.getElementById(id).classList.add("on");
-  document.getElementById("scrim").classList.add("on");document.body.style.overflow="hidden"}
+  document.getElementById("scrim").classList.add("on")}
 function hide(id){aiViewRevision++;if(id==="sheet3")AIPV=null;document.getElementById(id).classList.remove("on");
-  if(!document.querySelector(".sheet.on")){document.getElementById("scrim").classList.remove("on");document.body.style.overflow=""}}
+  if(!document.querySelector(".sheet.on")){document.getElementById("scrim").classList.remove("on")}}
 function mkSheet(pre,eye,title,html,btns){
   document.getElementById(pre+"Eye").textContent=eye;
   document.getElementById(pre+"Title").textContent=title;
