@@ -3,6 +3,7 @@ let songTab='summary';
 const samePayload=(a,b)=>{const x=syncable(a),y=syncable(b);delete x.at;delete y.at;return ShinkouCore.equal(x,y)};
 function matchesWho(s){
  if(V.who==='all')return true;const r=productionReport(s);if(r.archive)return false;
+ if((s.workflow?.communications||[]).some(c=>V.who==='other'?c.state==='waiting':V.who==='todo'?c.state==='review':V.who==='me'?c.state==='reply':false))return true;
  return r.nodes.some(n=>!n.done&&(V.who==='wait'?n.state==='waiting':V.who==='todo'?['unknown','todo'].includes(n.state):V.who==='other'?n.wait||(['doing','review','received'].includes(n.state)&&!!n.owner&&n.owner!=='自分'):['doing','review','received'].includes(n.state)&&n.owner==='自分'));
 }
 const plainStage=x=>({VoDB:'歌の録音',ChoDB:'コーラス録音',楽器DB:'楽器の録音',ReVoDB:'追加の歌録音',VoEDIT:'歌の編集',ChoEDIT:'コーラス編集',ReVoEDIT:'追加録音の編集',ピッチ:'歌の音程調整',繋ぎ:'歌のつなぎ処理',リズムエディット:'歌のタイミング調整',ステム受け取り:'音声素材の受け取り',ステム発注:'音声素材の依頼'}[x]||x||'未設定');

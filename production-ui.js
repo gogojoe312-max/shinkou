@@ -4,14 +4,14 @@ function productionDate(d){return d?.value?(d.value.slice(0,4)===D.today().slice
 function productionDateKind(d){return d?.kind==='completed'?'完了':d?.value?({confirmed:'確定',tentative:'仮',target:'目安',registered:'登録日'}[d.kind]||'登録日'):''}
 function productionButton(s,kind,key,cls,html){return '<button type="button" class="production-button '+cls+'" data-production-song="'+esc(s.id)+'" data-production-kind="'+kind+'" data-production-key="'+esc(key||'')+'">'+html+'</button>'}
 function productionSnapshot(s){
- const r=productionReport(s),b=(kind,key,cls,html)=>productionButton(s,kind,key,cls,html);
+ const r=productionReport(s),b=(kind,key,cls,html)=>productionButton(s,kind,key,cls,html),contacts=(s.workflow?.communications||[]).filter(c=>c.state!=='done').map(c=>({id:c.id,kind:'contact',who:c.state==='waiting'?(c.person||'相手')+'の返答待ち':c.state==='reply'?'自分の返信待ち':'内容を確認',label:c.subject||c.person})),balls=[...contacts,...r.balls];
  const progress='<div class="production-progress" aria-label="制作の進み具合">'+r.groups.filter(g=>g.id!=='delivery').map(g=>b('group',g.id,'production-phase '+(g.done?'complete':''),'<span class="phase-mark" aria-hidden="true">'+(g.done?'✓':'')+'</span><span><b>'+esc(g.label)+'</b><small>'+esc(g.text)+'</small></span><span class="phase-chevron" aria-hidden="true">›</span>')).join('')+'</div>';
- const finish=r.custom?(r.archive?'制作完了':'制作状況を確認'):r.audioComplete?'音源制作は完了'+(r.admin.length?' · 確認・提出が残っています':''):r.node.mix.state==='done'?'ミックス済み · マスタリングへ':r.node.edit.state==='done'?'歌の編集済み · 仕上げの準備へ':r.node.vocal.state==='done'?'歌録り済み · 歌割・編集へ':r.node.recordable.done?'歌録りの準備を確認':r.node.selection.done?'曲が決定 · 制作を進めています':'制作状況を確認';
+ const finish=r.custom?(r.archive?'制作完了':'制作状況を確認'):r.audioComplete?'音源制作は完了'+(!r.archive?' · 確認・提出が残っています':''):r.node.mix.state==='done'?'ミックス済み · マスタリングへ':r.node.edit.state==='done'?'歌の編集済み · 仕上げの準備へ':r.node.vocal.state==='done'?'歌録り済み · 歌割・編集へ':r.node.recordable.done?'歌録りの準備を確認':r.node.selection.done?'曲が決定 · 制作を進めています':'制作状況を確認';
  let h='<div class="production-current">'+esc(finish)+'</div>'+progress;
  const ds=r.custom?[['open','公演初日'],['rehearsal','リハーサル'],['deliver','音源提出']]:[['release','発売日'],['vocal','歌録り'],...(r.mv?[['mv','MV撮影']]:[]),['master','マスタリング'],...((r.dates.live.value||!r.dates.release.value)?[['live','ライブ披露']]:[])];
  const dateHTML='<div class="production-dates">'+ds.map(([key,label])=>b('date',key,'production-date','<small>'+label+'</small><strong>'+esc(productionDate(r.dates[key]))+'</strong><em class="date-'+r.dates[key].kind+'">'+productionDateKind(r.dates[key])+'</em>')).join('')+'</div>';
  if(!RO){
-  h+='<div class="production-balls"><span class="production-caption">今のボール</span>'+(r.balls.length?r.balls.slice(0,2).map(x=>b('task',x.id,'production-ball','<b>'+esc(x.who)+'</b><span>'+esc(x.label)+'</span>')).join('')+(r.balls.length>2?b('all','','production-more','ほか '+(r.balls.length-2)+'件の対応待ち'):''):'<p>対応中の記録はまだありません。状況を伝えるか、作業をタップして記録できます。</p>')+'</div>';
+  h+='<div class="production-balls"><span class="production-caption">今のボール</span>'+(balls.length?balls.slice(0,2).map(x=>b(x.kind||'task',x.id,'production-ball','<b>'+esc(x.who)+'</b><span>'+esc(x.label)+'</span>')).join('')+(balls.length>2?b(contacts.length?'workflow':'all','','production-more','ほか '+(balls.length-2)+'件の対応待ち'):''):'<p>対応中の記録はまだありません。状況を伝えるか、作業をタップして記録できます。</p>')+'</div>';
   if(r.actions[0]){const a=r.actions[0];h+=b('task',a.id,'production-next','<small>次にすること</small><strong>'+esc(a.title)+' <span aria-hidden="true">›</span></strong><p>'+esc(a.reason)+'</p>')}
   h+=dateHTML;
   if(!r.custom)h+='<div class="production-admin">'+['lyricCheck','credits'].map(id=>{const n=r.node[id];return b('task',id,n.done?'complete':'','<span aria-hidden="true">'+(n.done?'✓':'○')+'</span> '+({lyricCheck:'歌詞確認',credits:'クレジット'}[id])+(n.done?'済み':''))}).join('')+'</div>';
@@ -126,7 +126,7 @@ function wireProduction(root){
    const s=S.songs.find(s=>s.id===b.dataset.productionSong);if(!s)return;
    const kind=b.dataset.productionKind,key=b.dataset.productionKey;
    if(RO){if(kind==='group')productionReadGroup(s,key);return}
-   if(kind==='task')productionTaskEditor(s,key);else if(kind==='workflow')workflowHub(s);else if(kind==='folder')productionFolderSheet(s);else if(kind==='group'||kind==='all')productionTasksSheet(s,kind==='all'?'all':key);else if(kind==='dates')productionDatesSheet(s);else if(kind==='date')productionDateEditor(s,key);
+   if(kind==='task')productionTaskEditor(s,key);else if(kind==='contact')workflowContact(s,key);else if(kind==='workflow')workflowHub(s);else if(kind==='folder')productionFolderSheet(s);else if(kind==='group'||kind==='all')productionTasksSheet(s,kind==='all'?'all':key);else if(kind==='dates')productionDatesSheet(s);else if(kind==='date')productionDateEditor(s,key);
  });
 }
 function productionAfterSave(s){mark();refreshCompletion(s);if(typeof refreshWorkflow==='function')refreshWorkflow()}

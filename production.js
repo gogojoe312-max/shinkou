@@ -56,6 +56,7 @@ function stageNode(s,d,today){
  return {...d,keys,state,done:state==='done'||state==='na',excluded:!keys.length,applicability:'required',due,owner,wait:['requested','revision'].includes(state),recipient:rec.recipient||(owner==='自分'?'':owner),channel:rec.channel||'',memo:rec.memo||gs.find(g=>g.memo)?.memo||'',date:rec.completedAt!==undefined?rec.completedAt:gs.map(g=>g.date).filter(validDate).sort().at(-1)||'',derived:false,blockers:[],left:due.value?Math.round((stamp(due.value)-stamp(today))/864e5):null};
 }
 function task(s,id,opt={}){const n=report(s,opt).node[id];if(n)return n;const d=resolve(s,id);return d?.stage?stageNode(s,d,opt.today||new Date().toISOString().slice(0,10)):null}
+function workflowPending(s){return (s.workflow?.communications||[]).some(c=>c.state!=='done')||(s.workflow?.issues||[]).some(i=>!i.resolved)}
 function showReport(s,today){
  const nodes=definitions(s).map(d=>stageNode(s,d,today));
  if(invoices.report(s).items.length||s.invoiceTracking)nodes.push(invoiceNode(s,{...byId.invoice,keys:[],group:'custom:請求書',due:{value:'',kind:'registered'},blockers:[],left:null}));
@@ -63,7 +64,7 @@ function showReport(s,today){
  const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
  const pending=nodes.filter(n=>!n.done),actions=pending.map(n=>({id:n.id,title:n.label+(n.wait?'の返答を確認':''),reason:n.due.value?'予定 '+n.due.value:'状況と次の日程を確認します',score:n.left??100})).sort((a,b)=>a.score-b.score);
  const dates=Object.fromEntries(['open','rehearsal','deliver','live'].map(k=>[k,{value:s.dates?.[k]||'',kind:s.production?.dateKinds?.[k]||'registered',source:''}]));
- return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length,actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.owner||'担当未確認',state:n.state})),gaps:[],extra:[],admin:[],today};
+ return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length&&!workflowPending(s),actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(n=>({id:n.id,label:n.label,who:n.owner||'担当未確認',state:n.state})),gaps:[],extra:[],admin:[],today};
 }
 // Exclusion keeps records. Restoring a child also restores its parent container.
 function setIncluded(s,id,included){
@@ -159,7 +160,7 @@ function report(s,opt={}){
  const admin=nodes.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)&&!n.done);
  const gaps=pending.filter(n=>n.state==='unknown'&&level[n.id]<Math.max(0,frontier-1));
  const audioComplete=node.master.state==='done';
- const archive=audioComplete&&!admin.length&&!pending.some(n=>n.state!=='unknown'||n.stage&&n.due.value);
+ const archive=audioComplete&&!admin.length&&!workflowPending(s)&&!pending.some(n=>n.state!=='unknown'||n.stage&&n.due.value);
  return {applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,admin,liveOnly:!validDate(release)&&validDate(live),today};
 }
 function invoiceNode(s,n){
