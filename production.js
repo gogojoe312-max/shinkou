@@ -76,6 +76,39 @@ function deferredIntent(text,songs,scope='global'){
  if(!/^コーラス(?:関係|関連|全体)?(?:は|を)?(?:ひとまず|とりあえず|いったん|一旦|今は)?(?:全部|すべて|全て|まとめて)(?:は|を)?(?:ひとまず|とりあえず|いったん|一旦)?未定(?:にして(?:おいて)?(?:ください|下さい|ほしい)?|に戻して(?:ください|下さい|ほしい)?|に戻す)?[。！!]*$/.test(body))return null;
  return {t:'production_defer',s:target.i,group:'chorus'};
 }
+// Resolve against current work, retaining the original song indices used by AI operations.
+function consultationTargets(songs,projects,text='',scope='global',today,previousText=''){
+ const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
+ const input=norm(text),prior=norm(previousText),history=/(履歴|過去|以前の|完了済|終了済|終わった(?:方|ほう|曲|工程)|再開|やり直|両方|全曲|完了分も)/.test(input);
+ const aliases={'ochanorma':['ocha','オチャノーマ'],'ロージークロニクル':['ロージー']};
+ const rows=songs.map((s,i)=>{const p=projects.find(p=>p.id===s.projectId),r=report(s,{today,release:p?.release}),artist=s.artist||p?.artist||'',names=[artist,...(aliases[norm(artist)]||[]),p?.custom].map(norm).filter(v=>v.length>=2);
+   const work=r.nodes.filter(n=>!['invoice','lyricCheck','credits'].includes(n.id));
+   const complete=r.custom?work.length>0&&work.every(n=>n.done):r.audioComplete;
+   return {i,s,r,complete,title:norm(s.title||s.work),qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
+ });
+ const focus=rows.find(x=>x.s.id===scope);
+ if(scope!=='global')return {indices:focus?[focus.i]:[],selected:focus?.i??-1,reason:'open_song',history,rows};
+ const freshMentions=rows.filter(x=>x.title.length>=2&&input.includes(x.title));
+ const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:rows.filter(x=>x.title.length>=2&&prior.includes(x.title));
+ // A longer title contains a shorter one, but does not name a second song.
+ const named=mentions.filter(x=>mentions.filter(y=>y.title!==x.title&&y.title.includes(x.title)).reduce((rest,y)=>rest.replaceAll(y.title,''),titleInput).includes(x.title));
+ const freshQualified=rows.filter(x=>x.qualified),qualified=freshQualified.length?freshQualified:freshMentions.length?[]:rows.filter(x=>x.previousQualified),explicit=qualified.length>0,qualifiedIds=new Set(qualified.map(x=>x.i));
+ let candidates=named.length?named:explicit?qualified:rows;
+ if(named.length&&explicit){const same=candidates.filter(x=>qualifiedIds.has(x.i));if(same.length)candidates=same;else return {indices:[...new Set([...named,...qualified].map(x=>x.i))],selected:-1,reason:'mixed_reference',history,rows};}
+ const taskAliases={invoice:['請求書'],credits:['クレジット'],lyricCheck:['歌詞確認']};
+ const labels=[...new Set(candidates.flatMap(x=>x.r.nodes.filter(n=>[n.label,...(taskAliases[n.id]||[])].some(label=>{const name=norm(label);return name.length>=2&&input.includes(name)&&!named.some(x=>x.title.includes(name));})).map(n=>n.label)))];
+ const taskLabels=labels.filter(label=>!labels.some(other=>other!==label&&norm(other).includes(norm(label))));
+ const pending=x=>taskLabels.length?x.r.nodes.some(n=>taskLabels.includes(n.label)&&!n.done&&n.state!=='undecided'):!x.complete;
+ if(!history){const current=candidates.filter(pending);
+   // An explicit artist/project can refer back to completed work. Otherwise one current
+   // match wins over any number of completed namesakes, even with invoices outstanding.
+   if(!named.length&&!explicit&&!taskLabels.length)candidates=candidates.filter(x=>!x.r.archive);
+   else if(current.length)candidates=current;
+   else if(!named.length&&!explicit)candidates=candidates.filter(x=>!x.r.archive);
+ }
+ const selected=(named.length||explicit||taskLabels.length)&&candidates.length===1?candidates[0].i:-1;
+ return {indices:candidates.map(x=>x.i),selected,reason:selected>=0?(explicit?'named_context':history?'history':'current_work'):named.length?'multiple_matches':'current_overview',history,rows};
+}
 // Read related records together without changing saved completion checks or dates.
 function interpretFlow(s,nodes){
  const byKey=k=>nodes.find(n=>n.keys.includes(k)),byTask=id=>nodes.find(n=>n.id===id),live=isShow(s);
@@ -280,6 +313,6 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent};
+root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);

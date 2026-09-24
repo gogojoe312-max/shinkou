@@ -168,7 +168,7 @@ function plannerSheet(initial=''){
  if(RO)return toast('閲覧専用です');
  const scope=conversationScope();
  s3('AIアシスタント',cur?songTitle(cur)+'の相談':'制作全体の相談',
- '<label class="planner-lead" for="plannerText">今の状況を、そのままどうぞ。</label><textarea id="plannerText" class="inp" rows="4" inputmode="text" placeholder="例：歌録りが終わりました。次に何をすればいいですか？"></textarea><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div>'+aiChoiceHTML('plannerMode')+'<p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
+ '<label class="planner-lead" for="plannerText">今の状況を、そのままどうぞ。</label><textarea id="plannerText" class="inp" rows="4" inputmode="text" placeholder="例：歌録りが終わりました。次に何をすればいいですか？"></textarea><p class="hint" id="plannerTarget" role="status" hidden></p><div class="planner-prompts"><button class="btn" data-prompt="今の制作状況を整理して、確認が必要な情報や不足していそうな工程を質問してください。">不足を確認</button><button class="btn" data-prompt="今後の予定を一緒に考えてください。納期から無理のない日程を組むために、まず必要なことを質問してください。">予定を相談</button></div>'+aiChoiceHTML('plannerMode')+'<p class="hint">登録中の制作情報を、設定済みのAIに送って相談します。変更は提案を確認してから反映します。</p><p id="plannerError" role="status"></p>',
  [{t:'閉じる',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'相談する',c:'btn pri',f:async()=>{
    const text=document.getElementById('plannerText').value.trim();if(!text)return;
    const error=document.getElementById('plannerError'),button=document.querySelector('#s3Foot .pri');button.disabled=true;error.textContent='状況を整理しています…';const stopWaiting=aiWait(error);
@@ -177,7 +177,9 @@ function plannerSheet(initial=''){
  }}]);
  const input=document.getElementById('plannerText');input.value=initial;
  const updateModel=wireAIChoice('plannerMode',input,scope);
- document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{input.value=b.dataset.prompt;updateModel();input.focus({preventScroll:true});input.setSelectionRange(input.value.length,input.value.length)});
+ const updateTarget=()=>{const hint=document.getElementById('plannerTarget'),selection=ShinkouProduction.consultationTargets(S.songs,S.projects,input.value,scope,D.today()),s=S.songs[selection.selected];hint.hidden=!s;hint.textContent=s?'対象：'+[s.artist||projOf(s.projectId)?.artist,songTitle(s)].filter(Boolean).join('｜'):'';};
+ input.addEventListener('input',updateTarget);updateTarget();
+ document.querySelectorAll('[data-prompt]').forEach(b=>b.onclick=()=>{input.value=b.dataset.prompt;updateModel();updateTarget();input.focus({preventScroll:true});input.setSelectionRange(input.value.length,input.value.length)});
  // iPhoneはタップの処理中にfocusする必要がある。タイマーや通信の後へ移さない。
  input.focus({preventScroll:true});
  input.setSelectionRange(input.value.length,input.value.length);

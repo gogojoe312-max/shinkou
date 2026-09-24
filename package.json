@@ -7,7 +7,7 @@
   },
   "scripts": {
     "start": "node server/index.cjs",
-    "test": "node tests/invoices.cjs && node --test tests/security.cjs tests/server.cjs tests/production-undecided.cjs"
+    "test": "node tests/invoices.cjs && node --test tests/security.cjs tests/server.cjs tests/production-undecided.cjs tests/assistant-context.cjs"
   },
   "dependencies": {
     "cookie-parser": "1.4.7",
