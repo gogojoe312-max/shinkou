@@ -1,6 +1,6 @@
 /* 同じ版のHTML・ロジック・スタイルをオフライン用に保持する。 */
-const CACHE='shinkou-v5-20260923l';
-const ASSETS=['./','./index.html','./core.js?v=20260923l','./invoices.js?v=20260923l','./workflow.js?v=20260923l','./workflow-ui.js?v=20260923l','./connections.js?v=20260923l','./invoice-ui.js?v=20260923l','./production.js?v=20260923l','./production-ui.js?v=20260923l','./app.js?v=20260923l','./ui.js?v=20260923l','./ui.css?v=20260923l'];
+const CACHE='shinkou-v5-20260924s1';
+const ASSETS=['./security.js?v=20260924s1','./server-config.js?v=20260924s1','./server-client.js?v=20260924s1','./','./index.html','./core.js?v=20260924s1','./invoices.js?v=20260924s1','./workflow.js?v=20260924s1','./workflow-ui.js?v=20260924s1','./connections.js?v=20260924s1','./invoice-ui.js?v=20260924s1','./production.js?v=20260924s1','./production-ui.js?v=20260924s1','./app.js?v=20260924s1','./ui.js?v=20260924s1','./ui.css?v=20260924s1'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('shinkou-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

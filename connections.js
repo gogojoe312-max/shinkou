@@ -5,7 +5,7 @@ let config={},gt=null,dt=null,googleLoading=null;
 const blocked=()=>config.demo||config.readOnly;
 function setup(value){config={...value}}
 function status(){return {google:!!gt&&gt.until>Date.now(),dropbox:!!dt&&dt.until>Date.now(),scopes:gt?.scopes||[]}}
-function disconnect(){gt=dt=null}
+function disconnect(){gt=dt=null;if(root.ShinkouServer?.enabled)root.ShinkouServer.api('/api/dropbox/disconnect',{method:'POST',body:'{}'}).catch(()=>{})}
 function prepareGoogle(){if(root.google?.accounts?.oauth2)return Promise.resolve();if(googleLoading)return googleLoading;googleLoading=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='https://accounts.google.com/gsi/client';s.async=true;s.onload=resolve;s.onerror=()=>{googleLoading=null;s.remove();reject(Error('Googleの接続画面を読み込めませんでした'))};document.head.append(s)});return googleLoading}
 function connectGoogle(kind){
  if(blocked())return Promise.reject(Error('デモ・閲覧画面では外部サービスに接続しません'));
@@ -19,6 +19,7 @@ const base64=bytes=>{let s='';for(let i=0;i<bytes.length;i+=8192)s+=String.fromC
 const b64url=bytes=>base64(bytes).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
 function connectDropbox(){
  if(blocked())return Promise.reject(Error('デモ・閲覧画面では外部サービスに接続しません'));
+ if(root.ShinkouServer?.enabled)return root.ShinkouServer.connectDropbox().then(value=>{dt={until:Date.now()+14000*1000,server:true};return value});
  if(!/^[a-zA-Z0-9_-]{6,100}$/.test(config.dropboxAppKey||''))return Promise.reject(Error('Dropboxの接続設定が必要です'));
  const popup=root.open('about:blank','shinkouDropbox','width=520,height=720');if(!popup)return Promise.reject(Error('接続画面を開けません。ポップアップを許可してください'));
  const state=b64url(crypto.getRandomValues(new Uint8Array(24))),verifier=b64url(crypto.getRandomValues(new Uint8Array(48))),redirect=new URL('oauth-callback.html',location.href).href.split('?')[0];
@@ -28,7 +29,7 @@ function connectDropbox(){
    try{const r=await fetch('https://api.dropboxapi.com/oauth2/token',{method:'POST',body:new URLSearchParams({code:event.data.code,grant_type:'authorization_code',client_id:config.dropboxAppKey,code_verifier:verifier,redirect_uri:redirect}),signal:AbortSignal.timeout(25000)});if(!r.ok)throw Error('Dropboxへの接続を完了できませんでした');const j=await r.json();if(!j.access_token)throw Error('Dropboxへの接続を確認できませんでした');dt={token:j.access_token,until:Date.now()+(Number(j.expires_in)||14000)*1000-30000};finish(null,status())}catch(e){finish(e)}
   };
   root.addEventListener('message',receive);let ticks=0;timer=setInterval(()=>{if(popup.closed||++ticks>300)finish(Error('接続を中止しました。もう一度接続できます'))},1000);
-  crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)).then(hash=>{if(complete)return;const p=new URLSearchParams({client_id:config.dropboxAppKey,response_type:'code',redirect_uri:redirect,state,code_challenge_method:'S256',code_challenge:b64url(new Uint8Array(hash)),token_access_type:'online',scope:'files.metadata.read files.content.read sharing.read'});popup.location='https://www.dropbox.com/oauth2/authorize?'+p}).catch(e=>finish(e));
+  crypto.subtle.digest('SHA-256',new TextEncoder().encode(verifier)).then(hash=>{if(complete)return;const p=new URLSearchParams({client_id:config.dropboxAppKey,response_type:'code',redirect_uri:redirect,state,code_challenge_method:'S256',code_challenge:b64url(new Uint8Array(hash)),token_access_type:'online',scope:'files.metadata.read'});popup.location='https://www.dropbox.com/oauth2/authorize?'+p}).catch(e=>finish(e));
  });
 }
 async function json(service,path,options={}){
@@ -58,7 +59,8 @@ async function calendars(){need('calendar');const items=[];let page='';do{const 
 async function busy(ids,day){need('calendar');if(!ids.length||ids.length>50)throw Error('空きを確認するカレンダーを1〜50件選んでください');const lo=day+'T00:00:00+09:00',hi=new Date(Date.parse(lo)+864e5).toISOString();const j=await json('google','calendar/v3/freeBusy',{method:'POST',body:JSON.stringify({timeMin:lo,timeMax:hi,timeZone:'Asia/Tokyo',items:ids.map(id=>({id}))})});let all=[];for(const id of ids){const c=j.calendars?.[id];if(!c||c.errors?.length)throw Error('選択したカレンダーすべてを確認できませんでした。空き候補は表示しません');all.push(...c.busy.map(b=>({start:{dateTime:b.start},end:{dateTime:b.end}})))}return all}
 async function createEvent(calendarId,event){need('event');if(!/^[a-v0-9]{5,1024}$/.test(event.id||'')||!Number.isFinite(Date.parse(event.start?.dateTime))||!Number.isFinite(Date.parse(event.end?.dateTime))||Date.parse(event.start.dateTime)>=Date.parse(event.end.dateTime)||event.attendees)throw Error('自分の予定の内容を確認してください');return json('google','calendar/v3/calendars/'+encodeURIComponent(calendarId)+'/events',{method:'POST',body:JSON.stringify({...event,start:{...event.start,timeZone:'Asia/Tokyo'},end:{...event.end,timeZone:'Asia/Tokyo'}})})}
 async function dropboxList(url,path=''){
- const u=new URL(url);if(u.protocol!=='https:'||!['www.dropbox.com','dropbox.com','db.tt'].includes(u.hostname))throw Error('曲のDropbox共有リンクを登録してください');
+ if(root.ShinkouServer?.enabled)return (await root.ShinkouServer.api('/api/dropbox/list',{method:'POST',body:JSON.stringify({url,path})})).items;
+ const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password||!['www.dropbox.com','dropbox.com','db.tt'].includes(u.hostname))throw Error('曲のDropbox共有リンクを登録してください');
  if(path&&(!path.startsWith('/')||path.includes('..')))throw Error('フォルダを確認してください');
  const items=[];let j=await json('dropbox','files/list_folder',{method:'POST',body:JSON.stringify({path,shared_link:{url},recursive:false,include_deleted:false,limit:200})});items.push(...j.entries);
  while(j.has_more){if(items.length>4000)throw Error('ファイルが多いためフォルダを分けて確認してください');j=await json('dropbox','files/list_folder/continue',{method:'POST',body:JSON.stringify({cursor:j.cursor})});items.push(...j.entries)}return items;

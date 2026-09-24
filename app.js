@@ -239,8 +239,8 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-23-l";
-let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, encOn=false;
+const APP_VER="2026-09-24-security-1";
+let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
 function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open("shinkou",2);
@@ -249,7 +249,13 @@ function idb(){return new Promise((res,rej)=>{try{const r=indexedDB.open("shinko
 function kvGet(k){return idb().then(db=>new Promise((res,rej)=>{
   const t=db.transaction("kv").objectStore("kv").get(k);t.onsuccess=()=>res(t.result);t.onerror=()=>rej(t.error)}))}
 function kvPut(k,v){return idb().then(db=>new Promise((res,rej)=>{
-  const tx=db.transaction("kv","readwrite");tx.objectStore("kv").put(v,k);
+  const tx=db.transaction("kv","readwrite"),store=tx.objectStore("kv");
+  if(ShinkouSecurity.sensitiveRecord(String(k))){
+    const fingerprint=CK?CKsalt+':'+CKiterations:'plain',guard=store.get('security-key'),state=store.get('state');let ready=0;
+    const put=()=>{if(++ready!==2)return;const current=guard.result?.fingerprint||(state.result?.enc?state.result.salt+':'+(state.result.iterations??250000):state.result?'plain':fingerprint);
+      if(current!==fingerprint){tx.abort();return}store.put({fingerprint},'security-key');store.put(v,k)};
+    guard.onsuccess=state.onsuccess=put;
+  }else store.put(v,k);
   tx.oncomplete=()=>{db.close();res()};tx.onerror=tx.onabort=()=>{db.close();rej(tx.error||new Error("保存に失敗しました"))}}))}
 function kvKeys(){return idb().then(db=>new Promise((res,rej)=>{
   const t=db.transaction("kv").objectStore("kv").getAllKeys();t.onsuccess=()=>res(t.result||[]);t.onerror=()=>rej(t.error)}))}
@@ -258,18 +264,43 @@ function kvDel(k){return idb().then(db=>new Promise((res,rej)=>{
 
 const B64={enc:b=>btoa(String.fromCharCode.apply(null,new Uint8Array(b))),
   dec:s=>Uint8Array.from(atob(s),c=>c.charCodeAt(0))};
-async function deriveKey(pin,salt){
-  const km=await crypto.subtle.importKey("raw",new TextEncoder().encode(pin),"PBKDF2",false,["deriveKey"]);
-  return crypto.subtle.deriveKey({name:"PBKDF2",salt:salt,iterations:250000,hash:"SHA-256"},
-    km,{name:"AES-GCM",length:256},false,["encrypt","decrypt"])}
-async function encPack(obj){
-  const iv=crypto.getRandomValues(new Uint8Array(12));
-  const ct=await crypto.subtle.encrypt({name:"AES-GCM",iv:iv},CK,new TextEncoder().encode(JSON.stringify(obj)));
-  return{enc:1,salt:CKsalt,iv:B64.enc(iv),data:B64.enc(ct)}}
+async function deriveKey(pin,salt,iterations=600000){return ShinkouSecurity.keyFor(pin,B64.enc(salt),iterations)}
+async function encPack(obj){return ShinkouSecurity.pack(obj,CK,CKsalt,CKiterations)}
 async function encUnpack(rec,pin){
-  const key=await deriveKey(pin,B64.dec(rec.salt));
-  const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:B64.dec(rec.iv)},key,B64.dec(rec.data));
-  CK=key;CKsalt=rec.salt;return JSON.parse(new TextDecoder().decode(pt))}
+ const key=await ShinkouSecurity.keyFor(pin,rec.salt,rec.iterations||250000);
+ const value=await ShinkouSecurity.unpack(rec,key);
+ CK=key;CKsalt=rec.salt;CKiterations=rec.iterations||250000;return value;
+}
+async function storageEntries(){const keys=(await kvKeys()).filter(k=>ShinkouSecurity.sensitiveRecord(String(k)));return Promise.all(keys.map(async k=>[k,await kvGet(k)]))}
+async function replaceStorageAtomically(before,after,fingerprint){
+ const db=await idb();return new Promise((resolve,reject)=>{
+  const tx=db.transaction('kv','readwrite'),store=tx.objectStore('kv');
+  const keys=store.getAllKeys(),values=store.getAll();let ready=0;
+  const compare=()=>{if(++ready!==2)return;const actual=keys.result.map((k,i)=>[k,values.result[i]]).filter(([k])=>ShinkouSecurity.sensitiveRecord(String(k)));
+   const sort=a=>a.slice().sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
+   if(JSON.stringify(sort(actual))!==JSON.stringify(sort(before))){tx.abort();return}
+   for(const [k,v]of after)store.put(v,k);
+   const rec=after.find(([k])=>k==='state')?.[1];store.put({fingerprint:fingerprint||(rec?.enc?rec.salt+':'+(rec.iterations??250000):'plain')},'security-key');
+  };keys.onsuccess=values.onsuccess=compare;
+  tx.oncomplete=()=>{db.close();resolve()};tx.onerror=tx.onabort=()=>{db.close();reject(Error('別の画面でデータが更新されました。もう一度お試しください。'))};
+ });
+}
+async function reencryptStorage(pin,newPin){
+ if(securityChanging||SY.busy)throw Error('保存・同期が終わってからお試しください');
+ await flush();if(dirty||mem)throw Error('データを保存できないため暗号化設定を変更できません');
+ securityChanging=true;clearTimeout(SY.timer);
+ try{
+  const before=await storageEntries(),plan=await ShinkouSecurity.planRekey(before,{pin,newPin,currentKey:CK,currentSalt:CKsalt,currentIterations:CKiterations});
+  await replaceStorageAtomically(before,plan.entries,plan.key?plan.salt+':'+plan.iterations:'plain');
+  CK=plan.key;CKsalt=plan.salt;CKiterations=plan.iterations;encOn=!!CK;
+  securityChannel?.postMessage({type:'storage-key-changed',scope:location.pathname+location.search});
+ }finally{securityChanging=false}
+}
+const securityChannel=typeof BroadcastChannel==='function'?new BroadcastChannel('shinkou-security'):null;
+securityChannel?.addEventListener('message',event=>{if(!ShinkouServer.enabled&&event.data?.type==='storage-key-changed'&&event.data.scope===location.pathname+location.search){
+ clearInterval(SY.poll);clearTimeout(SY.timer);securityChanging=true;
+ toast('別の画面で暗号化設定が変更されました。保存済みの内容を読み直してください。');
+}});
 
 let sT=null,dirty=false,chg=0;
 let curProj=null;
@@ -288,7 +319,7 @@ function dot(m){const e=document.getElementById("saveDot");
   else{e.textContent=mem?"未保存(一時)":"保存済";e.className=""}}
 let flushPending=null;
 async function flush(){
-  if(RO||!dirty)return;
+  if(RO||!dirty||securityChanging)return;
   if(flushPending)return flushPending;
   flushPending=(async()=>{try{
     while(dirty){
@@ -1500,7 +1531,16 @@ async function sbPut(v){sbMem={scope:syncScope(),data:v};await kvPut("syncbase",
 const b64enc=s=>btoa(unescape(encodeURIComponent(s)));
 const b64dec=s=>decodeURIComponent(escape(atob(s.replace(/\n/g,""))));
 
+let ghPrivate=null;
+async function requirePrivateRepo(c){
+  ShinkouSecurity.repoConfig(c);
+  if(ghPrivate&&ghPrivate.owner===c.owner&&ghPrivate.repo===c.repo&&ghPrivate.token===c.token&&ghPrivate.until>Date.now())return;
+  const r=await fetch('https://api.github.com/repos/'+c.owner+'/'+c.repo,{headers:{Authorization:'Bearer '+c.token,Accept:'application/vnd.github+json'},cache:'no-store',redirect:'error'});
+  if(!r.ok||(await r.json()).private!==true)throw Error('同期先が非公開であることを確認できません。設定を確認してください。');
+  ghPrivate={owner:c.owner,repo:c.repo,token:c.token,until:Date.now()+60000};
+}
 async function ghRead(c){
+  await requirePrivateRepo(c);
   const u="https://api.github.com/repos/"+c.owner+"/"+c.repo+"/contents/"+c.path+"?ref="+encodeURIComponent(c.branch||"main");
   const r=await fetch(u,{headers:{Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json"},cache:"no-store"});
   if(r.status===404)return{json:null,sha:null};
@@ -1508,6 +1548,7 @@ async function ghRead(c){
   const j=await r.json();
   return{json:JSON.parse(b64dec(j.content||"")),sha:j.sha}}
 async function ghWrite(c,obj,sha){
+  await requirePrivateRepo(c);
   const u="https://api.github.com/repos/"+c.owner+"/"+c.repo+"/contents/"+c.path;
   const body={message:"進行データ "+new Date().toISOString(),branch:c.branch||"main",
     content:b64enc(JSON.stringify(obj))};
@@ -1545,7 +1586,7 @@ const syncable=st=>({v:st.v,songs:st.songs,projects:st.projects,templates:st.tem
   masters:st.masters,trash:st.trash,assistantRules:st.assistantRules||[],log:st.log||[],at:Date.now()});
 
 async function syncNow(reason){
-  if(RO||SY.busy||!syOk())return;
+  if(RO||SY.busy||securityChanging||!syOk())return;
   if(!navigator.onLine){syDot("offline");return}
   SY.busy=true;syDot("busy");
   try{
@@ -1577,7 +1618,7 @@ async function syncNow(reason){
       try{const sp="snapshots/"+D.today()+".json";
         const c2=Object.assign({},c,{path:sp});
         const ex=await ghRead(c2);
-        await ghWrite(c2,payload,ex.sha);
+        if(!ex.json)await ghWrite(c2,payload,null);
         S.settings.lastSnap=D.today();mark()}catch(e){}}
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
   }catch(e){syDot("err",String(e.message||e))}
@@ -1632,6 +1673,7 @@ function invSheet(){invoiceOverview()}
 /* ===================== settings ===================== */
 let setOpen="";
 function openSettings(){
+  if(RO&&ShinkouServer.enabled){s2('進行','閲覧専用',ShinkouServer.securitySettings(),[{t:'閉じる',c:'btn',f:()=>hide('sheet2')}]);document.getElementById('secureSignOut').onclick=()=>ShinkouServer.signOut().catch(e=>toast(e.message));return}
   if(RO){s2("進行","閲覧専用","<p class=\"hint\">デスク用の表示です。制作データや設定は変更できません。</p>",[{t:"閉じる",c:"btn",f:()=>hide("sheet2")}]);return}
   const g=S.settings.gh;
   const secs=[
@@ -1664,7 +1706,7 @@ function openSettings(){
         '<div class="fg" style="margin-top:12px"><button class="btn w" id="crAll">すべての曲をWordで書き出す</button></div>'}},
     {id:"workflow",t:"仕事の連携",h:()=>'<button class="btn w" id="mWorkflow">連絡・資料・実績をまとめる</button><button class="btn w" id="mConnections">外部サービスの接続設定</button>'},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領・送付状況</button></div>'},
-    {id:"sync",t:"端末間の同期",h:()=>
+    {id:"sync",t:"端末間の同期",h:()=>ShinkouServer.enabled?'<p class="hint">認証された端末間で自動同期します。接続キーはサーバーで管理しています。</p><button class="btn w" id="syNow">いま同期する</button>':
       ''+
       '<div class="fg"><div class="seg2" id="syOn">'+
         '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
@@ -1693,23 +1735,15 @@ function openSettings(){
         : '<div class="warnbox">端末が壊れるとブラウザ内のデータは戻せません。月に一度はJSONを書き出して、別の場所に控えてください。</div>')+
       '<div class="row fg"><button class="btn" id="exJ">JSONを書き出す</button><button class="btn" id="imJ">JSONを読み込む</button></div>'+
       '<div class="row fg"><button class="btn" id="exC">CSV（Excel用）</button><button class="btn" id="rest">バックアップから復元</button></div>'+
-      '<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'},
-    {id:"sec",t:"セキュリティ",h:()=>
-      '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更・解除":"パスコードを設定してデータを暗号化")+'</button></div>'+
+      (ShinkouServer.enabled&&ShinkouServer.session?.role==='admin'?'<button class="btn w" id="serverBackups">サーバーのバックアップから復元</button>':'')+'<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'},
+    {id:"sec",t:"セキュリティ",h:()=>ShinkouServer.enabled?ShinkouServer.securitySettings():
+      '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更":"パスコードを設定してデータを暗号化")+'</button></div>'+
       '<p class="hint">パスコードを忘れると復号できません。</p>'},
     {id:"deskUrl",t:"URL確認・デスク表示",h:()=>
       '<p class="hint">デスク用URLでは、楽曲の状態と締切を閲覧専用で表示します。</p>'+
       '<label class="lbl" for="deskPreviewUrl">この端末での表示確認</label><input id="deskPreviewUrl" class="inp" readonly value="'+esc(deskPreviewURL())+'">'+
       '<p><a class="btn" href="'+esc(deskPreviewURL())+'" target="_blank" rel="noopener">デスク表示を確認</a></p>'+
-      '<p class="hint">このURLだけでは別の端末へ制作データは共有されません。メール招待によるアクセス制御はまだ未接続です。</p>'},
-    {id:"share",t:"共有データの公開（従来方式）",h:()=>
-      '<div class="warnbox">公開リポジトリに書き出すため、URLを知る全員が閲覧できます。社外に出せないデータでは使わないでください。</div>'+
-      '<div class="row fg"><div><span class="lbl">Owner</span><input class="inp" id="gO" value="'+esc(g.owner)+'"></div>'+
-      '<div><span class="lbl">Repo</span><input class="inp" id="gR" value="'+esc(g.repo)+'"></div></div>'+
-      '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="gP" value="'+esc(g.path)+'"></div>'+
-      '<div><span class="lbl">Branch</span><input class="inp" id="gB" value="'+esc(g.branch)+'"></div></div>'+
-      '<div class="fg"><span class="lbl">Token</span><input class="inp" id="gT" type="password" value="'+esc(g.token)+'"></div>'+
-      '<div class="fg"><button class="btn pri w" id="pub">共有版を公開</button></div><div id="pubOut"></div>'},
+      '<p class="hint">'+(ShinkouServer.enabled?'許可されたアカウントでログインした方だけが閲覧できます。':'このURLだけでは別の端末へ制作データは共有されません。メール招待によるアクセス制御はまだ未接続です。')+'</p>'},
     {id:"ver",t:"版",h:()=>'<p class="hint" style="margin:0">いま動いている版：<b>'+APP_VER+'</b>'+
       '<br>古いままなら、アプリを閉じて開き直すか、下のボタンで読み込み直してください。</p>'+
       '<div class="fg"><button class="btn w" id="reld">最新を読み込み直す</button></div>'}];
@@ -1730,6 +1764,8 @@ function openSettings(){
 function wireSettings(B){
   const q=id=>B.querySelector(id);
   const on=(id,f)=>{const e=q(id);if(e)e.onclick=f};
+  on("#secureSignOut",()=>ShinkouServer.signOut().catch(e=>toast(e.message)));
+  on("#serverBackups",()=>ShinkouServer.backups().catch(e=>toast(e.message)));
   on("#addP",()=>editProject(null));
   on("#mWorkflow",()=>workflowHub());
   on("#mConnections",()=>workflowConnections());
@@ -1783,8 +1819,8 @@ function wireSettings(B){
     dlFile("クレジット一覧.doc",creditDoc(list,"ミュージシャンクレジット 一覧",{work:crWork}),"application/msword")});
     on("#reld",async()=>{
       try{if(navigator.serviceWorker){const rs=await navigator.serviceWorker.getRegistrations();
-        await Promise.all(rs.map(r=>r.unregister()))}
-        if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}
+        const scope=new URL('./',location.href).href;await Promise.all(rs.filter(r=>r.scope===scope).map(r=>r.unregister()))}
+        if(window.caches){const ks=await caches.keys();await Promise.all(ks.filter(k=>k.startsWith("shinkou-")).map(k=>caches.delete(k)))}
       }catch(e){}
       const nextURL=new URL(location.href);nextURL.searchParams.set("v",String(Date.now()));location.replace(nextURL.href)});
   on("#exJ",exportJSON);on("#imJ",importJSON);on("#exC",exportCSV);on("#rest",restoreSheet);
@@ -1811,21 +1847,21 @@ function wireSettings(B){
     catch(e){toast("取り込めません："+(e.message||e))}})}
 
 function pinSheet(){
-  s3("SECURITY",encOn?"パスコード":"パスコードを設定",
-    (encOn?'<div class="fg"><span class="lbl">現在のパスコード</span><input type="password" class="inp" id="p0"></div>':"")+
-    '<div class="fg"><span class="lbl">新しいパスコード（空にすると解除）</span><input type="password" class="inp" id="p1"></div>'+
-    '<div class="fg"><span class="lbl">確認</span><input type="password" class="inp" id="p2"></div>'+
-    '<p class="hint">忘れると復元できません。</p>',
-    [{sp:1},{t:"適用",c:"btn pri",f:async()=>{
-      if(!crypto.subtle)return toast("この環境では暗号化を使えません");
-      const n=gv("p1"),c=gv("p2");
-      if(n!==c)return toast("確認が一致しません");
-      if(encOn){try{const rec=await kvGet("state");await encUnpack(rec,gv("p0"))}
-        catch(e){return toast("現在のパスコードが違います")}}
-      if(!n){CK=null;CKsalt=null;encOn=false;dirty=true;await flush();hide("sheet3");toast("暗号化を解除しました");return}
-      const salt=crypto.getRandomValues(new Uint8Array(16));
-      CKsalt=B64.enc(salt);CK=await deriveKey(n,salt);encOn=true;dirty=true;await flush();
-      hide("sheet3");toast("暗号化を設定しました")}}])}
+ s3('SECURITY',encOn?'パスコード':'パスコードを設定',
+ (encOn?'<label class="fg">現在のパスコード<input type="password" autocomplete="current-password" class="inp" id="p0"></label>':'')+
+ '<label class="fg">新しいパスコード（12文字以上）<input type="password" autocomplete="new-password" class="inp" id="p1"></label>'+
+ '<label class="fg">確認<input type="password" autocomplete="new-password" class="inp" id="p2"></label>'+
+ '<p class="hint">現在のデータと保存済みバックアップをまとめて暗号化します。忘れると復元できません。自動ロックは行いません。</p><p id="securityError" class="hint" role="status"></p>',
+ [{sp:1},{t:'適用',c:'btn pri',f:async()=>{
+  const out=document.getElementById('securityError'),button=document.querySelector('#s3Foot .pri'),n=gv('p1'),pin=encOn?gv('p0'):'';
+  if(n!==gv('p2'))return toast('確認が一致しません');
+  if(n.length<12)return toast('12文字以上のパスコードを設定してください');
+  if(encOn){try{await ShinkouSecurity.unpack(await kvGet('state'),await ShinkouSecurity.keyFor(pin,CKsalt,CKiterations))}catch{return toast('現在のパスコードが違います')}}
+  button.disabled=true;out.textContent='保存データとバックアップを暗号化しています…';
+  try{await reencryptStorage(pin,n);hide('sheet3');toast('データとバックアップを暗号化しました')}
+  catch(e){out.textContent=e.message}finally{button.disabled=false}
+ }}]);
+}
 
 function restoreSheet(){
   kvKeys().then(ks=>{
@@ -1848,7 +1884,7 @@ function restoreSheet(){
       if(rec&&rec.enc){if(!CK)return toast("先にパスコードで解除してください");
         try{const pt=await crypto.subtle.decrypt({name:"AES-GCM",iv:B64.dec(rec.iv)},CK,B64.dec(rec.data));
           rec=JSON.parse(new TextDecoder().decode(pt))}catch(e){return toast("復号できません")}}
-      S=migrate(rec);dirty=true;await flush();hide("sheet3");hide("sheet2");render();toast("復元しました")})})}
+      S=migrate(ShinkouSecurity.imported(rec,S.settings));mark();await flush();hide("sheet3");hide("sheet2");render();toast(mem?'画面に復元しましたが、端末に保存できていません。':'復元しました')})})}
 
 /* ===================== io ===================== */
 /* 予定をカレンダーの取り込みファイルにする */
@@ -1879,15 +1915,17 @@ function exportICS(){
 function dlFile(n,t,ty){const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([t],{type:ty||"application/json"}));a.download=n;a.click();
   setTimeout(()=>URL.revokeObjectURL(a.href),4000)}
-function exportJSON(){const c=JSON.parse(JSON.stringify(S));c.settings.gh.token="";if(c.settings.ai)c.settings.ai.key="";
-  dlFile("shinkou-"+D.today()+".json",JSON.stringify(c,null,1));
-  S.settings.lastExport=Date.now();mark();toast("書き出しました（Tokenは除外）")}
-function importJSON(){const i=document.createElement("input");i.type="file";i.accept=".json";
-  i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();
-    r.onload=()=>{try{const d=JSON.parse(r.result);if(!d.songs)throw 0;
-      const gh=S.settings.gh;S=migrate(d);S.settings.gh=Object.assign(gh,(d.settings&&d.settings.gh)||{});
-      dirty=true;flush();hide("sheet2");render();toast("読み込みました")}catch(e){toast("読み込めないファイルです")}};
-    r.readAsText(f)};i.click()}
+function exportJSON(){const c=ShinkouSecurity.portable(S);
+ dlFile('shinkou-'+D.today()+'.json',JSON.stringify(c,null,1));
+ S.settings.lastExport=Date.now();mark();toast('書き出しました（すべての接続用秘密キーを除外）');
+}
+function importJSON(){const i=document.createElement('input');i.type='file';i.accept='.json';
+ i.onchange=()=>{const f=i.files[0];if(!f)return;if(f.size>20*1024*1024)return toast('20MB以下のJSONを選んでください');const r=new FileReader();
+ r.onload=async()=>{try{const d=ShinkouSecurity.validState(JSON.parse(r.result));S=migrate(ShinkouSecurity.imported(d,S.settings));
+ mark();await flush();hide('sheet2');render();toast(mem?'読み込みましたが、端末に保存できていません。':'読み込みました（接続設定はこの端末の設定を保持）')}catch(e){toast('読み込めないファイルです')}};
+ r.readAsText(f)};i.click();
+}
+
 function exportCSV(){
   const head=["グループ","案件","曲名","担当D","種類","発売日","レッスン","MV撮影","ライブ初披露","マスタリング",
     "現在の工程","次の期限","残日数","状況","作詞","作曲","編曲","ミュージシャンクレジット","請求書 受領"];
@@ -1899,31 +1937,10 @@ function exportCSV(){
       gr("lyricist"),gr("composer"),gr("arranger"),
       (s.credits||[]).filter(c=>c.g==="mus"&&c.name).map(c=>(rowParts(c).filter(Boolean).join("/")||"?")+":"+c.name).join(" / "),
       iv.got+"/"+iv.n]});
-  const csv=[head].concat(rows).map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/"/g,'""')+'"').join(",")).join("\r\n");
+  const csv=[head].concat(rows).map(r=>r.map(c=>'"'+String(c==null?"":c).replace(/^[=+\-@\t\r]/,"'$&").replace(/"/g,'""')+'"').join(",")).join("\r\n");
   dlFile("shinkou-"+D.today()+".csv","\uFEFF"+csv,"text/csv");toast("CSVを書き出しました")}
 
-async function publish(){
-  const g=S.settings.gh,out=document.getElementById("pubOut"),btn=document.getElementById("pub");
-  if(!g.owner||!g.repo||!g.path||!g.token){out.innerHTML='<div class="warnbox">Owner・Repo・Path・Token をすべて入れてください。</div>';return}
-  btn.disabled=true;btn.textContent="公開中…";
-  const api="https://api.github.com/repos/"+g.owner+"/"+g.repo+"/contents/"+g.path;
-  const hdr={Authorization:"Bearer "+g.token,Accept:"application/vnd.github+json"};
-  try{let sha=null;
-    const c=await fetch(api+"?ref="+encodeURIComponent(g.branch||"main"),{headers:hdr});
-    if(c.ok)sha=(await c.json()).sha;
-    const payload={projects:S.projects,songs:S.songs.map(({workflow,invoiceItems,invoiceTracking,dropboxUrl,...song})=>song),templates:S.templates,masters:S.masters,
-      published:new Date().toISOString(),v:4};
-    const body={message:"進行データ更新 "+D.today(),branch:g.branch||"main",
-      content:btoa(unescape(encodeURIComponent(JSON.stringify(payload))))};
-    if(sha)body.sha=sha;
-    const r=await fetch(api,{method:"PUT",headers:Object.assign({"Content-Type":"application/json"},hdr),body:JSON.stringify(body)});
-    if(!r.ok)throw new Error(r.status+" "+(await r.text()).slice(0,150));
-    const raw="https://raw.githubusercontent.com/"+g.owner+"/"+g.repo+"/"+(g.branch||"main")+"/"+g.path;
-    const url=location.origin+location.pathname+"?mode=desk&data="+encodeURIComponent(raw);
-    out.innerHTML='<div class="warnbox okbox">公開しました。閲覧専用リンクです。'+
-      '<input class="inp mono" style="margin-top:7px;font-size:11px" value="'+esc(url)+'" readonly onclick="this.select()"></div>'}
-  catch(e){out.innerHTML='<div class="warnbox">公開できませんでした。'+esc(e.message||e)+'<br>Tokenのrepo権限とブランチ名を確認してください。</div>'}
-  btn.disabled=false;btn.textContent="共有版を公開"}
+async function publish(){toast('公開リンクによる制作データの共有は停止しました。認証付きの共有を使用してください。')}
 
 /* ===================== plumbing ===================== */
 let aiViewRevision=0;
@@ -2580,7 +2597,7 @@ function aiHistSheet(){
    const t=q.value.trim();
    if(!t){aiHistSheet();return}
    if(RO)return toast("閲覧のみのため使えません");
-   if(!aiCfg().key){openSettings();toast("設定の「AI相談・利用額」にOpenAIのAPIキーを入れてください");return}
+   if(!(ShinkouServer.enabled?ShinkouServer.session?.ai:aiCfg().key)){openSettings();toast(ShinkouServer.enabled?'AIの接続設定を準備しています。':"設定の「AI相談・利用額」にOpenAIのAPIキーを入れてください");return}
    if(!navigator.onLine){const a=aiCfg();if(!a.drafts)a.drafts=[];
      a.drafts.push({t:t,at:Date.now()});mark();q.value="";
      toast("オフラインなので下書きに残しました");return}
@@ -2701,7 +2718,7 @@ function nfc(o){
   return o}
 function migrate(d){
   const b=BLANK();if(!d)return b;
-  d=nfc(d);
+  d=nfc(ShinkouSecurity.clean(d));
   b.projects=d.projects||[];
   b.trash=d.trash||[];
   b.log=d.log||[];
@@ -2911,6 +2928,7 @@ function migrate(d){
 async function boot(){
   const src=new URLSearchParams(location.search).get("data");
   if(src){RO=true;
+    const u=new URL(src,location.href);if(u.protocol!=='https:'||u.hostname!=='raw.githubusercontent.com'||u.username||u.password){document.getElementById('main').textContent='共有データの接続先を確認してください。';return}
     document.body.insertAdjacentHTML("afterbegin",'<div class="ro">閲覧専用 — 共有版</div>');
     document.getElementById("fab").style.display="none";
     document.getElementById("saveDot").style.display="none";
@@ -2922,7 +2940,8 @@ async function boot(){
   try{rec=await kvGet("state")}catch(e){mem=true}
   if(rec&&rec.enc){encOn=true;
     document.getElementById("lock").classList.add("on");
-    const go=async()=>{try{S=migrate(await encUnpack(rec,document.getElementById("lockPin").value));
+    const go=async()=>{try{const pin=document.getElementById("lockPin").value;S=migrate(await encUnpack(rec,pin));document.getElementById("lockPin").value="";
+        try{if(rec.iterations!==600000||(await storageEntries()).some(([,v])=>v&&!v.enc))await reencryptStorage(pin,pin)}catch(e){toast(e.message)}
         document.getElementById("lock").classList.remove("on");dot("");undoInit();render();syStart()}
       catch(e){const m=document.getElementById("lockMsg");m.textContent="パスコードが違います。";m.style.color="var(--late)"}};
     document.getElementById("lockGo").onclick=go;

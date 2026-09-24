@@ -254,4 +254,4 @@ function renderAssistantHome(el,list){
 
 
 
-boot();
+ShinkouServer.start(boot);
