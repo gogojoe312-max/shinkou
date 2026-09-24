@@ -46,7 +46,7 @@ function communicationDraft(s,c){const title=s.title||s.work||'曲名未登録',
 function validEmail(v){return /^[^\s@,;<>\r\n]+@[^\s@,;<>\r\n]+\.[^\s@,;<>\r\n]+$/.test(v||'')}
 function priorities(songs,reports,today){
  const out=[];for(const s of songs){const r=reports(s);if(r.archive)continue;
-  for(const c of list(s,'communications').filter(c=>c.state!=='done')){const days=c.due?Math.round((Date.parse(c.due)-Date.parse(today))/864e5):null;out.push({songId:s.id,type:'communication',id:c.id,title:c.state==='reply'?'返信する：'+(c.person||c.subject):c.state==='waiting'?'返答を確認：'+(c.person||c.subject):'対応が必要か確認：'+c.subject,reason:c.due?'確認期限 '+c.due:c.state==='review'?'連絡内容を確認して、次に誰が動くか決めます':'連絡と次の日程を確認します',score:days===null?c.state==='reply'?0:75:days<0?-150+days:days})}
+  for(const c of list(s,'communications').filter(c=>c.state!=='done'&&r.node[c.taskId]?.state!=='undecided')){const days=c.due?Math.round((Date.parse(c.due)-Date.parse(today))/864e5):null;out.push({songId:s.id,type:'communication',id:c.id,title:c.state==='reply'?'返信する：'+(c.person||c.subject):c.state==='waiting'?'返答を確認：'+(c.person||c.subject):'対応が必要か確認：'+c.subject,reason:c.due?'確認期限 '+c.due:c.state==='review'?'連絡内容を確認して、次に誰が動くか決めます':'連絡と次の日程を確認します',score:days===null?c.state==='reply'?0:75:days<0?-150+days:days})}
   for(const a of r.actions.slice(0,3))out.push({songId:s.id,type:'task',id:a.id,title:a.title,reason:a.reason,score:a.score});
   for(const i of list(s,'issues').filter(i=>!i.resolved&&i.action==='rerecord'))out.push({songId:s.id,type:'issue',id:i.id,title:'再録の段取りを確認',reason:i.memo||i.tags?.join('・')||'歌チェックからの申し送り',score:5});
  }

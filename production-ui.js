@@ -172,12 +172,13 @@ function productionTasksSheet(s,group='all'){
  if(!h)h='<p class="hint">この曲では対象の作業はありません。</p>';
  if(omitted.length)h+='<details class="production-omitted"><summary>対象外の作業</summary>'+omitted.map(n=>productionTaskRow(s,n)).join('')+'</details>';
  if(group==='instrument')h+='<label class="quick-field">楽器録音<select class="inp" id="productionInstruments" aria-label="楽器録音の必要性">'+[['unknown','必要か未確認'],['required','あり'],['none','なし']].map(([v,l])=>'<option value="'+v+'" '+((s.production?.instruments||'unknown')===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';
- if(group==='chorus')h+='<label class="quick-field">コーラス<select class="inp" id="productionChorus" aria-label="コーラスの必要性"><option value="required">あり（通常）</option><option value="none" '+(s.production?.chorus==='none'?'selected':'')+'>なし</option></select></label>';
+ if(group==='chorus')h+='<label class="quick-field">コーラス<select class="inp" id="productionChorus" aria-label="コーラスの必要性"><option value="required">あり（通常）</option><option value="none" '+(s.production?.chorus==='none'?'selected':'')+'>なし</option></select></label><button class="production-more production-button" id="productionDeferChorus">コーラス関係をまとめて未定にする</button>';
  h+='<button class="production-more production-button" id="productionAddTask">＋ 作業を追加</button>';
  s3(songTitle(s),group==='all'?'作業・確認・提出':groups[0]?.label||'作業',h,[{sp:1},{t:'閉じる',c:'btn',f:()=>hide('sheet3')}]);
  const body=document.getElementById('s3Body');wireProductionTasks(s,body,group,()=>{const top=body.scrollTop;productionTasksSheet(s,group);body.scrollTop=top});
  for(const [element,field]of [['productionInstruments','instruments'],['productionChorus','chorus']]){const el=document.getElementById(element);if(el)el.onchange=()=>{if(RO||!S.songs.includes(s))return;s.production||={};s.production[field]=el.value;productionAfterSave(s);productionTasksSheet(s,group)}}
  document.getElementById('productionAddTask').onclick=()=>productionAddTask(s,group);
+ const defer=document.getElementById('productionDeferChorus');if(defer)defer.onclick=()=>aiPreview({ops:[{t:'production_defer',s:S.songs.indexOf(s),group:'chorus'}],ans:'コーラスの未完了の予定日・締切・返事待ちを外し、今日の確認から除きます。',note:'完了済みの実績・クレジット・メモは残します。'},[],'コーラス関係をまとめて未定にする',s.id);
 }
 function productionField(label,id,value,type='text'){return '<label class="quick-field">'+esc(label)+'<input class="inp" id="'+id+'" type="'+type+'" value="'+esc(value||'')+'"></label>'}
 function productionTaskEditor(s,id,back='all'){
@@ -212,7 +213,7 @@ function productionTaskEditor(s,id,back='all'){
   logAdd(n.label+'を更新: '+songTitle(s));productionAfterSave(s);return true;
  };
  s3(songTitle(s),n.label,h,[{t:'戻る',c:'btn',f:()=>productionTasksSheet(s,back)},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(save()){productionTasksSheet(s,back);toast('保存しました')}}}]);
- document.getElementById('productionState').onchange=()=>stateChanged=true;
+ document.getElementById('productionState').onchange=e=>{stateChanged=true;if(e.target.value==='undecided')document.getElementById('productionDue').value=''};
  document.getElementById('productionDue').onchange=e=>{if(typeof workflowImpact==='function')workflowImpact(s,id,e.target.value,document.getElementById('workflowImpact'))};
  document.getElementById('productionDraft').onclick=()=>{if(save())productionDraftSheet(s,productionTask(s,id),back)};
  const sched=document.getElementById('productionSchedule');if(sched)sched.onclick=()=>{if(save())productionScheduleEditor(s,schedule[0].k,()=>productionTaskEditor(s,id,back))};
@@ -239,6 +240,7 @@ function productionScheduleEditor(s,key,back=()=>hide('sheet3')){
    if(slots.some(v=>v.date&&!ShinkouProduction.validDate(v.date)))return toast('日付を確認してください');
    const old=s.stages?.[key]?.slots||[];if(key==='instrec')slots.forEach(v=>{if(!v.date&&!v.note&&!v.who&&old.some(o=>o.slotId===v.slotId&&(o.date||o.note||o.who)))v.note='パート未定'});
    stg(s,key).slots=slots.filter(v=>v.date||v.note||v.who||old.some(o=>o.slotId===v.slotId));s.production||={};s.production.dateKinds||={};s.production.dateKinds[key]=dateKind;
+   if(stg(s,key).workState==='undecided'&&slots.some(v=>v.date&&!v.done))ShinkouProduction.apply(s,'stage:'+key,{state:'todo'},D.today());
    syncSlotAssign(s);syncSlotCredits(s);if(key==='instrec')syncInstKids(s);syncLists();productionAfterSave(s);back();toast('日程を保存しました');
   }}]);document.getElementById('scheduleAdd').onclick=()=>{read();slots.push(add());draw()};
  };draw();

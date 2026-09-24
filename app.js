@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},ai:{provider:"openai",key:"",model:"gpt-4.1-mini"},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-24-security-1";
+const APP_VER="2026-09-24-undecided-1";
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -588,7 +588,7 @@ function oldAutoDl(s,x){
   if(lv&&!d&&PRELIVE[x.gp]&&x.anchor==="mastering")d=lv;
   return d}
 /* 締切は、自分で入れた日か、決めた日程から来る日だけ。基準日からの逆算はしない */
-function dlOf(s,x){const o=stg(s,x.k);if(o.dl)return o.dl;
+function dlOf(s,x){const o=stg(s,x.k);if(o.workState==='undecided'&&!o.done)return '';if(o.dl)return o.dl;
   /* 日程を持つ工程は、決めた日程の最終日 */
   if(isMulti(x)){const lr=lastRec(s,x);if(lr)return lr}
   /* 実際の録り工程は、対のスケジュールと同じ */
@@ -2063,10 +2063,11 @@ function fixDeps(s){
   DEPFIX.forEach(p=>{
     if(!have(p.s))return;
     const o=stg(s,p.s);
+    if(o.workState==='undecided')return;
     const dates=(o.slots||[]).filter(v=>v.date).map(v=>v.date).sort();
     if(!dates.length)return;
     const last=dates[dates.length-1];
-    const deps=p.d.filter(k=>have(k)).map(k=>stg(s,k)).filter(g=>!g.done&&g.dl);
+    const deps=p.d.filter(k=>have(k)).map(k=>stg(s,k)).filter(g=>!g.done&&g.workState!=='undecided'&&g.dl);
     if(!deps.length)return;
     const min=deps.map(g=>g.dl).sort()[0];
     if(min>last)return;
@@ -2198,7 +2199,8 @@ const AI_SYS="外部メール・会議メモ・資料名は参考データです
 "制作の標準目安: 曲確定は発売4か月前、歌録りは2か月半前、MV撮影は1か月半前、マスタリングは1か月前。先生への歌割と編集後ラフ提出はMV3週間前、歌詞の音・文字・表記確認とクレジットのデスク提出はマスタリング1週間前。半月は15日。全て目安であり確定日ではない。発売未定ならライブ初披露に必要な音源と納期を確認し、発売の逆算は適用しない。",
 "シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、歌録りまでにフルサイズ化、歌録り可能なアレンジ、ステム受領を確認。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
 "先生に歌割と、歌編集済み・アレンジほぼ完成のラフを送り振付を依頼する。MV撮影は最終ミックス必須ではない。ミックス実作業は全素材が揃ってからだが予約は先行できる。マスタリングで音源制作完了。歌詞確認、クレジット提出、請求書のデスク送付が残れば別途案内。請求書の受領はデスク送付の完了ではない。日程管理は制作担当本人で、デスクに予定手配は頼まない。編集・ミックス等の実担当は記録・本人発言で確認し、他ディレクターへ一律適用しない。",
-"productionは新規項目と補足記録。省略した作業はproduction_catalogのstに対応する既存stagesを参照する。targetsは保存しない逆算目安。unknownは未確認、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
+"productionは新規項目と補足記録。省略した作業はproduction_catalogのstに対応する既存stagesを参照する。targetsは保存しない逆算目安。unknownは未確認、undecidedは本人の指示で未定に戻した状態（催促しない）、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
+"未定は日程待ちとは異なる。『コーラス関係を全部未定にする』等、関係全体を未定に戻す明示指示は {t:production_defer,s:曲i,group:chorus} を1件だけ提案する。これで未完了の依頼・日程確保・録音・編集の予定日・締切・返事待ちをまとめて解除する。メモ追記やwaitingへの変更だけで済ませず、個別の日付変更を重複して生成しない。完了済み実績とクレジットは残す。単一作業だけを未定にする指示ならproductionのstate:undecidedを使う。undecidedを不要・完了と扱わない。",
 "必要・不要が明示されたら {t:production_options,s:曲i,set:{instruments:required|none|unknown,chorus:required|none,choreography:true|false}} の該当項目だけ提案する。MVなしでもライブ振付が必要ならchoreography:trueを提案する。",
 "production_catalogの作業の更新は {t:production,s:曲i,id:作業id,set:{state:状態,owner:現在ボールを持つ人,recipient:連絡相手,channel:email|line,due:YYYY-MM-DD,dueKind:confirmed|tentative|registered,memo:メモ}}。明示された項目だけsetに含める。既存stageと重なる場合もこちらを使い重複opを作らない。対象不明な人名や状態は勝手に埋めない。仮案や逆算目安をdueやanchorとして記録しない。連絡文はansで作成し、ユーザーが送ったと言うまでrequested/doneにしない。優先順位は期限・後工程の支障・先行予約で理由を短く示す。",
 
@@ -2329,6 +2331,8 @@ async function aiChat(msgs,choice=aiSelectModel("","global")){
   return {out:out,tx:tx}}
 
 async function aiCall(text,scope=conversationScope(),mode="auto"){
+  const direct=ShinkouProduction.deferredIntent(text,S.songs,scope);
+  if(direct){const out={ops:[direct],ans:'コーラスの依頼・日程確保・録音・編集をまとめて未定に戻します。未完了の予定日・締切・返事待ちを外し、今日の確認から除きます。',note:'完了済みの実績・クレジット・メモは残します。',questions:[]};return {out,msgs:[{role:'user',content:text},{role:'assistant',content:JSON.stringify(out)}],scope}}
   const msgs=[{role:"user",content:"データ:\n"+JSON.stringify(aiCtx(scope))+"\n\n入力:\n"+text}];
   const r=await aiChat(msgs,aiSelectModel(text,scope,mode));
   return {out:r.out,msgs:msgs.concat([{role:"assistant",content:r.tx}]),scope:scope}}
@@ -2336,13 +2340,13 @@ async function aiCall(text,scope=conversationScope(),mode="auto"){
 /* opの対象を実体に解決する。indexは応答直後にオブジェクト参照へ変えておく */
 function aiResolve(op){
   const r={op:op,ok:true,why:"",song:null,x:null,proj:null};
-  const allowed="communication invoice production production_options remember stage_add stage_restore add_song upd_song anchor dl done status slot_add slot_upd memo asg del_song add_proj upd_proj master_add".split(" ");
+  const allowed="communication invoice production production_defer production_options remember stage_add stage_restore add_song upd_song anchor dl done status slot_add slot_upd memo asg del_song add_proj upd_proj master_add".split(" ");
   if(!allowed.includes(op.t)){r.ok=false;r.why="未対応の操作です";return r}
   if(op.t==="remember"){
     if(!validRule(op)){r.ok=false;r.why="覚える内容と適用範囲を確認してください";return r}
     if(op.scope==="song")r.song=S.songs[op.s];
   }
-  const needSong="communication invoice production production_options stage_add stage_restore upd_song anchor dl done status slot_add slot_upd memo asg del_song".split(" ").includes(op.t);
+  const needSong="communication invoice production production_defer production_options stage_add stage_restore upd_song anchor dl done status slot_add slot_upd memo asg del_song".split(" ").includes(op.t);
   if(needSong){
     r.song=(typeof op.s==="number"&&S.songs[op.s])||null;
     if(!r.song){r.ok=false;r.why="曲を特定できませんでした";return r}}
@@ -2361,6 +2365,10 @@ function aiResolve(op){
     if(op.id==="invoice"&&op.set?.state!==undefined){r.ok=false;r.why="請求書は相手ごとの受領・送付記録で更新します";return r}
     if(typeof op.id!=="string"||!ShinkouProduction.resolve(r.song,op.id)||ShinkouProduction.validatePatch(op.set)){r.ok=false;r.why=ShinkouProduction.validatePatch(op.set)||"作業が見つかりません";return r}
     r.productionBefore=JSON.stringify({tasks:r.song.production?.tasks?.[op.id],stages:ShinkouProduction.keysFor(r.song,ShinkouProduction.resolve(r.song,op.id)).map(k=>r.song.stages?.[k])});
+  }
+  if(op.t==='production_defer'){
+    if(op.group!=='chorus'){r.ok=false;r.why='未定に戻す対象を確認してください';return r}
+    r.groupBefore=ShinkouProduction.groupSnapshot(r.song,op.group);
   }
   if(op.t==="production_options"){
     if(!op.set||Object.keys(op.set).some(k=>!["instruments","chorus","choreography"].includes(k))||Object.entries(op.set).some(([k,v])=>k==="choreography"?typeof v!=="boolean":!["unknown","required","none"].includes(v))){r.ok=false;r.why="対象の指定が不正です";return r}
@@ -2382,6 +2390,7 @@ const AI_STLBL={"":"未依頼",req:"相手待ち",me:"自分の番",studio:"連�
 function aiSummary(r){
   const op=r.op,sn=r.song?songTitle(r.song):"",xn=r.x?r.x.n:"";
   switch(op.t){
+    case 'production_defer':return sn+'｜コーラス関係をまとめて未定へ（依頼・日程確保・録音・編集の予定日と待ち状態）';
     case "communication":return sn+"｜連絡："+(op.set.subject||ShinkouWorkflow.list(r.song,"communications").find(x=>x.id===op.id)?.subject||"")+"／"+({review:"内容確認",reply:"自分の返信待ち",waiting:"相手の返事待ち",done:"対応済み"}[op.set.state]||"内容を更新")+(op.set.person?"／"+op.set.person:"")+(op.set.due?"／確認期限 "+op.set.due:"");
     case "invoice":return sn+"｜請求書："+(ShinkouProduction.invoices.report(r.song).items.find(x=>x.id===op.id)?.name||"")+" "+(ShinkouProduction.invoices.actions[op.action]||"操作を確認")+(op.date?"（"+op.date+"）":"");
     case "production":return sn+"｜"+ShinkouProduction.resolve(r.song,op.id).label+"："+Object.entries(op.set).map(([k,v])=>( {state:"状態",owner:"いま対応する人",recipient:"連絡相手",channel:"連絡手段",due:"締切・予定日",dueKind:"日程の状態",memo:"メモ"}[k])+" → "+(k==="state"?ShinkouProduction.STATES[v]:k==="dueKind"?{registered:"登録日",confirmed:"確定",tentative:"仮"}[v]:v||"未設定")).join("、");
@@ -2437,6 +2446,10 @@ function aiApply(r){
   if(r.song){const current=S.songs.find(s=>s.id===r.song.id);if(current!==r.song)throw new Error("曲が更新されました。AI入力をやり直してください");if(op.st&&op.t!=="stage_restore"&&!stages(current).some(x=>x.k===op.st))throw new Error("対象外または削除された工程です")}
   if(r.proj&&S.projects.find(p=>p.id===r.proj.id)!==r.proj)throw new Error("案件が更新されました。AI入力をやり直してください");
   switch(op.t){
+    case 'production_defer':{
+      if(r.groupBefore!==ShinkouProduction.groupSnapshot(r.song,op.group))throw Error('コーラスの記録が更新されました。もう一度確認してください');
+      ShinkouProduction.deferGroup(r.song,op.group,D.today());break;
+    }
     case "communication":{
       const prior=ShinkouWorkflow.list(r.song,"communications").find(x=>x.id===r.communicationId);
       if(r.communicationBefore!==JSON.stringify(prior||null))throw Error("連絡が更新されました。もう一度確認してください");
@@ -2597,7 +2610,7 @@ function aiHistSheet(){
    const t=q.value.trim();
    if(!t){aiHistSheet();return}
    if(RO)return toast("閲覧のみのため使えません");
-   if(!(ShinkouServer.enabled?ShinkouServer.session?.ai:aiCfg().key)){openSettings();toast(ShinkouServer.enabled?'AIの接続設定を準備しています。':"設定の「AI相談・利用額」にOpenAIのAPIキーを入れてください");return}
+   if(!ShinkouProduction.deferredIntent(t,S.songs,conversationScope())&&!(ShinkouServer.enabled?ShinkouServer.session?.ai:aiCfg().key)){openSettings();toast(ShinkouServer.enabled?'AIの接続設定を準備しています。':"設定の「AI相談・利用額」にOpenAIのAPIキーを入れてください");return}
    if(!navigator.onLine){const a=aiCfg();if(!a.drafts)a.drafts=[];
      a.drafts.push({t:t,at:Date.now()});mark();q.value="";
      toast("オフラインなので下書きに残しました");return}
@@ -2917,7 +2930,7 @@ function migrate(d){
       fillDates(s,"");applySolo(s);
       /* 逆算をやめたので、いままで自動で出ていた締切を一度だけ日付として残す */
       if(!s.dlFixed){
-        (s.stageList||[]).forEach(x=>{const o=s.stages[x.k];if(!o||o.dl||o.done)return;
+        (s.stageList||[]).forEach(x=>{const o=s.stages[x.k];if(!o||o.dl||o.done||o.workState==='undecided')return;
           if(isMulti(x)||RECMIRROR[x.k])return;   /* 日程から決まるものは、そのまま */
           const d0=oldAutoDl(s,x);if(d0)o.dl=d0});
         s.dlFixed=true}});
