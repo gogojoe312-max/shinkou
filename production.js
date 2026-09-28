@@ -7,9 +7,9 @@ const GROUPS=[['plan','企画・デモ'],['arrange','アレンジ'],['vocal','�
 const defs=[
  ['theme','曲のテーマ','plan',[],[]],['order','曲発注','plan',['gather'],['theme']],
  ['lyricOrder','歌詞発注','plan',[],['theme']],['lyrics','歌詞制作','plan',['lyric'],['lyricOrder']],
- ['guide','仮歌','plan',['kario'],['lyrics']],['demo','デモ完成','plan',['demo'],['guide']],
+ ['guide','仮歌','plan',['kario'],['lyrics']],['demo','企画デモ完成（2コーラス・ラフアレンジ）','plan',['demo'],['guide']],
  ['selection','曲の確定','plan',['meeting','pick'],['demo']],
- ['full','フルサイズ化','arrange',[],['selection']],['recordable','歌録り用アレンジ','arrange',[],['full']],
+ ['full','曲・歌詞のフルサイズ化','plan',['full'],['selection']],['recordable','アレンジを詰める（歌録り用）','arrange',['recordable'],['full']],
  ['stems','ステム受領','arrange',['stemR'],['recordable']],['arrange','アレンジ最終完成','arrange',['arr'],['selection']],
  ['vocalBooking','歌録りの日程・スタジオ確保','vocal',['vo'],['selection']],
  ['vocal','歌録り','vocal',['vodb'],['full','recordable','stems','vocalBooking']],
