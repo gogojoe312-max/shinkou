@@ -81,8 +81,8 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
  const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
  const input=norm(text),prior=norm(previousText),history=/(履歴|過去|以前の|完了済|終了済|終わった(?:方|ほう|曲|工程)|再開|やり直|両方|全曲|完了分も)/.test(input);
  const aliases={'ochanorma':['ocha','オチャノーマ'],'ロージークロニクル':['ロージー'],'譜久村聖':['譜久村']};
- const bulk=/(全部|すべて|全て|全曲|まとめて|一括)/.test(input);
- const requestedKind=/シングル/.test(input)?'シングル':/アルバム/.test(input)?'アルバム':/(ライブ|公演)/.test(input)?'ライブ':'';
+ const bulk=/(全部|すべて|全て|全曲|全工程|全行程|まとめて|一括)/.test(input);
+ const requestedKind=/シングル/.test(input)?'シングル':/アルバム/.test(input)?'アルバム':/原盤/.test(input)?'原盤':/(ライブ|公演)/.test(input)?'ライブ':'';
  const excludeKind=!!requestedKind&&new RegExp(requestedKind+'(?:曲)?(?:以外|を除く|は除く)').test(input);
  const rows=songs.map((s,i)=>{const p=projects.find(p=>p.id===s.projectId),r=report(s,{today,release:p?.release}),artist=s.artist||p?.artist||'',names=[artist,...(aliases[norm(artist)]||[]),p?.custom].map(norm).filter(v=>v.length>=2);
    const work=r.nodes.filter(n=>!['invoice','lyricCheck','credits'].includes(n.id));
@@ -90,7 +90,8 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
    return {i,s,p,r,complete,title:norm(s.title||s.work),qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
  });
  const focus=rows.find(x=>x.s.id===scope);
- if(scope!=='global')return {indices:focus?[focus.i]:[],selected:focus?.i??-1,reason:'open_song',history,rows};
+ const explicitScope=rows.some(x=>x.qualified)||(requestedKind!=='')||!!focus&&rows.some(x=>x.s.id!==scope&&x.title!==focus?.title&&x.title.length>=2&&input.includes(x.title));
+ if(scope!=='global'&&!explicitScope)return {indices:focus?[focus.i]:[],selected:focus?.i??-1,reason:'open_song',history,rows};
  const freshMentions=rows.filter(x=>x.title.length>=2&&input.includes(x.title));
  const freshArtist=rows.some(x=>x.qualified);
  const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:(freshArtist||requestedKind)?[]:rows.filter(x=>x.title.length>=2&&prior.includes(x.title));
@@ -102,7 +103,8 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
  if(requestedKind)candidates=candidates.filter(x=>{
    const live=x.s.use==='live'||x.s.templateId==='tpl_show'||x.p?.kind==='ライブ';
    const kind=live?'ライブ':x.p?.kind||(x.s.sort==='single'||x.s.single===true?'シングル':x.s.sort==='album'||x.s.single===false?'アルバム':'');
-   return excludeKind?kind!==requestedKind:kind===requestedKind;
+   const match=requestedKind==='原盤'?!live:kind===requestedKind;
+   return excludeKind?!match:match;
  });
  const taskAliases={invoice:['請求書'],credits:['クレジット'],lyricCheck:['歌詞確認']};
  const labels=[...new Set(candidates.flatMap(x=>x.r.nodes.filter(n=>[n.label,...(taskAliases[n.id]||[])].some(label=>{const name=norm(label);return name.length>=2&&input.includes(name)&&!named.some(x=>x.title.includes(name));})).map(n=>n.label)))];

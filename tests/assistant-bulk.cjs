@@ -21,3 +21,12 @@ test('kind exclusion is respected and reads do not change completion',()=>{
  assert.deepEqual(select('ロージーのシングル以外を全部').indices,[4,5,6,7]);
  assert.equal(JSON.stringify(songs),before);
 });
+
+test('screenshot request overrides an open live SE and includes both artists master tracks',()=>{
+ const r=P.consultationTargets(songs,projects,'譜久村、ロージー原盤曲の全行程完了にして','l0','2026-09-29');
+ assert.deepEqual(r.indices,[0,1,2,3,4,5]);assert.equal(r.bulk,true);assert.equal(r.requestedKind,'原盤');
+});
+test('ordinary continuation stays on open song but explicit other song takes precedence',()=>{
+ assert.deepEqual(P.consultationTargets(songs,projects,'ミックス完了','l0','2026-09-29').indices,[6]);
+ assert.deepEqual(P.consultationTargets(songs,projects,'f曲0のミックス完了','l0','2026-09-29').indices,[0]);
+});
