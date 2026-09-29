@@ -161,6 +161,19 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
 // Read related records together without changing saved completion checks or dates.
 function interpretFlow(s,nodes){
  const byKey=k=>nodes.find(n=>n.keys.includes(k)),byTask=id=>nodes.find(n=>n.id===id),live=isShow(s);
+ // Custom remakes/SE have their own stage IDs: connect their actual work, not
+ // excluded standard mix/vocal nodes. Scheduling can still happen in parallel.
+ if(s.customWorkflow&&!live){
+  const work=nodes.filter(n=>(n.stage||['mixBooking','mix','master'].includes(n.id))&&!n.shared&&n.state!=='na');
+  const booking=n=>/日程|スタジオ.*(?:調整|確保)|予約/.test(n.label);
+  const phase=n=>booking(n)?-1:/マスタリング|マスター/.test(n.label)?8:n.id==='mix'?6:/TD.*(?:確認|承認|OK)|ミックス.*(?:確認|承認|OK)/i.test(n.label)?7:/ミックス|トラックダウン|\bTD\b/i.test(n.label)?6:/エディット|編集/.test(n.label)?5:/依頼|発注/.test(n.label)?1:/共有|版確認|録音準備/.test(n.label)?3:/レコーディング|録音|歌録り|歌の録り直し|収録/.test(n.label)?4:n.group==='plan'?0:/既存.*素材|ステム.*受領/.test(n.label)?1:n.group==='arrange'||/効果音.*制作/.test(n.label)?2:0;
+  for(const n of work){
+   const rank=phase(n),definition=(s.stageList||[]).find(x=>n.keys.includes(x.k));
+   const explicit=(definition?.dependsOn||[]).map(k=>byTask(k)||byKey(k)).filter(x=>x&&x!==n);
+   const preceding=rank<0?[]:work.filter(x=>x!==n&&(phase(x)>=0&&phase(x)<rank||rank===4&&booking(x)&&x.id!=='mixBooking'));
+   n.deps=[...new Set([...n.deps,...explicit.map(x=>x.id),...preceding.map(x=>x.id)])];
+  }
+ }
  for(const n of nodes){
   const contacts=(s.workflow?.communications||[]).filter(c=>c.taskId===n.id&&c.state!=='done').sort((a,b)=>(Number(b.updatedAt)||0)-(Number(a.updatedAt)||0));
   const c=contacts[0];
@@ -251,7 +264,7 @@ function showReport(s,today){
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  for(const n of nodes)n.blockers=n.deps.filter(id=>!node[id].done&&!node[id].actionCoveredBy);
  const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id&&!n.actionCoveredBy),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
- const pending=nodes.filter(n=>!n.done&&!n.actionCoveredBy),actions=pending.filter(n=>n.state!=='undecided'&&(!n.blockers.length||!['unknown','todo'].includes(n.state))).map(nextAction).sort((a,b)=>a.score-b.score);
+ const pending=nodes.filter(n=>!n.done&&!n.actionCoveredBy),actions=pending.filter(n=>n.state!=='undecided'&&!n.blockers.length).map(nextAction).sort((a,b)=>a.score-b.score);
  const dates=Object.fromEntries(['open','rehearsal','deliver','live'].map(k=>[k,{value:s.dates?.[k]||'',kind:s.production?.dateKinds?.[k]||'registered',source:''}]));
  return {applicable:true,custom:true,nodes,node,groups,dates,mv:false,audioComplete:nodes.length>0&&!pending.length,archive:nodes.length>0&&!pending.length&&!workflowPending(s),actions,balls:pending.filter(n=>n.wait||['doing','review','received','waiting'].includes(n.state)).map(ball),gaps:[],extra:[],admin:[],today};
 }
@@ -329,13 +342,24 @@ function report(s,opt={}){
  let frontier=0;sequence.forEach((id,i)=>{if(node[id].state==='done')frontier=i+1});
  const level={theme:0,order:0,lyricOrder:0,lyrics:0,guide:0,demo:0,selection:0,full:1,recordable:1,stems:1,arrange:3,vocalBooking:1,vocal:2,split:3,edit:3,chorusRequest:4,chorus:4,instrument:3,almost:3,rough:3,teacher:3,mixBooking:1,materials:5,mix:5,master:6,lyricCheck:4,credits:4,invoice:6};
  const pending=nodes.filter(n=>!n.done&&!n.actionCoveredBy);
- function score(n){let v=(n.left===null?100:Math.max(-120,n.left))+(n.due.kind==='target'?8:0);if(n.left!==null&&n.left<0)v-=120;if(n.state==='unknown')v+=10;if(n.blockers.length)v+=20;if(['vocalBooking','mixBooking'].includes(n.id))v-=20;return v}
+ function score(n){let v=(n.left===null?100:Math.max(-120,n.left))+(n.due.kind==='target'?8:0);if(n.left!==null&&n.left<0)v-=120;if(n.state==='unknown')v+=10;if(n.blockers.length)v+=20;if(n.id==='vocalBooking')v-=20;if(n.id==='mixBooking')v+=pending.some(x=>['plan','arrange','vocal','chorus','instrument'].includes(x.group))?30:-20;return v}
  const actions=pending.filter(n=>n.state!=='undecided'&&(n.stage||n.state!=='unknown'||(level[n.id]>=Math.max(0,frontier-1)&&level[n.id]<=Math.max(1,frontier))||n.left!==null&&n.left<=14));
  if(node.master.state==='done')for(const n of pending.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)))if(!actions.includes(n))actions.push(n);
  for(const a of actions.slice())if(a.left!==null&&a.left<=21)for(const id of a.blockers)if(node[id].state!=='undecided'&&!actions.includes(node[id]))actions.push(node[id]);
  const urgency=new Map();
  for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||n.state==='undecided'||n.actionCoveredBy||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'登録日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
- const ranked=actions.map(n=>{
+ // A deadline must not turn a blocked downstream job into the next executable
+ // action. Follow prerequisites even when they have no deadline of their own.
+ const visited=new Set();
+ function includePrerequisites(n){
+  if(visited.has(n.id))return;visited.add(n.id);
+  for(const id of n.blockers){const before=node[id];if(!before||before.done||before.state==='undecided'||before.actionCoveredBy)continue;
+   if(!actions.includes(before))actions.push(before);includePrerequisites(before);
+  }
+ }
+ actions.slice().forEach(includePrerequisites);
+ const executable=actions.filter(n=>!n.blockers.length);
+ const ranked=executable.map(n=>{
    let title=nextAction(n).title;
    let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
    if(n.wait)reason=nextAction(n).reason;
@@ -421,5 +445,4 @@ function dropboxURL(value){
 root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
-
 
