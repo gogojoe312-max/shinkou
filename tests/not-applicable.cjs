@@ -1,0 +1,6 @@
+const assert=require('node:assert/strict'),P=require('../production.js'),vm=require('node:vm'),fs=require('node:fs');
+const s={sort:'album',dates:{},credits:[],production:{tasks:Object.fromEntries(P.defs.map(d=>[d.id,{excluded:true}]))},stageList:[{k:'rec',n:'再録',productionGroup:'vocal'},{k:'mix2',n:'TD',productionGroup:'finish'}],stages:{rec:{workState:'todo'},mix2:{workState:'todo'}}};
+const r=P.report(s);
+for(const id of ['plan','arrange','chorus','instrument']){const g=r.groups.find(g=>g.id===id);assert.equal(g.done,true);assert.equal(g.text,'対象外');}
+assert.equal(r.groups.find(g=>g.id==='vocal').done,false);assert.equal(r.groups.find(g=>g.id==='vocal').text,'これから');
+const ctx={ShinkouProduction:P,esc:String,productionDate:()=>'',productionDateKind:()=>''};vm.createContext(ctx);const src=fs.readFileSync(__dirname+'/../production-ui.js','utf8');vm.runInContext(src.slice(src.indexOf('function productionTaskRow'),src.indexOf('function productionToggleTask')),ctx);const h=ctx.productionTaskRow(s,r.node.theme);assert(h.includes('aria-checked="true"'));assert(h.includes('✓'));assert(h.includes('disabled'));assert(h.includes('対象外'));assert(!h.includes('を未完了に戻す'));console.log('PASS: not applicable groups and rows checked; remaining recording stays incomplete');

@@ -278,6 +278,9 @@ function report(s,opt={}){
    if(id==='instrument'&&node.instrument.applicability==='unknown')text='必要か確認';
    let done=id==='plan'?node.selection.state==='done':id==='vocal'?node.edit.done&&node.split.done:id==='arrange'?node.arrange.state==='done':id==='finish'?node.master.state==='done':list.every(n=>n.done);
    if(done&&list.some(n=>n.stage&&!n.done&&(n.state!=='unknown'||n.due.value))){done=false;text+=' · 残りを確認'}
+   const required=list.filter(n=>n.state!=='na');
+   if(!required.length){done=true;text='対象外'}
+   else if(list.filter(n=>!n.stage).every(n=>n.state==='na')){done=required.every(n=>n.done);text=STATES[state]||'一部完了'}
    return {id,label,state,text,done};
  });
  const sequence=['selection','recordable','vocal','edit','chorus','mix','master'];
