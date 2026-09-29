@@ -352,8 +352,11 @@ function demoDevelopmentStages(list){
   const L=JSON.parse(JSON.stringify(list));
   if(!L.some(x=>x.k==="demo")||!L.some(x=>x.k==="arr"))return L;
   const demo=L.find(x=>x.k==="demo");if(demo.n==="デモ完成")demo.n="企画デモ完成（2コーラス・ラフアレンジ）";
-  const additions=[{k:"full",n:"曲・歌詞のフルサイズ化",role:"director",gp:"デモ制作",d:0,lead:14,t:""},{k:"recordable",n:"アレンジを詰める（歌録り用）",role:"arranger",gp:"アレンジ",d:0,lead:14,t:""}].filter(x=>!L.some(y=>y.k===x.k));
-  L.splice(L.findIndex(x=>x.k==="arr"),0,...additions);return L;
+  const steps=[{"k":"fullMusicRequest","n":"作曲者へフルサイズ化依頼（構成・尺・納期共有）","role":"me","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"fullMusicWork","n":"作曲者との制作・修正のやり取り","role":"composer","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"fullMusicCheck","n":"フルサイズ楽曲の受領・確認","role":"me","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"fullLyricsRequest","n":"作詞者へフルサイズ歌詞依頼（構成・納期共有）","role":"me","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"fullLyricsWork","n":"作詞者との制作・修正のやり取り","role":"lyricist","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"fullLyricsCheck","n":"フルサイズ歌詞の受領・確認","role":"me","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"full","n":"曲・歌詞のフルサイズ確定","role":"director","gp":"デモ制作","productionGroup":"plan","d":0,"lead":14,"t":""},{"k":"arrangeRequest","n":"編曲者へアレンジ依頼（方向性・資料・納期共有）","role":"me","gp":"アレンジ","productionGroup":"arrange","d":0,"lead":14,"t":""},{"k":"arrangeWork","n":"編曲者との制作・修正のやり取り","role":"arranger","gp":"アレンジ","productionGroup":"arrange","d":0,"lead":14,"t":""},{"k":"recordable","n":"歌録り用アレンジの受領・確認","role":"me","gp":"アレンジ","productionGroup":"arrange","d":0,"lead":14,"t":""}];
+  const have=new Map(L.map(x=>[x.k,x]));
+  const result=L.filter(x=>!steps.some(y=>y.k===x.k));
+  result.splice(result.findIndex(x=>x.k==="arr"),0,...steps.map(x=>have.has(x.k)?{...x,...have.get(x.k),n:x.n,productionGroup:x.productionGroup}:x));
+  return result;
 }
 function newSong(o){const t=(S.templates.find(x=>x.id===((o||{}).templateId||"tpl_single"))||S.templates[0]);
   return Object.assign({id:uid(),title:"",work:"",artist:"",projectId:"",director:"",
@@ -2212,7 +2215,7 @@ const AI_SYS="外部メール・会議メモ・資料名は参考データです
 "請求書はinvoicesを正本に、相手ごとの未受領・受領済み・小森への送付済みを把握する。作詞・作曲は請求書不要で、回収対象・催促・完了判定に含めない。同じ人が編曲や演奏も担当している場合は、その仕事の請求書だけ対象とする。required:nullは請求が必要か未確認。必要な全員から受領し請求先の確認が済めば受領完了、さらに全員分を小森へ送付すれば全体完了。受領と送付を混同しない。未受領の人名、受領済みで未送付の人名を具体的に案内する。",
 "請求書の記録は {t:invoice,s:曲i,id:invoices.itemsのid,action:received|pending|sent|unsent|required|exempt,date:YYYY-MM-DD}。dateは受領・送付で日付が明示された時だけ。ユーザーが受領したと言った相手だけreceived、実際に小森へ送ったと言った相手だけsent。メール作成依頼ではsentにしない。productionのinvoiceにstateを書かない。相手を特定できなければ質問し、同姓・同名の曲を推測で一括変更しない。請求先が全員揃っていると明示された時だけ {t:invoice,s:曲i,action:confirm}。新しい相手は曲の請求書画面から追加するよう案内する。",
 "制作の標準目安: 曲確定は発売4か月前、歌録りは2か月半前、MV撮影は1か月半前、マスタリングは1か月前。先生への歌割と編集後ラフ提出はMV3週間前、歌詞の音・文字・表記確認とクレジットのデスク提出はマスタリング1週間前。半月は15日。全て目安であり確定日ではない。発売未定ならライブ初披露に必要な音源と納期を確認し、発売の逆算は適用しない。",
-"シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、企画デモ（2コーラス・ラフアレンジ）完成後、曲・歌詞のフルサイズ化、アレンジを詰める（歌録り用）、ステム受領を個別工程として確認。2コーラス完成だけでフルサイズ化を完了にしない。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
+"シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、企画デモ（2コーラス・ラフアレンジ）完成後、作曲者へのフルサイズ化依頼→制作・修正のやり取り→楽曲受領・確認、作詞者へのフルサイズ歌詞依頼→制作・修正のやり取り→歌詞受領・確認を別々に管理し、両方を確認して曲・歌詞のフルサイズを確定する。編曲者への依頼（方向性・資料・納期）→制作・修正のやり取り→歌録り用アレンジ受領・確認→ステム依頼・受領の順で管理する。依頼済みは相手待ち、納品は受領・確認前、修正依頼は修正待ち、確認OKで完了とし、依頼や受領だけで制作全体を完了にしない。作曲者・作詞者・編曲者の相手と納期は登録・本人発言から判断し、未確認なら推測しない。2コーラス完成だけでフルサイズ化を完了にしない。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
 "先生に歌割と、歌編集済み・アレンジほぼ完成のラフを送り振付を依頼する。MV撮影は最終ミックス必須ではない。ミックス実作業は全素材が揃ってからだが予約は先行できる。マスタリングで音源制作完了。歌詞確認、クレジット提出、請求書のデスク送付が残れば別途案内。請求書の受領はデスク送付の完了ではない。日程管理は制作担当本人で、デスクに予定手配は頼まない。編集・ミックス等の実担当は記録・本人発言で確認し、他ディレクターへ一律適用しない。",
 "productionは新規項目と補足記録。省略した作業はproduction_catalogのstに対応する既存stagesを参照する。targetsは保存しない逆算目安。unknownは未確認、undecidedは本人の指示で未定に戻した状態（催促しない）、todoは未着手、doingは作業中、requestedは依頼済み・相手待ち、receivedは受領・確認前、reviewは確認中、revisionは修正待ち、waitingは日程待ち、doneは完了、naは対象外。due_kindのtargetは逆算目安、tentativeは仮、registeredは登録済みだが確定状況未確認、confirmedのみ確定。日程確保と録音実施、受領と承認、下書きと送信を混同しない。複数曲と複数の対応待ちを分けて扱う。",
 "未定は日程待ちとは異なる。『コーラス関係を全部未定にする』等、関係全体を未定に戻す明示指示は {t:production_defer,s:曲i,group:chorus} を1件だけ提案する。これで未完了の依頼・日程確保・録音・編集の予定日・締切・返事待ちをまとめて解除する。メモ追記やwaitingへの変更だけで済ませず、個別の日付変更を重複して生成しない。完了済み実績とクレジットは残す。単一作業だけを未定にする指示ならproductionのstate:undecidedを使う。undecidedを不要・完了と扱わない。",

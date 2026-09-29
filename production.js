@@ -9,7 +9,7 @@ const defs=[
  ['lyricOrder','歌詞発注','plan',[],['theme']],['lyrics','歌詞制作','plan',['lyric'],['lyricOrder']],
  ['guide','仮歌','plan',['kario'],['lyrics']],['demo','企画デモ完成（2コーラス・ラフアレンジ）','plan',['demo'],['guide']],
  ['selection','曲の確定','plan',['meeting','pick'],['demo']],
- ['full','曲・歌詞のフルサイズ化','plan',['full'],['selection']],['recordable','アレンジを詰める（歌録り用）','arrange',['recordable'],['full']],
+ ['full','曲・歌詞のフルサイズ確定','plan',['full'],['selection']],['recordable','歌録り用アレンジの受領・確認','arrange',['recordable'],['full']],
  ['stems','ステム受領','arrange',['stemR'],['recordable']],['arrange','アレンジ最終完成','arrange',['arr'],['selection']],
  ['vocalBooking','歌録りの日程・スタジオ確保','vocal',['vo'],['selection']],
  ['vocal','歌録り','vocal',['vodb'],['full','recordable','stems','vocalBooking']],
@@ -130,6 +130,24 @@ function interpretFlow(s,nodes){
    n.state=c.state==='waiting'?'requested':c.state==='reply'?'doing':'review';n.wait=c.state==='waiting';
    n.owner=c.state==='reply'||c.state==='review'?'自分':c.person||n.owner;n.recipient=c.person||n.recipient;n.communicationId=c.id;
   }
+ }
+ // Explicit commissioning, delivery and approval are separate; legacy songs without these stages keep their records.
+ const developmentDeps={
+  'stage:fullMusicRequest':['selection'],
+  'stage:fullMusicWork':['stage:fullMusicRequest'],
+  'stage:fullMusicCheck':['stage:fullMusicWork'],
+  'stage:fullLyricsRequest':['selection'],
+  'stage:fullLyricsWork':['stage:fullLyricsRequest'],
+  'stage:fullLyricsCheck':['stage:fullLyricsWork'],
+  full:['stage:fullMusicCheck','stage:fullLyricsCheck'],
+  'stage:arrangeRequest':['selection'],
+  'stage:arrangeWork':['stage:arrangeRequest','full'],
+  recordable:['stage:arrangeWork','full'],
+  'stage:stemO':['recordable'],stems:['stage:stemO'],
+  arrange:['stage:arrangeRequest','stage:arrangeWork']
+ };
+ if(!live)for(const [id,deps] of Object.entries(developmentDeps)){
+  const n=byTask(id);if(n)n.deps=[...new Set([...n.deps,...deps.filter(dep=>byTask(dep))])];
  }
  const pairs=live?[[byKey('order'),byKey('build')||byKey('rec2')]]:[[byKey('stemO'),byTask('stems')],[byKey('paraO'),byKey('paraR')],[byTask('lyricOrder'),byTask('lyrics')],[byTask('chorusRequest'),byTask('chorus')]];
  for(const [order,work]of pairs)if(order&&work&&!order.done&&!order.wait&&['requested','revision','received','review','done'].includes(work.state))order.actionCoveredBy=work.id;
