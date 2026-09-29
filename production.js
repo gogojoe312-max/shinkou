@@ -41,10 +41,24 @@ const RELEASE_TASKS=[
  {id:'tracklist',label:'曲順・収録バージョン確定'},
  {id:'connections',label:'SE・曲間・接続の指定'},
  {id:'listen',label:'全曲通し確認（音量感・曲間・全体尺）'},
- {id:'desk',label:'音源・歌詞・クレジットをデスクへ提出'},
+ {id:'lyricCheck',label:'全曲の歌詞チェック（音・文字・表記）'},
+ {id:'credits',label:'作品全体のクレジットを取りまとめ・デスクへ提出'},
+ {id:'desk',label:'音源・確認済み歌詞をデスクへ提出'},
  {id:'masterDelivery',label:'最終音源・曲順・曲間指定をマスタリングへ提出'},
  {id:'masterApproval',label:'マスター全曲確認・最終OK'}
 ];
+
+function releaseTask(project,id,songs=[]){
+ const saved=project?.productionTasks?.[id];if(saved)return saved;
+ if(!['lyricCheck','credits'].includes(id))return {};
+ const records=songs.filter(s=>s.projectId===project?.id&&!isShow(s)).map(s=>s.production?.tasks?.[id]||{}).filter(x=>!x.excluded&&x.state!=='na');
+ return {state:records.length&&records.every(x=>x.state==='done')?'done':records.some(x=>x.state&&x.state!=='done')?'todo':'unknown',memo:records.filter(x=>x.memo).map(x=>x.memo).join('\n')};
+}
+function orderedNodes(nodes){
+ const pending=nodes.slice(),out=[],ids=new Set(nodes.map(n=>n.id));
+ while(pending.length){let i=pending.findIndex(n=>n.deps.every(d=>!ids.has(d)||out.some(x=>x.id===d)));if(i<0)i=0;out.push(pending.splice(i,1)[0]);}
+ return out;
+}
 
 const byId=Object.fromEntries(defs.map(d=>[d.id,d]));
 const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
@@ -170,9 +184,24 @@ function interpretFlow(s,nodes){
  };
  for(const x of WORKFLOW_STEPS)developmentDeps['stage:'+x.k]=x.deps;
  Object.assign(developmentDeps,{
+ guide:['stage:guideRequest','stage:guideBooking'],
+ demo:['stage:guideCheck'],
+ 'stage:guideBooking':['stage:guideRequest'],
+ 'stage:stemM':['stems'],
+ 'stage:voes':['vocalBooking'],
  vocal:['stage:vocalShare','stage:vocalReady'],
+ edit:['stage:voes'],
+ 'stage:cho':['chorusRequest'],
+ chorus:['stage:chorusBrief','stage:cho','stage:choes'],
+ 'stage:choes':['chorusRequest'],
+ 'stage:instrec':['stage:instrumentRequest'],
+ 'stage:arrangeFinalCheck':['edit','chorus','instrument'],
+ arrange:['stage:arrangeFinalCheck'],
+ 'stage:paraR':['stage:paraO'],
+ 'stage:paraM':['stage:paraR'],
+ 'stage:paraS':['stage:paraM'],
  chorusRequest:['stage:editCheck'],
- instrument:['stage:instrumentRequest','stage:instrumentBrief'],
+ instrument:['stage:instrumentRequest','stage:instrumentBrief','stage:instrec'],
  materials:['stage:editCheck','stage:chorusCheck','stage:instrumentCheck','stage:arrangeFinalCheck'],
  mix:['stage:mixBrief'],
  master:['stage:masterBooking','stage:masterSend','stage:deskPackage']
@@ -207,6 +236,7 @@ function showReport(s,today){
  const nodes=definitions(s).map(d=>stageNode(s,d,today));
  if(invoices.report(s).items.length||s.invoiceTracking)nodes.push(invoiceNode(s,{...byId.invoice,keys:[],group:'custom:請求書',due:{value:'',kind:'registered'},blockers:[],left:null}));
  interpretFlow(s,nodes);
+ if(s.projectId)for(const n of nodes)if(['lyricCheck','credits','stage:deskPackage'].includes(n.id))Object.assign(n,{shared:true,state:'na',done:true,excluded:true,wait:false});
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  for(const n of nodes)n.blockers=n.deps.filter(id=>!node[id].done&&!node[id].actionCoveredBy);
  const groups=[...new Set(nodes.map(n=>n.group))].map(id=>{const list=nodes.filter(n=>n.group===id&&!n.actionCoveredBy),state=aggregate(list.map(n=>n.state));return {id,label:id.slice(7),state,text:STATES[state]||'一部完了',done:list.every(n=>n.done)}});
@@ -263,6 +293,7 @@ function report(s,opt={}){
  });
  Object.assign(nodes.find(n=>n.id==='invoice'),invoiceNode(s,nodes.find(n=>n.id==='invoice')));
  interpretFlow(s,nodes);
+ if(s.projectId)for(const n of nodes)if(['lyricCheck','credits','stage:deskPackage'].includes(n.id))Object.assign(n,{shared:true,state:'na',done:true,excluded:true,wait:false});
  const node=Object.fromEntries(nodes.map(n=>[n.id,n]));
  // 最終完成から用途別の到達点は読めるが、原記録には書き込まない。
  if(node.arrange.state==='done')for(const id of ['recordable','almost'])if(node[id].state==='unknown'){Object.assign(node[id],{state:'done',done:true,derived:true})}
@@ -376,6 +407,7 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
+root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
