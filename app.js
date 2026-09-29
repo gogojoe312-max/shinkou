@@ -361,7 +361,7 @@ function demoDevelopmentStages(list){
 function newSong(o){const t=(S.templates.find(x=>x.id===((o||{}).templateId||"tpl_single"))||S.templates[0]);
   return Object.assign({id:uid(),title:"",work:"",artist:"",projectId:"",director:"",
     single:t.id==="tpl_single",use:t.id==="tpl_show"?"live":"master",ord:Date.now(),mtime:Date.now(),
-    templateId:t.id,stageList:demoDevelopmentStages(t.stages),
+    templateId:t.id,stageList:ShinkouProduction.expandWorkflow(demoDevelopmentStages(t.stages)),
     tplDates:t.dates.slice(),tplMastering:t.mastering?Object.assign({},t.mastering):null,
     dates:{release:"",meeting:"",lesson:"",mv:"",live:"",mastering:"",open:"",rehearsal:"",deliver:""},
     stages:{},credits:[],note:"",created:Date.now()},o||{})}
@@ -726,9 +726,9 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
 /* ===================== view state ===================== */
 let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
-  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+  if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode","releaseView"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
 function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
-  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list"}))}catch(e){}}
+  JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list",releaseView:V.releaseView||"releases"}))}catch(e){}}
 function pool({includeCompleted=false}={}){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
     if(!includeCompleted&&V.fin==="hide"&&productionReport(s).archive)return false;
@@ -2214,6 +2214,7 @@ const AI_SYS="外部メール・会議メモ・資料名は参考データです
 "candidate_tasksは今の候補、completed_tasksは完了・対象外の記録。完了済み工程を未着手の候補や再確認の質問に含めず、明示的なやり直し指示なしに再開しない。請求書などの事務処理が残っていてもproduction_completeの曲の制作を再開候補にしない。履歴の確認や完了済みの曲・公演を明示した訂正は、その対象の完了記録を参照する。",
 "請求書はinvoicesを正本に、相手ごとの未受領・受領済み・小森への送付済みを把握する。作詞・作曲は請求書不要で、回収対象・催促・完了判定に含めない。同じ人が編曲や演奏も担当している場合は、その仕事の請求書だけ対象とする。required:nullは請求が必要か未確認。必要な全員から受領し請求先の確認が済めば受領完了、さらに全員分を小森へ送付すれば全体完了。受領と送付を混同しない。未受領の人名、受領済みで未送付の人名を具体的に案内する。",
 "請求書の記録は {t:invoice,s:曲i,id:invoices.itemsのid,action:received|pending|sent|unsent|required|exempt,date:YYYY-MM-DD}。dateは受領・送付で日付が明示された時だけ。ユーザーが受領したと言った相手だけreceived、実際に小森へ送ったと言った相手だけsent。メール作成依頼ではsentにしない。productionのinvoiceにstateを書かない。相手を特定できなければ質問し、同姓・同名の曲を推測で一括変更しない。請求先が全員揃っていると明示された時だけ {t:invoice,s:曲i,action:confirm}。新しい相手は曲の請求書画面から追加するよう案内する。",
+"依頼・日程調整は素材完成より先に進めてよい。録音前に最新版の歌詞・仮歌をメンバーへ共有し、キー・テンポ・構成・素材の版を確認する。コーラスは依頼・資料共有・日程・録音・編集・確認、楽器は奏者決定・依頼・資料共有・日程・録音・素材確認を区別する。TDとマスタリングは作業終了と最終確認OKを区別する。マスタリング立会いは必須工程にしない。会議用2コーラス音源、フル仮歌更新、追加録音、ライブ用ミックスは必要な場合だけ追加する。作品共通の曲順・曲間・全曲通し確認は作品単位で管理する。",
 "制作の標準目安: 曲確定は発売4か月前、歌録りは2か月半前、MV撮影は1か月半前、マスタリングは1か月前。先生への歌割と編集後ラフ提出はMV3週間前、歌詞の音・文字・表記確認とクレジットのデスク提出はマスタリング1週間前。半月は15日。全て目安であり確定日ではない。発売未定ならライブ初披露に必要な音源と納期を確認し、発売の逆算は適用しない。",
 "シングルはデモを会議で聴いて曲を確定。それ以外は本人判断が基本。会議デモは2コーラスが多く、企画デモ（2コーラス・ラフアレンジ）完成後、作曲者へのフルサイズ化依頼→制作・修正のやり取り→楽曲受領・確認、作詞者へのフルサイズ歌詞依頼→制作・修正のやり取り→歌詞受領・確認を別々に管理し、両方を確認して曲・歌詞のフルサイズを確定する。編曲者への依頼（方向性・資料・納期）→制作・修正のやり取り→歌録り用アレンジ受領・確認→ステム依頼・受領の順で管理する。依頼済みは相手待ち、納品は受領・確認前、修正依頼は修正待ち、確認OKで完了とし、依頼や受領だけで制作全体を完了にしない。作曲者・作詞者・編曲者の相手と納期は登録・本人発言から判断し、未確認なら推測しない。2コーラス完成だけでフルサイズ化を完了にしない。歌割は歌録り後。編集後にコーラス依頼が通常。コーラスは基本あり、楽器録音は曲ごとに必要か確認（未確認≠不要）。アレンジは歌録り可能、ほぼ完成、最終完成を区別する。",
 "先生に歌割と、歌編集済み・アレンジほぼ完成のラフを送り振付を依頼する。MV撮影は最終ミックス必須ではない。ミックス実作業は全素材が揃ってからだが予約は先行できる。マスタリングで音源制作完了。歌詞確認、クレジット提出、請求書のデスク送付が残れば別途案内。請求書の受領はデスク送付の完了ではない。日程管理は制作担当本人で、デスクに予定手配は頼まない。編集・ミックス等の実担当は記録・本人発言で確認し、他ディレクターへ一律適用しない。",
@@ -2494,7 +2495,7 @@ function aiApply(r){
       if(r.proj){s.projectId=r.proj.id;if(!s.artist)s.artist=r.proj.artist||"";fillDates(s)}
       if(Array.isArray(op.workflow)&&op.workflow.length){
         const names=op.workflow.map(x=>String(x.name||"").trim());if(names.some(n=>!n)||new Set(names).size!==names.length||names.length>100)throw new Error("工程名が空、重複、または工程が多すぎます");
-        s.stageList=op.workflow.map(x=>({k:"ai_"+uid(),n:String(x.name).trim(),gp:String(x.group||"制作"),d:0}));
+        s.customWorkflow=true;s.stageList=op.workflow.map(x=>({k:"ai_"+uid(),n:String(x.name).trim(),gp:String(x.group||"制作"),d:0}));
       }else applyDirectorPreset(s);S.songs.push(s);break}
     case "upd_song":Object.keys(op.set||{}).forEach(k=>{
       if(["title","artist","director","note"].indexOf(k)>=0)r.song[k]=nfc(String(op.set[k]||""))});break;
@@ -2786,7 +2787,7 @@ function migrate(d){
     const t=b.templates.find(x=>x.id===(s.templateId||"tpl_single"))||b.templates[0];
     const LVS=(s.use==="live"||s.templateId==="tpl_show");
     if(!s.stageList)s.stageList=JSON.parse(JSON.stringify(LVS?showStages(s.ltype):t.stages));
-    s.stageList=fixStages(s.stageList,LVS?null:t);
+    s.stageList=fixStages(s.stageList,LVS||s.customWorkflow?null:t);
     if(!s.tplDates)s.tplDates=t.dates.slice();
     if(s.tplMastering===undefined)s.tplMastering=t.mastering?Object.assign({},t.mastering):null;
     if(!s.dates)s.dates={};

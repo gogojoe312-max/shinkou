@@ -20,10 +20,32 @@ const defs=[
  ['teacher','先生へ歌割・ラフ提出','delivery',[],['split','rough']],
  ['mixBooking','ミックス日程確保','finish',['tdes'],['selection']],
  ['materials','全素材が揃ったか確認','finish',[],['arrange','edit','chorus','instrument']],
- ['mix','ミックス','finish',['td'],['materials','mixBooking']],['master','マスタリング','finish',['mas'],['mix']],
+ ['mix','TD・確認・最終OK','finish',['td','mixCheck'],['materials','mixBooking']],['master','マスタリング・最終OK','finish',['mas','masterCheck'],['mix']],
  ['lyricCheck','歌詞の音・文字・表記確認','delivery',[],['vocal']],
  ['credits','クレジットをデスクへ提出','delivery',[],[]],['invoice','請求書の受領・小森さんへ送付','delivery',[],[]]
 ].map(([id,label,group,keys,deps])=>({id,label,group,keys,deps}));
+
+const WORKFLOW_STEPS=[{"k":"guideRequest","n":"仮歌担当へ依頼・資料共有","productionGroup":"plan","gp":"デモ制作","anchorKey":"kario","deps":["lyrics"],"d":0,"lead":14,"t":"","role":"me"},{"k":"guideBooking","n":"仮歌の日程調整","productionGroup":"plan","gp":"デモ制作","anchorKey":"kario","deps":[],"d":0,"lead":14,"t":"","role":"me"},{"k":"guideCheck","n":"仮歌の受領・内容確認","productionGroup":"plan","gp":"デモ制作","anchorKey":"kario","deps":["guide"],"d":0,"lead":14,"t":"","role":"me"},{"k":"vocalShare","n":"メンバーへ最新版の歌詞・仮歌を共有","productionGroup":"vocal","gp":"VoDB","anchorKey":"vodb","deps":["full"],"d":0,"lead":14,"t":"","role":"me"},{"k":"vocalReady","n":"キー・テンポ・構成・ステムの版を確認","productionGroup":"vocal","gp":"VoDB","anchorKey":"vodb","deps":["full","recordable","stems"],"d":0,"lead":14,"t":"","role":"me"},{"k":"editCheck","n":"歌割・編集音源の確認／必要な修正","productionGroup":"vocal","gp":"VoDB","anchorKey":"pitch","deps":["edit","split"],"d":0,"lead":14,"t":"","role":"me"},{"k":"chorusBrief","n":"コーラス担当へ内容・最新版資料を共有","productionGroup":"chorus","gp":"ChoDB","anchorKey":"chodb","deps":["chorusRequest"],"d":0,"lead":14,"t":"","role":"me"},{"k":"chorusCheck","n":"コーラス音源・編集の確認／必要な修正","productionGroup":"chorus","gp":"ChoDB","anchorKey":"choed","deps":["chorus"],"d":0,"lead":14,"t":"","role":"me"},{"k":"instrumentRequest","n":"楽器・奏者を決定し演奏依頼","productionGroup":"instrument","gp":"楽器DB","anchorKey":"instdb","deps":[],"d":0,"lead":14,"t":"","role":"me"},{"k":"instrumentBrief","n":"奏者へ最新版資料・演奏内容を共有","productionGroup":"instrument","gp":"楽器DB","anchorKey":"instdb","deps":["stage:instrumentRequest"],"d":0,"lead":14,"t":"","role":"me"},{"k":"instrumentCheck","n":"楽器素材の受領・確認／必要な編集","productionGroup":"instrument","gp":"楽器DB","anchorKey":"instdb","deps":["instrument"],"d":0,"lead":14,"t":"","role":"me"},{"k":"arrangeFinalCheck","n":"歌・コーラス・生楽器を反映したアレンジ最終確認","productionGroup":"arrange","gp":"アレンジ","anchorKey":"arr","deps":[],"d":0,"lead":14,"t":"","role":"me"},{"k":"mixBrief","n":"TD担当・日程を確定し全素材と要望を共有","productionGroup":"finish","gp":"仕上げ","anchorKey":"td","deps":["materials","mixBooking"],"d":0,"lead":14,"t":"","role":"me"},{"k":"mixCheck","n":"TDの試聴・修正・最終OK","productionGroup":"finish","gp":"仕上げ","anchorKey":"td","deps":[],"d":0,"lead":14,"t":"","role":"me"},{"k":"masterBooking","n":"マスタリング担当・日程を確定","productionGroup":"finish","gp":"仕上げ","anchorKey":"mas","deps":[],"d":0,"lead":14,"t":"","role":"me"},{"k":"deskPackage","n":"マスタリング1週間前：音源・歌詞・クレジットをデスクへ提出","productionGroup":"delivery","gp":"仕上げ","anchorKey":"mas","deps":["lyricCheck","credits"],"d":0,"lead":14,"t":"","role":"me"},{"k":"masterSend","n":"最終音源・曲順・曲間指定をマスタリングへ提出","productionGroup":"finish","gp":"仕上げ","anchorKey":"mas","deps":["mix"],"d":0,"lead":14,"t":"","role":"me"},{"k":"masterCheck","n":"マスターの試聴・修正・最終OK","productionGroup":"finish","gp":"仕上げ","anchorKey":"mas","deps":[],"d":0,"lead":14,"t":"","role":"me"}];
+function expandWorkflow(list){
+ const L=JSON.parse(JSON.stringify(list||[]));
+ if(!L.some(x=>x.k==='demo')||!L.some(x=>x.k==='arr'))return L;
+ for(const spec of WORKFLOW_STEPS){
+  if(L.some(x=>x.k===spec.k)||!L.some(x=>x.k===spec.anchorKey))continue;
+  const {anchorKey,deps,...stage}=spec;
+  const after=['guideCheck','editCheck','chorusCheck','instrumentCheck','mixCheck','masterCheck'].includes(stage.k);
+  L.splice(L.findIndex(x=>x.k===anchorKey)+(after?1:0),0,stage);
+ }
+ return L;
+}
+const RELEASE_TASKS=[
+ {id:'tracklist',label:'曲順・収録バージョン確定'},
+ {id:'connections',label:'SE・曲間・接続の指定'},
+ {id:'listen',label:'全曲通し確認（音量感・曲間・全体尺）'},
+ {id:'desk',label:'音源・歌詞・クレジットをデスクへ提出'},
+ {id:'masterDelivery',label:'最終音源・曲順・曲間指定をマスタリングへ提出'},
+ {id:'masterApproval',label:'マスター全曲確認・最終OK'}
+];
+
 const byId=Object.fromEntries(defs.map(d=>[d.id,d]));
 const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&Number.isFinite(Date.parse(d+'T00:00:00Z'))&&new Date(d+'T00:00:00Z').toISOString().slice(0,10)===d;
 const stamp=d=>Date.parse(d+'T00:00:00Z');
@@ -146,6 +168,15 @@ function interpretFlow(s,nodes){
   'stage:stemO':['recordable'],stems:['stage:stemO'],
   arrange:['stage:arrangeRequest','stage:arrangeWork']
  };
+ for(const x of WORKFLOW_STEPS)developmentDeps['stage:'+x.k]=x.deps;
+ Object.assign(developmentDeps,{
+ vocal:['stage:vocalShare','stage:vocalReady'],
+ chorusRequest:['stage:editCheck'],
+ instrument:['stage:instrumentRequest','stage:instrumentBrief'],
+ materials:['stage:editCheck','stage:chorusCheck','stage:instrumentCheck','stage:arrangeFinalCheck'],
+ mix:['stage:mixBrief'],
+ master:['stage:masterBooking','stage:masterSend','stage:deskPackage']
+ });
  if(!live)for(const [id,deps] of Object.entries(developmentDeps)){
   const n=byTask(id);if(n)n.deps=[...new Set([...n.deps,...deps.filter(dep=>byTask(dep))])];
  }
@@ -342,6 +373,6 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
+root.ShinkouProduction={WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -13,7 +13,7 @@ function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-so
 function songOverview(list){return productionOverview(list)}
 function refreshCompletion(s){
  document.querySelectorAll('[data-snapshot-song]').forEach(root=>{if(root.dataset.snapshotSong===s.id){root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root)}});
- refreshProductionShows();
+ refreshProductionShows();refreshProductionReleases();
  if(cur?.id===s.id)head();
 }
 function deskPreviewURL(){const u=new URL(location.href);u.searchParams.set('mode','desk');u.hash='';return u.href}
