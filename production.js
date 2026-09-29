@@ -115,6 +115,8 @@ function deferredIntent(text,songs,scope='global'){
 // Resolve against current work, retaining the original song indices used by AI operations.
 function consultationTargets(songs,projects,text='',scope='global',today,previousText=''){
  const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
+ const titleForms=v=>{const raw=String(v||'').normalize('NFKC');return [...new Set([norm(raw),norm(raw.replace(/\([^)]*(?:ver\.?|バージョン|再録|新録)[^)]*\)/gi,''))].filter(x=>x.length>=2))]};
+ const matches=(row,value)=>row.forms.some(t=>value.includes(t));
  const input=norm(text),prior=norm(previousText),history=/(履歴|過去|以前の|完了済|終了済|終わった(?:方|ほう|曲|工程)|再開|やり直|両方|全曲|完了分も)/.test(input);
  const aliases={'ochanorma':['ocha','オチャノーマ'],'ロージークロニクル':['ロージー'],'譜久村聖':['譜久村']};
  const bulk=/(全部|すべて|全て|全曲|全工程|全行程|まとめて|一括)/.test(input);
@@ -123,16 +125,16 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
  const rows=songs.map((s,i)=>{const p=projects.find(p=>p.id===s.projectId),r=report(s,{today,release:p?.release}),artist=s.artist||p?.artist||'',names=[artist,...(aliases[norm(artist)]||[]),p?.custom].map(norm).filter(v=>v.length>=2);
    const work=r.nodes.filter(n=>!['invoice','lyricCheck','credits'].includes(n.id));
    const complete=r.custom?work.length>0&&work.every(n=>n.done):r.audioComplete;
-   return {i,s,p,r,complete,title:norm(s.title||s.work),qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
+   return {i,s,p,r,complete,title:norm(s.title||s.work),forms:titleForms(s.title||s.work),qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
  });
  const focus=rows.find(x=>x.s.id===scope);
- const explicitScope=rows.some(x=>x.qualified)||(requestedKind!=='')||!!focus&&rows.some(x=>x.s.id!==scope&&x.title!==focus?.title&&x.title.length>=2&&input.includes(x.title));
+ const explicitScope=rows.some(x=>x.qualified)||(requestedKind!=='')||!!focus&&rows.some(x=>x.s.id!==scope&&x.title!==focus?.title&&matches(x,input));
  if(scope!=='global'&&!explicitScope)return {indices:focus?[focus.i]:[],selected:focus?.i??-1,reason:'open_song',history,rows};
- const freshMentions=rows.filter(x=>x.title.length>=2&&input.includes(x.title));
+ const freshMentions=rows.filter(x=>matches(x,input));
  const freshArtist=rows.some(x=>x.qualified);
- const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:(freshArtist||requestedKind)?[]:rows.filter(x=>x.title.length>=2&&prior.includes(x.title));
+ const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:(freshArtist||requestedKind)?[]:rows.filter(x=>matches(x,prior));
  // A longer title contains a shorter one, but does not name a second song.
- const named=mentions.filter(x=>mentions.filter(y=>y.title!==x.title&&y.title.includes(x.title)).reduce((rest,y)=>rest.replaceAll(y.title,''),titleInput).includes(x.title));
+ const named=mentions.filter(x=>x.forms.some(form=>mentions.filter(y=>y.title!==x.title&&y.forms.some(t=>t.includes(form)&&t!==form)).reduce((rest,y)=>y.forms.reduce((v,t)=>v.replaceAll(t,''),rest),titleInput).includes(form)));
  const freshQualified=rows.filter(x=>x.qualified),qualified=freshQualified.length?freshQualified:freshMentions.length?[]:rows.filter(x=>x.previousQualified),explicit=qualified.length>0,qualifiedIds=new Set(qualified.map(x=>x.i));
  let candidates=named.length?named:explicit?qualified:rows;
  if(named.length&&explicit){const same=candidates.filter(x=>qualifiedIds.has(x.i));if(same.length)candidates=same;else return {indices:[...new Set([...named,...qualified].map(x=>x.i))],selected:-1,reason:'mixed_reference',history,rows};}
@@ -166,6 +168,15 @@ function interpretFlow(s,nodes){
    n.state=c.state==='waiting'?'requested':c.state==='reply'?'doing':'review';n.wait=c.state==='waiting';
    n.owner=c.state==='reply'||c.state==='review'?'自分':c.person||n.owner;n.recipient=c.person||n.recipient;n.communicationId=c.id;
   }
+ }
+ // A dated booking is complete as scheduling, never as recording/editing performed.
+ const bookingKeys=new Set(['vo','voes','cho','choes','instrec','revo','revoes','tdes','guideBooking','masterBooking']);
+ for(const n of nodes){
+  if(n.state==='na'||n.done||!['unknown','waiting'].includes(n.state))continue;
+  if(!n.keys.some(k=>bookingKeys.has(k)))continue;
+  const records=n.keys.map(k=>s.stages?.[k]||{}),slots=records.flatMap(g=>g.slots||[]).filter(v=>validDate(v.date));
+  const tentative=records.some(g=>g.prov||g.st==='studio')||slots.some(v=>v.swait||v.tentative||v.prov)||n.keys.some(k=>s.production?.dateKinds?.[k]==='tentative')||s.production?.tasks?.[n.id]?.dueKind==='tentative';
+  if(slots.length&&!tentative){Object.assign(n,{state:'done',done:true,wait:false,derived:true,bookingDerived:true});n.due={value:slots.map(v=>v.date).sort()[0],kind:'registered',source:'登録した日程'};}
  }
  // Explicit commissioning, delivery and approval are separate; legacy songs without these stages keep their records.
  const developmentDeps={
@@ -410,4 +421,5 @@ function dropboxURL(value){
 root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
 

@@ -766,3 +766,14 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 @media(prefers-color-scheme:dark){.release-card{background:#1c1c1e}.release-view-toggle button[aria-pressed=true]{background:#3a3a3c}}
 
 .release-card{background:var(--panel,#1c1c1e);color:var(--ink,#eef2f1)}.release-view-toggle button[aria-pressed=true]{background:var(--panel2,#303034);color:var(--ink,#eef2f1)}.snapshot-list:has(>.release-list){display:block}
+
+
+/* Completion remains legible without relying on color alone. */
+.release-song-row.is-complete{background:rgba(48,209,88,.075);border-left:4px solid #30d158;padding-left:14px}
+.release-song-row.is-complete .release-song-state{opacity:1;color:#30d158;font-weight:700;background:rgba(48,209,88,.12);border-radius:7px;padding:4px 8px;justify-self:start}
+.release-complete-mark{display:inline-grid;place-items:center;width:25px;height:25px;border-radius:50%;background:#30d158;color:#092910;font-size:17px;font-weight:800;margin-right:8px;vertical-align:middle}
+.production-card.is-complete{border-color:rgba(48,209,88,.45)}
+.production-complete-banner{display:flex;align-items:center;gap:12px;padding:15px;border-radius:15px;background:rgba(48,209,88,.10);margin-bottom:14px}
+.production-complete-banner>span{display:grid;place-items:center;flex-shrink:0;width:38px;height:38px;border-radius:50%;background:#30d158;color:#092910;font-size:25px;font-weight:750}
+.production-complete-banner strong{display:block;font-size:20px;color:#30d158}
+.production-complete-banner small{display:block;color:var(--ink);opacity:.75;margin-top:4px}
