@@ -764,3 +764,5 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 .release-common-task{display:flex;flex-direction:column;gap:6px;width:100%;padding:13px 0;border:0;border-top:1px solid #8882;background:transparent;color:inherit;text-align:left;font:inherit;font-size:13px}.release-common-task small{opacity:.65}.release-common-task:disabled{opacity:1}.release-existing{font-size:13px;line-height:1.9}
 @media(max-width:480px){.release-song-row{grid-template-columns:1fr}.release-song-state{grid-row:2}.release-card header{padding:17px}.release-card h3{font-size:20px}}
 @media(prefers-color-scheme:dark){.release-card{background:#1c1c1e}.release-view-toggle button[aria-pressed=true]{background:#3a3a3c}}
+
+.release-card{background:var(--panel,#1c1c1e);color:var(--ink,#eef2f1)}.release-view-toggle button[aria-pressed=true]{background:var(--panel2,#303034);color:var(--ink,#eef2f1)}.snapshot-list:has(>.release-list){display:block}
