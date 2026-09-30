@@ -96,8 +96,14 @@ function releaseUI(s){
 }
 test('release row shows recording wait with both dates, never VoEDIT or a recording deadline',()=>{
  const s=fixture().songs[0];s.stages.record.slots=[{date:'2026-10-08',done:false},{date:'2026-10-09',done:false}];
+ s.stages.prep.done=true;
  const c=releaseUI(s),html=c.productionReleaseContents([s]);
  assert.match(html,/歌録り待ち/);assert.match(html,/VoDB 10\/08・10\/09/);assert.doesNotMatch(html,/VoEDIT|締切 10\/08/);
+});
+test('scheduled recording cannot hide unfinished recording preparation',()=>{
+ const s=fixture().songs[0];s.stages.record.slots=[{date:'2026-10-08',done:false}];
+ const c=releaseUI(s),html=c.productionReleaseContents([s]);
+ assert.match(html,/歌録り準備が未完了/);assert.match(html,/VoDB 10\/08/);assert.doesNotMatch(html,/歌録り待ち/);
 });
 test('finished, excluded and unscheduled recordings do not display a future recording wait',()=>{
  const s=fixture().songs[0];let c=releaseUI(s);assert.equal(c.productionUpcomingVocal(s,P.report(s,{today})),null);

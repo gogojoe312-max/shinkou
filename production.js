@@ -279,7 +279,9 @@ function interpretFlow(s,nodes){
  chorusRequest:['stage:editCheck'],
  instrument:['stage:instrumentRequest','stage:instrumentBrief','stage:instrec'],
  materials:['stage:editCheck','stage:chorusCheck','stage:instrumentCheck','stage:arrangeFinalCheck'],
- mix:['stage:mixBrief'],
+ // An old materials check must not hide unfinished recording or editing.
+ 'stage:mixBrief':['materials','mixBooking','arrange','edit','chorus','instrument','stage:chorusCheck'],
+ mix:['stage:mixBrief','arrange','edit','chorus','instrument','stage:chorusCheck'],
  master:['stage:masterBooking','stage:masterSend','stage:deskPackage']
  });
  if(!live)for(const [id,deps] of Object.entries(developmentDeps)){
@@ -432,7 +434,50 @@ function report(s,opt={}){
  const gaps=pending.filter(n=>n.state==='unknown'&&level[n.id]<Math.max(0,frontier-1));
  const audioComplete=node.master.state==='done';
  const archive=audioComplete&&!admin.length&&!workflowPending(s)&&!pending.some(n=>n.state!=='unknown'||n.stage&&n.due.value);
- return {applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,admin,liveOnly:!validDate(release)&&validDate(live),today};
+ const result={applicable,nodes,node,groups,dates,mv,audioComplete,archive,actions:ranked,balls,gaps,admin,liveOnly:!validDate(release)&&validDate(live),today};
+ result.progress=progressSummary(s,result);
+ return result;
+}
+// One account of remaining work for the release list, song detail and assistant.
+// A reservation and a deferred task are never evidence of performed work.
+function progressSummary(s,r){
+ const remaining=r.nodes.filter(n=>!n.done&&!n.excluded&&!n.shared&&!n.actionCoveredBy);
+ const stages=active(s),schedules=[];
+ const recordingNodes=kind=>stages.filter(x=>core.scheduleKind(x)===kind&&!/日程|スケジュール|スタジオ.*調整/.test(x.n)&&keysFor(s,{keys:[x.k]}).some(k=>!['done','na'].includes(stageState(s.stages?.[k]||{})))).flatMap(x=>r.nodes.filter(n=>n.keys.some(k=>keysFor(s,{keys:[x.k]}).includes(k))&&!n.done));
+ for(const [kind,label] of [['vocal','VoDB'],['revocal','ReVoDB'],['chorus','ChoDB'],['instrument','楽器DB']]){
+  if(!recordingNodes(kind).length)continue;
+  const records=stages.filter(x=>core.scheduleKind(x)===kind).map(x=>({x,g:s.stages?.[x.k]||{}}));
+  const slots=records.flatMap(({g})=>g.slots||[]).filter(v=>!v.done&&validDate(v.date)&&v.date>=r.today);
+  if(slots.length)schedules.push({kind,label,dates:[...new Set(slots.map(v=>v.date))].sort(),tentative:slots.some(v=>v.swait||v.tentative||v.prov)||records.some(({x,g})=>g.prov||g.st==='studio'||s.production?.dateKinds?.[x.k]==='tentative')});
+ }
+ const base={remaining:remaining.map(n=>({id:n.id,label:n.label,state:n.state,blockers:n.blockers})),schedules};
+ if(r.audioComplete)return {...base,state:'音源制作完了',detail:r.archive?'すべて完了':r.admin.length?'残り：'+r.admin.map(n=>n.id==='invoice'?'請求書':n.label).join('・'):'残りの確認・提出あり',taskId:''};
+ let focus;
+ if(s.customWorkflow){
+  const own=orderedNodes(remaining.filter(n=>n.stage||['mixBooking','mix','master'].includes(n.id)));
+  focus=own.find(n=>!n.blockers.length)||own[0];
+ }else{
+  const sequence=['selection','full','recordable','vocal','edit','chorus','instrument','arrange','materials','mix','master'];
+  focus=sequence.map(id=>r.node[id]).find(n=>n&&!n.done);
+ }
+ if(!focus)focus=remaining.find(n=>n.id===r.actions[0]?.id)||remaining[0];
+ if(!focus)return {...base,state:'制作状況を確認',detail:'次の作業を確認',taskId:''};
+ const recKind=['vocal','revocal','chorus','instrument'].find(kind=>recordingNodes(kind).includes(focus));
+ const schedule=schedules.find(x=>x.kind===recKind);
+ const recordingIncomplete=key=>keysFor(s,{keys:[key]}).some(k=>!['done','na'].includes(stageState(s.stages?.[k]||{})));
+ const labels={selection:'曲の確定待ち',full:'フルサイズ未確定',recordable:'VoDB用アレンジ未完了',vocal:schedule?'歌録り待ち':'歌録り未完了',edit:'歌の編集未完了',chorus:recordingIncomplete('chodb')?'コーラス未収録':'コーラス編集未完了',instrument:'楽器録音未完了',arrange:'アレンジ最終確認待ち',materials:'素材の確認待ち',mix:'TD未完了',master:'マスタリング未完了'};
+ let state=labels[focus.id]||focus.label+'・未完了';
+ if(s.customWorkflow&&recKind)state=recKind==='vocal'?(schedule?'歌録り待ち':'歌録り未完了'):recKind==='revocal'?(schedule?'追加歌録り待ち':'追加歌録り未完了'):state;
+ const action=r.actions.find(a=>a.id===focus.id);
+ let detail=focus.state==='undecided'?'日程未定':focus.wait?nextAction(focus).title:action?.title||focus.label;
+ if(focus.id==='recordable')detail='VoDB用アレンジの完成・受領・確認が必要';
+ if(focus.id==='chorus'&&recordingIncomplete('chodb'))detail=schedule?'コーラス収録予定あり':focus.state==='undecided'?'コーラス収録の日程未定':'コーラス収録の準備・日程を確認';
+ if(schedule&&['vocal','revocal'].includes(recKind))detail='収録予定あり';
+ if(focus.id==='vocal'&&focus.blockers.some(id=>id!=='vocalBooking')){
+  state='歌録り準備が未完了';detail=focus.blockers.filter(id=>id!=='vocalBooking').map(id=>r.node[id].label).join('・');
+ }
+ if(s.customWorkflow&&focus.group==='vocal'&&/共有|版確認|録音準備/.test(focus.label))state='歌録り準備が未完了';
+ return {...base,state,detail,taskId:focus.id};
 }
 function invoiceNode(s,n){
  const r=invoices.report(s),state=r.done?'done':r.ready.length?'received':r.missing.length?'todo':'unknown';
