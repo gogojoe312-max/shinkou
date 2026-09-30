@@ -660,17 +660,14 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 .show-preparation[open]>summary>span{transform:rotate(180deg)}
 .show-preparation[open]>summary{border-bottom:1px solid #ffffff0c}
 /* 連絡・資料・実績：既存のシートと同じ余白、固定枠を使う。 */
-.workflow-today{margin:20px 0 24px;border-top:1px solid #ffffff16;border-bottom:1px solid #ffffff16;padding:8px 0}
 .workflow-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}
 .workflow-heading h3{font-size:17px;font-weight:650;margin:0;letter-spacing:0}
 .workflow-heading .production-more{font-size:13px;min-height:44px}
-.workflow-priority,.workflow-row{display:flex;align-items:center;gap:12px;width:100%;padding:15px 0;background:none;border:0;border-bottom:1px solid #ffffff12;color:var(--text,#f5f5f7);text-align:left;font:inherit;min-height:58px}
-.workflow-priority>span:nth-child(2),.workflow-row>span:first-child{flex:1;min-width:0}
-.workflow-priority b,.workflow-row b{display:block;font-size:16px;font-weight:550;line-height:1.45;overflow-wrap:anywhere}
-.workflow-priority small,.workflow-row small{display:block;color:#99999f;font-size:13px;line-height:1.5;overflow-wrap:anywhere;margin:3px 0}
-.workflow-priority>span:last-child,.workflow-row>span:last-child{color:#66666d;font-size:23px;padding:0 4px;flex:none}
-.workflow-number{font-size:14px;color:#8ebaff;width:20px;align-self:flex-start;padding-top:8px;flex:none;text-align:center}
-.workflow-footnote{font-size:11px;color:#85858d;margin:12px 0 6px;line-height:1.5}
+.workflow-row{display:flex;align-items:center;gap:12px;width:100%;padding:15px 0;background:none;border:0;border-bottom:1px solid #ffffff12;color:var(--text,#f5f5f7);text-align:left;font:inherit;min-height:58px}
+.workflow-row>span:first-child{flex:1;min-width:0}
+.workflow-row b{display:block;font-size:16px;font-weight:550;line-height:1.45;overflow-wrap:anywhere}
+.workflow-row small{display:block;color:#99999f;font-size:13px;line-height:1.5;overflow-wrap:anywhere;margin:3px 0}
+.workflow-row>span:last-child{color:#66666d;font-size:23px;padding:0 4px;flex:none}
 .workflow-secondary{margin-top:24px;border-top:1px solid #ffffff20}
 .workflow-section{margin:24px 0}
 .workflow-section h3{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-size:16px;margin:0 0 8px}
@@ -694,12 +691,6 @@ body{position:fixed;top:var(--app-top);left:0;width:100%;height:var(--app-height
 #s3Body textarea,#s3Body input,#s3Body select{max-width:100%}
 #s3Body .workflow-check input{max-width:22px}
 
-.workflow-today{position:relative;padding:0;margin:16px 0 20px}
-.workflow-today-fold>summary{display:flex;flex-direction:column;justify-content:center;min-height:64px;padding:10px 128px 10px 0;list-style:none;cursor:pointer;box-sizing:border-box}
-.workflow-today-fold>summary::-webkit-details-marker{display:none}
-.workflow-today-fold>summary b{font-size:16px;font-weight:550;line-height:1.5}
-.workflow-today-fold>summary small{font-size:12px;color:#92929a;margin-top:2px}
-.workflow-home-button{position:absolute;right:0;top:10px;min-height:44px;font-size:13px}
 .workflow-home-footer{display:flex;gap:16px;flex-wrap:wrap;margin:20px 0 36px}
 
 /* 作品単位の原盤進行 */

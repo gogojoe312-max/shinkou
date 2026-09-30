@@ -91,9 +91,8 @@ function productionOverview(list){
  const grouped=(V.releaseView||'releases')==='releases';
  const cards=grouped?'<div class="release-list">'+productionReleaseContents(list)+'</div>':songCards;
  const toggle=live?'':'<div class="release-view-toggle" aria-label="原盤の表示単位"><button data-release-view="releases" aria-pressed="'+grouped+'">作品ごと</button><button data-release-view="songs" aria-pressed="'+(!grouped)+'">曲ごと</button></div>';
- const today=typeof workflowToday==='function'?workflowToday(list):'';
  const heading=live?'ライブ公演':mixed?'制作の状況':grouped?'アルバム・シングル':RO?'楽曲の状況':'進行中の曲';
- return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+heading+'</h2>'+(live&&!RO?'<button class="show-add-button" data-show-new aria-label="公演を追加">＋</button>':'')+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':live?'完了した公演も見る':'完了した曲も見る')+'</button>':'')+'</div>'+(live?'':'<p class="production-intro">'+(RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>')+toggle+today+(live?'':(mixed&&cards?'<h3 class="production-section-title">原盤</h3>':'')+'<div class="snapshot-list">'+(cards||(!mixed?'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認してください。</p></div>':''))+'</div>')+((live||mixed)?'<section class="production-live">'+productionLiveContents(list)+'</section>':'')+'</section>';
+ return '<section class="song-overview production-overview"><div class="overview-heading"><h2>'+heading+'</h2>'+(live&&!RO?'<button class="show-add-button" data-show-new aria-label="公演を追加">＋</button>':'')+(!RO?'<button class="completed-filter" data-show-completed aria-pressed="'+(V.fin==='show')+'">'+(V.fin==='show'?'完了を含む':live?'完了した公演も見る':'完了した曲も見る')+'</button>':'')+'</div>'+(live?'':'<p class="production-intro">'+(RO?'制作の進み具合と、主要な日程。':'進み具合、対応待ち、次の一手。')+'</p>')+toggle+(live?'':(mixed&&cards?'<h3 class="production-section-title">原盤</h3>':'')+'<div class="snapshot-list">'+(cards||(!mixed?'<div class="production-empty"><b>表示する曲がありません</b><p>絞り込み条件を確認してください。</p></div>':''))+'</div>')+((live||mixed)?'<section class="production-live">'+productionLiveContents(list)+'</section>':'')+'</section>';
 }
 // 公演IDでまとめる。同名の公演や、原盤の「ライブ初披露」を混ぜない。
 function productionShowGroups(list,matched=pool({includeCompleted:true})){
@@ -187,7 +186,6 @@ function productionShowAddItem(id){
 function wireProduction(root){
  root.querySelectorAll('[data-release-view]').forEach(b=>b.onclick=()=>{V.releaseView=b.dataset.releaseView;viewSave();render()});
  root.querySelectorAll('[data-release-task]').forEach(b=>b.onclick=()=>productionReleaseTaskEditor(b.dataset.releaseProject,b.dataset.releaseTask));
- if(typeof wireWorkflow==='function')wireWorkflow(root);
  root.querySelectorAll('[data-show-new]').forEach(b=>b.onclick=()=>productionShowEditor());
  root.querySelectorAll('[data-show-edit]').forEach(b=>b.onclick=()=>productionShowEditor(b.dataset.showEdit));
  root.querySelectorAll('[data-show-add]').forEach(b=>b.onclick=()=>productionShowAddItem(b.dataset.showAdd));
@@ -198,7 +196,7 @@ function wireProduction(root){
    if(kind==='task')productionTaskEditor(s,key);else if(kind==='contact')workflowContact(s,key);else if(kind==='workflow')workflowHub(s);else if(kind==='folder')productionFolderSheet(s);else if(kind==='group'||kind==='all')productionTasksSheet(s,kind==='all'?'all':key);else if(kind==='dates')productionDatesSheet(s);else if(kind==='date')productionDateEditor(s,key);
  });
 }
-function productionAfterSave(s){mark();refreshCompletion(s);if(typeof refreshWorkflow==='function')refreshWorkflow()}
+function productionAfterSave(s){mark();refreshCompletion(s);if(typeof refreshInvoiceOverview==='function')refreshInvoiceOverview()}
 function productionReadGroup(s,id){const r=productionReport(s),g=r.groups.find(x=>x.id===id);if(!g)return;s3(songTitle(s),g.label,'<p class="production-read-summary">'+esc(g.text)+'</p>',[{sp:1},{t:'閉じる',c:'btn',f:()=>hide('sheet3')}])}
 function productionTask(s,id){return ShinkouProduction.task(s,id,{today:D.today(),release:relOf(s)})}
 function productionTaskRow(s,n){

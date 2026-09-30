@@ -44,14 +44,6 @@ function saveCommunication(s,value){
 }
 function communicationDraft(s,c){const title=s.title||s.work||'曲名未登録',who=c.person||'ご担当者';return {to:c.email||'',subject:(c.state==='waiting'?'進捗のご確認／':'ご相談／')+title,body:who+'さま\n\nお世話になっております。\n\n'+(s.artist?s.artist+' ':'')+'「'+title+'」について、'+(c.state==='waiting'?'ご相談している件の進捗を確認させてください。':'ご相談です。')+'\n'+(c.memo?'\n'+c.memo+'\n':'')+(c.due?'\n'+c.due+'までのご対応が可能か、あわせてお知らせいただけますでしょうか。\n':'')+'\nよろしくお願いいたします。'}}
 function validEmail(v){return /^[^\s@,;<>\r\n]+@[^\s@,;<>\r\n]+\.[^\s@,;<>\r\n]+$/.test(v||'')}
-function priorities(songs,reports,today){
- const out=[];for(const s of songs){const r=reports(s);if(r.archive)continue;
-  for(const c of list(s,'communications').filter(c=>c.state!=='done'&&r.node[c.taskId]?.state!=='undecided')){const days=c.due?Math.round((Date.parse(c.due)-Date.parse(today))/864e5):null;out.push({songId:s.id,type:'communication',id:c.id,title:c.state==='reply'?'返信する：'+(c.person||c.subject):c.state==='waiting'?'返答を確認：'+(c.person||c.subject):'対応が必要か確認：'+c.subject,reason:c.due?'確認期限 '+c.due:c.state==='review'?'連絡内容を確認して、次に誰が動くか決めます':'連絡と次の日程を確認します',score:days===null?c.state==='reply'?0:75:days<0?-150+days:days})}
-  for(const a of r.actions.slice(0,3))out.push({songId:s.id,type:'task',id:a.id,title:a.title,reason:a.reason,score:a.score});
-  for(const i of list(s,'issues').filter(i=>!i.resolved&&i.action==='rerecord'))out.push({songId:s.id,type:'issue',id:i.id,title:'再録の段取りを確認',reason:i.memo||i.tags?.join('・')||'歌チェックからの申し送り',score:5});
- }
- return out.sort((a,b)=>a.score-b.score).filter((x,i,a)=>a.findIndex(y=>y.songId===x.songId&&y.type===x.type&&y.id===x.id)===i).slice(0,3);
-}
 function impact(s,taskId,newDate,report){
  const r=report(s),root=r.node[taskId];if(!root||!validDate(newDate))return [];
  const after=new Set(),visit=id=>{for(const n of r.nodes)if(n.deps?.includes(id)&&!after.has(n.id)){after.add(n.id);visit(n.id)}};visit(taskId);
@@ -84,5 +76,6 @@ function csv(songs,from,to){
 function weekly(songs,from,to){const rows=songs.flatMap(s=>list(s,'workLogs').filter(w=>w.confirmed&&!w.removed&&w.date>=from&&w.date<=to).map(w=>({s,w}))).sort((a,b)=>a.w.date.localeCompare(b.w.date)||a.w.start.localeCompare(b.w.start));return rows.length?rows.map(({s,w})=>w.date+' '+w.start+'–'+w.end+'\n'+[s.artist,s.title||s.work,workKinds[w.kind],w.memo].filter(Boolean).join('／')).join('\n\n'):'この期間の実施確認済みの記録はありません。'}
 function progress(songs,report){return songs.map(s=>{const r=report(s);return [s.artist||'',s.title||s.work||'曲名未登録',r.audioComplete?'音源制作完了':r.groups.filter(g=>g.done).map(g=>g.label+'完了').join('・')||'状況確認中',...Object.entries(r.dates).filter(([k,d])=>['release','master','vocal','open'].includes(k)&&d.value).map(([k,d])=>({release:'発売',master:'マスタリング',vocal:'歌録り',open:'公演初日'}[k])+': '+d.value+'（'+({target:'目安',tentative:'仮',confirmed:'確定',completed:'完了',registered:'登録日'}[d.kind]||'登録日')+'）')].filter(Boolean).join('\n')}).join('\n\n')}
 function catalog(songs){return {app:'shinkou',schema:'song-catalog-v1',songs:songs.map(s=>({id:s.id,title:s.title||'',workingTitle:s.work||'',artist:s.artist||'',aliases:s.workflow?.aliases||[],dropboxUrl:s.dropboxUrl||''}))}}
-root.ShinkouWorkflow={norm,safeURL,validDate,kindNames,sets,list,upsert,match,materialKind,materialReport,saveMaterial,materialBundle,saveCommunication,communicationDraft,validEmail,priorities,impact,freeSlots,utacheck,importIssues,workKinds,saveWork,csv,weekly,progress,catalog};if(typeof module!=='undefined')module.exports=root.ShinkouWorkflow;
+root.ShinkouWorkflow={norm,safeURL,validDate,kindNames,sets,list,upsert,match,materialKind,materialReport,saveMaterial,materialBundle,saveCommunication,communicationDraft,validEmail,impact,freeSlots,utacheck,importIssues,workKinds,saveWork,csv,weekly,progress,catalog};if(typeof module!=='undefined')module.exports=root.ShinkouWorkflow;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
