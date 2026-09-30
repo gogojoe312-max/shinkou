@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="referrer" content="no-referrer">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleusercontent.com; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://api.openai.com https://www.googleapis.com https://accounts.google.com https://api.dropboxapi.com https://script.google.com https://script.googleusercontent.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://accounts.google.com/gsi/; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.googleusercontent.com; connect-src 'self' https://api.github.com https://raw.githubusercontent.com https://www.googleapis.com https://accounts.google.com https://api.dropboxapi.com https://script.google.com https://script.googleusercontent.com; frame-src https://accounts.google.com; object-src 'none'; base-uri 'none'; form-action 'self'; worker-src 'self'">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#000000">
 <meta name="color-scheme" content="dark">
@@ -202,20 +202,6 @@ main>.artist:first-child{margin-top:2px}
 .btn[aria-pressed="true"]{background:var(--panel2);border-color:var(--ink);color:var(--ink)}
 .fab{position:fixed;right:16px;bottom:calc(76px + env(safe-area-inset-bottom,0));z-index:45;
   background:var(--ink);color:#16171B;border-radius:26px;padding:13px 20px;font-weight:700;font-size:14px;box-shadow:0 6px 24px rgba(0,0,0,.5)}
-.aibar{position:fixed;left:0;right:0;bottom:0;z-index:46;display:flex;gap:8px;align-items:center;
-  padding:9px 12px calc(9px + env(safe-area-inset-bottom,0));
-  background:rgba(13,14,17,.94);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-top:1px solid var(--line2)}
-.aibar .inp{flex:1;min-width:0}
-.aiop{border:1px solid var(--line2);border-radius:12px;padding:10px 12px;margin:0 0 10px}
-.aiop.ng{opacity:.55}
-.aihd{display:flex;gap:10px;align-items:flex-start;font-weight:700;font-size:13.5px;line-height:1.45}
-.aihd input{margin-top:2px}
-.aig{color:var(--warn,#e6b45a);font-size:11px;font-weight:700;margin-left:4px}
-.aifs{margin:8px 0 0 26px;display:flex;flex-direction:column;gap:6px}
-.aif{display:flex;gap:8px;align-items:center;font-size:12px;color:var(--dim2)}
-.aif span{min-width:88px}
-.aif .inp{flex:1;min-width:0;padding:7px 9px;font-size:13px}
-.aifix{display:flex;gap:8px;margin:12px 0 2px}
 .c2s{font-size:11px;color:var(--dim2);flex-shrink:0;white-space:nowrap;max-width:34%;overflow:hidden;text-overflow:ellipsis}
 .c2s.ok{color:var(--me)}
 #calSeg{width:max-content;margin-bottom:12px}
@@ -274,8 +260,6 @@ main>.artist:first-child{margin-top:2px}
 .lgd{flex:0 0 74px;font-family:var(--mono);color:var(--dim2);font-size:11px}
 .lgt{flex:1}
 .lgt u{text-decoration:none;color:var(--dim2);font-size:11px}
-.aians{border:1px solid var(--line2);border-left:3px solid var(--ink);border-radius:12px;padding:12px 14px;margin:0 0 12px;font-size:14px;line-height:1.75;white-space:pre-wrap}
-.aifix .inp{flex:1;min-width:0}
 .scrim{position:fixed;inset:0;background:rgba(9,10,12,.74);z-index:50;opacity:0;pointer-events:none;transition:opacity .22s}
 .scrim.on{opacity:1;pointer-events:auto}
 .sheet{position:absolute;z-index:51;background:var(--bg);border-left:1px solid var(--line);
@@ -411,7 +395,7 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 *{transition:none!important}
 }
 </style>
-<link rel="stylesheet" href="ui.css?v=20260930a4">
+<link rel="stylesheet" href="ui.css?v=20260930dot1">
 </head>
 <body>
 
@@ -460,10 +444,6 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 
 <div id="overviewBar"></div><main id="main"></main>
 <button class="fab" id="fab">＋ 楽曲</button>
-<div class="aibar" id="aiBar">
-  <input class="inp" id="aiQ" placeholder="AIに書く・聞く" autocomplete="off">
-  <button class="btn pri" id="aiGo">AI</button>
-</div>
 <div class="scrim" id="scrim"></div>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-label="楽曲">
@@ -507,20 +487,21 @@ hr.sep{border:none;border-top:1px solid var(--line);margin:16px 0}
 </div></div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-<script src="security.js?v=20260930a4"></script>
-<script src="server-config.js?v=20260930a4"></script>
-<script src="server-client.js?v=20260930a4"></script>
-<script src="core.js?v=20260930a4"></script>
-<script src="invoices.js?v=20260930a4"></script>
-<script src="production.js?v=20260930a4"></script>
-<script src="workflow.js?v=20260930a4"></script>
-<script src="connections.js?v=20260930a4"></script>
-<script src="app.js?v=20260930a4"></script>
-<script src="production-ui.js?v=20260930a4"></script>
-<script src="invoice-ui.js?v=20260930a4"></script>
-<script src="workflow-ui.js?v=20260930a4"></script>
-<script src="ui.js?v=20260930a4"></script>
+<script src="security.js?v=20260930dot1"></script>
+<script src="server-config.js?v=20260930dot1"></script>
+<script src="server-client.js?v=20260930dot1"></script>
+<script src="core.js?v=20260930dot1"></script>
+<script src="invoices.js?v=20260930dot1"></script>
+<script src="production.js?v=20260930dot1"></script>
+<script src="workflow.js?v=20260930dot1"></script>
+<script src="connections.js?v=20260930dot1"></script>
+<script src="app.js?v=20260930dot1"></script>
+<script src="production-ui.js?v=20260930dot1"></script>
+<script src="invoice-ui.js?v=20260930dot1"></script>
+<script src="workflow-ui.js?v=20260930dot1"></script>
+<script src="ui.js?v=20260930dot1"></script>
 </body>
 </html>
+
 
 

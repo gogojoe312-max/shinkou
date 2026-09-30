@@ -100,111 +100,6 @@ function deferGroup(s,group,today){
  for(const id of targets)apply(s,id,{state:'undecided'},today);
  return s;
 }
-function deferredIntent(text,songs,scope='global'){
- const norm=v=>String(v||'').normalize('NFKC').replace(/[\s「」『』“”"]/g,'');
- const input=norm(text),mentions=songs.map((s,i)=>({s,i,title:norm(s.title||s.work)})).filter(x=>x.title&&input.startsWith(x.title));
- const candidates=mentions.length?mentions:scope==='global'?[]:songs.map((s,i)=>({s,i,title:''})).filter(x=>x.s.id===scope);
- if(candidates.length!==1)return null;const target=candidates[0];if(scope!=='global'&&target.s.id!==scope)return null;
- const body=input.slice(target.title.length).replace(/^の/,'');
- if(!/^コーラス(?:関係|関連|全体)?(?:は|を)?(?:ひとまず|とりあえず|いったん|一旦|今は)?(?:全部|すべて|全て|まとめて)(?:は|を)?(?:ひとまず|とりあえず|いったん|一旦)?未定(?:にして(?:おいて)?(?:ください|下さい|ほしい)?|に戻して(?:ください|下さい|ほしい)?|に戻す)?[。！!]*$/.test(body))return null;
- return {t:'production_defer',s:target.i,group:'chorus'};
-}
-// Resolve against current work, retaining the original song indices used by AI operations.
-function consultationTargets(songs,projects,text='',scope='global',today,previousText=''){
- const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
- const titleForms=v=>{const raw=String(v||'').normalize('NFKC'),base=raw.replace(/\([^)]*(?:ver\.?|バージョン|再録|新録)[^)]*\)/gi,'');
-   const words=base.trim().match(/^([A-Za-z]+)\s+([A-Za-z]+)\s+[A-Za-z]+/);
-   return [...new Set([norm(raw),norm(base),...(words?[norm(words[1]+' '+words[2])]:[])].filter(x=>x.length>=2))]};
- const matches=(row,value)=>row.forms.some(t=>value.includes(t));
- const input=norm(text),prior=norm(previousText),history=/(履歴|過去|以前の|完了済|終了済|終わった(?:方|ほう|曲|工程)|再開|やり直|両方|全曲|完了分も)/.test(input);
- const aliases={'ochanorma':['ocha','オチャノーマ'],'ロージークロニクル':['ロージー'],'譜久村聖':['譜久村']};
- const bulk=/(全部|すべて|全て|全曲|全工程|全行程|まとめて|一括)/.test(input);
- const requestedKind=/シングル/.test(input)?'シングル':/アルバム/.test(input)?'アルバム':/原盤/.test(input)?'原盤':/(ライブ|公演)/.test(input)?'ライブ':'';
- const excludeKind=!!requestedKind&&new RegExp(requestedKind+'(?:曲)?(?:以外|を除く|は除く)').test(input);
- const rows=songs.map((s,i)=>{const p=projects.find(p=>p.id===s.projectId),r=report(s,{today,release:p?.release}),artist=s.artist||p?.artist||'',names=[artist,...(aliases[norm(artist)]||[]),p?.custom].map(norm).filter(v=>v.length>=2);
-   const work=r.nodes.filter(n=>!['invoice','lyricCheck','credits'].includes(n.id));
-   const complete=r.custom?work.length>0&&work.every(n=>n.done):r.audioComplete;
-   return {i,s,p,r,complete,title:norm(s.title||s.work),forms:[...new Set([...titleForms(s.title||s.work),...titleForms(s.work),...(Array.isArray(s.aliases)?s.aliases.map(norm).filter(x=>x.length>=2):[])])],qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
- });
- const focus=rows.find(x=>x.s.id===scope);
- const explicitScope=rows.some(x=>x.qualified)||(requestedKind!=='')||!!focus&&rows.some(x=>x.s.id!==scope&&x.title!==focus?.title&&matches(x,input));
- if(scope!=='global'&&!explicitScope)return {indices:focus?[focus.i]:[],selected:focus?.i??-1,reason:'open_song',history,rows};
- const freshMentions=rows.filter(x=>matches(x,input));
- const freshArtist=rows.some(x=>x.qualified);
- const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:(freshArtist||requestedKind)?[]:rows.filter(x=>matches(x,prior));
- // A longer title contains a shorter one, but does not name a second song.
- const named=mentions.filter(x=>x.forms.some(form=>mentions.filter(y=>y.title!==x.title&&y.forms.some(t=>t.includes(form)&&t!==form)).reduce((rest,y)=>y.forms.filter(t=>t!==form).reduce((v,t)=>v.replaceAll(t,''),rest),titleInput).includes(form)));
- const freshQualified=rows.filter(x=>x.qualified),qualified=freshQualified.length?freshQualified:freshMentions.length?[]:rows.filter(x=>x.previousQualified),explicit=qualified.length>0,qualifiedIds=new Set(qualified.map(x=>x.i));
- let candidates=named.length?named:explicit?qualified:rows;
- if(named.length&&explicit){const same=candidates.filter(x=>qualifiedIds.has(x.i));if(same.length)candidates=same;else return {indices:[...new Set([...named,...qualified].map(x=>x.i))],selected:-1,reason:'mixed_reference',history,rows};}
- if(requestedKind)candidates=candidates.filter(x=>{
-   const live=x.s.use==='live'||x.s.templateId==='tpl_show'||x.p?.kind==='ライブ';
-   const kind=live?'ライブ':x.p?.kind||(x.s.sort==='single'||x.s.single===true?'シングル':x.s.sort==='album'||x.s.single===false?'アルバム':'');
-   const match=requestedKind==='原盤'?!live:kind===requestedKind;
-   return excludeKind?!match:match;
- });
- const taskAliases={invoice:['請求書'],credits:['クレジット'],lyricCheck:['歌詞確認']};
- const labels=[...new Set(candidates.flatMap(x=>x.r.nodes.filter(n=>[n.label,...(taskAliases[n.id]||[])].some(label=>{const name=norm(label);return name.length>=2&&input.includes(name)&&!named.some(x=>x.title.includes(name));})).map(n=>n.label)))];
- const taskLabels=labels.filter(label=>!labels.some(other=>other!==label&&norm(other).includes(norm(label))));
- const pending=x=>taskLabels.length?x.r.nodes.some(n=>taskLabels.includes(n.label)&&!n.done&&n.state!=='undecided'):!x.complete;
- if(!history&&!bulk){const current=candidates.filter(pending);
-   // An explicit artist/project can refer back to completed work. Otherwise one current
-   // match wins over any number of completed namesakes, even with invoices outstanding.
-   if(!named.length&&!explicit&&!taskLabels.length)candidates=candidates.filter(x=>!x.r.archive);
-   else if(current.length){
-     // Filter completed namesakes within each named title, never drop a different
-     // explicitly named song merely because another song has unfinished work.
-     candidates=named.length?candidates.filter(x=>pending(x)||!current.some(y=>y.title===x.title)):current;
-   }
-   else if(!named.length&&!explicit)candidates=candidates.filter(x=>!x.r.archive);
- }
- const selected=(named.length||explicit||taskLabels.length)&&candidates.length===1?candidates[0].i:-1;
- const matchedForms=candidates.map(x=>x.forms.filter(f=>titleInput.includes(f)).sort((a,b)=>b.length-a.length)[0]);
- const ambiguous=!!named.length&&new Set(matchedForms).size<candidates.length;
- return {indices:candidates.map(x=>x.i),named:!!named.length,selected,ambiguous,bulk:bulk||named.length>1&&!ambiguous,requestedKind,excludeKind,reason:selected>=0?(explicit?'named_context':history?'history':'current_work'):named.length?'multiple_matches':'current_overview',history,rows};
-}
-// Read related records together without changing saved completion checks or dates.
-// Handle fully specified, shared recording dates without asking a model to invent
-// stage IDs. Complex requests (different dates per song, changes, questions) stay AI.
-function scheduleIntent(text,songs,projects,today,scope='global'){
- const raw=String(text||'').normalize('NFKC').trim();
- const m=raw.match(/^(.+?)の(VoDB|歌録り|歌どり|ChoDB|コーラス録音|楽器DB|楽器録音|TD|ミックス)(?:は|を)?\s*([\d\s/年月日.・、,と]+)(?:に)?(?:やります|行います|予定です|です|でお願いします|で登録して(?:ください)?|に登録して(?:ください)?)[。!！]*$/i);
- if(!m)return null;
- const kind=/^(VoDB|歌録り|歌どり)$/i.test(m[2])?'vocal':/^(ChoDB|コーラス録音)$/i.test(m[2])?'chorus':/楽器/.test(m[2])?'instrument':'mix';
- const selection=consultationTargets(songs,projects,m[1],scope,today);
- if(!selection.named||!selection.indices.length)return null;
- const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
- let rest=norm(m[1]);const used=new Set();
- for(const i of selection.indices){
-   const row=selection.rows[i],form=row.forms.slice().sort((a,b)=>b.length-a.length).find(f=>rest.includes(f));
-   if(!form||used.has(form))return null;
-   used.add(form);rest=rest.replaceAll(form,'');
- }
- if(rest.replace(/[、,・&と]/g,''))return null; // Never silently omit an unknown name.
- const dateText=m[3].replace(/年|月/g,'/').replace(/日/g,'').replace(/\s/g,'');
- const parts=dateText.split(/[.・、,と]/);let year=Number(today.slice(0,4)),month;
- const dates=[];
- for(const part of parts){
-   if(!part||!/^\d+(?:\/\d+){0,2}$/.test(part))return null;
-   const nums=part.split('/').map(Number);let day;
-   if(nums.length===3){[year,month,day]=nums;if(year<1000)return null;}
-   else if(nums.length===2){[month,day]=nums;if(!dates.length&&`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`<today)year++;}
-   else{day=nums[0];if(!month)return null;}
-   const date=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-   if(!validDate(date))return null;
-   if(!dates.includes(date))dates.push(date);
- }
- const ops=[];
- for(const i of selection.indices){
-   const s=songs[i],all=active(s).filter(x=>core.scheduleKind(x)===kind&&core.isScheduledStage(x));
-   const booking={vocal:'vo',chorus:'cho',instrument:'instrec',mix:'tdes'}[kind];
-   const standard=all.find(x=>x.k===booking),execution=all.filter(x=>!/日程|スケジュール|スタジオ.*調整/.test(x.n));
-   const targets=standard?[standard]:execution.length?execution:all;
-   if(targets.length!==1||s.stages?.[targets[0].k]?.done)return null;
-   for(const date of dates)ops.push({t:'slot_add',s:i,songId:s.id,st:targets[0].k,date,who:'',note:''});
- }
- return {ops,indices:selection.indices,dates,kind};
-}
 function interpretFlow(s,nodes){
  const byKey=k=>nodes.find(n=>n.keys.includes(k)),byTask=id=>nodes.find(n=>n.id===id),live=isShow(s);
  // Custom remakes/SE have their own stage IDs: connect their actual work, not
@@ -536,6 +431,7 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets,scheduleIntent};
+root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
+

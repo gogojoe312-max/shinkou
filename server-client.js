@@ -21,10 +21,6 @@ async function start(localBoot){
  syOk=()=>!RO&&session.sync;
  ghRead=async c=>c?.path&&c.path!=='data.json'?{json:{},sha:'server-managed'}:api('/api/data');
  ghWrite=async(c,data,sha)=>{if(c?.path&&c.path!=='data.json')return 'ok';try{const result=await api('/api/data',{method:'PUT',body:JSON.stringify({data,sha})});if(result.backup==='pending')toast('同期済みです。日次バックアップは次回の同期時に再試行します。');return 'ok'}catch(e){if(e.status===409)return 'conflict';throw e}};
- aiFetch=async(body,model=AI_DEF_MODEL)=>{if(RO)throw Error('閲覧専用です');if(aiSending)throw Error('前の相談を送信中です');aiSending=true;try{const j=await api('/api/ai',{method:'POST',body:JSON.stringify({body,model})});if(body)j.localUsage=aiRecordUsage(j,aiCfg(),body.model);return j}finally{aiSending=false}};
- // Keep entry points and controls; the server owns keys, connections and access policies.
- const originalSettings=aiSettingsHTML;
- aiSettingsHTML=()=>originalSettings().replace(/<label class="fg"><span class="lbl">OpenAI APIキー<\/span>[\s\S]*?<\/label>/,'<p class="hint">AIの接続キーはサーバーで管理しています。</p>').replace(/<p class="hint">ChatGPTの月額プラン[\s\S]*?<\/p>/,'<p class="hint">ChatGPTの月額プランとは別のAPI課金です。</p>').replace(/<div class="row fg"><button class="btn" id="aiTest">[\s\S]*?<\/div>/,'<p class="hint">'+(session.ai?'AIに接続できます。':'AIの接続設定を準備しています。')+'</p>');
  if(RO){try{const remote=await api('/api/data');S=migrate(remote.json);render();dot('')}catch(e){document.getElementById('main').textContent=e.message}return}
  undoInit();render();dot('');syStart();
 }
@@ -42,3 +38,4 @@ async function connectDropbox(){const popup=open('about:blank','shinkouDropbox',
 }
 root.ShinkouServer={enabled,start,api,securitySettings,signOut,backups,connectDropbox,get session(){return session}};
 })(window);
+
