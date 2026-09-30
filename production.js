@@ -40,13 +40,9 @@ function expandWorkflow(list){
 }
 const RELEASE_TASKS=[
  {id:'tracklist',label:'曲順・収録バージョン確定'},
- {id:'connections',label:'SE・曲間・接続の指定'},
- {id:'listen',label:'全曲通し確認（音量感・曲間・全体尺）'},
  {id:'lyricCheck',label:'全曲の歌詞チェック（音・文字・表記）'},
  {id:'credits',label:'作品全体のクレジットを取りまとめ・デスクへ提出'},
- {id:'desk',label:'音源・確認済み歌詞をデスクへ提出'},
- {id:'masterDelivery',label:'最終音源・曲順・曲間指定をマスタリングへ提出'},
- {id:'masterApproval',label:'マスター全曲確認・最終OK'}
+ {id:'masterDelivery',label:'最終音源・曲順・曲間指定をマスタリングへ提出'}
 ];
 
 function releaseTask(project,id,songs=[]){
