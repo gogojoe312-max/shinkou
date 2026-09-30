@@ -39,6 +39,18 @@ function productionReleaseGroups(list,matched=pool({includeCompleted:true})){
   return g;
  }).sort((a,b)=>(a.p?.release||'9999').localeCompare(b.p?.release||'9999'));
 }
+function productionUpcomingVocal(s,r,today=D.today()){
+ if(r.audioComplete||r.archive)return null;
+ const stages=ShinkouCore.activeStages(s);
+ for(const kind of ['vocal','revocal']){
+  const recording=stages.filter(x=>ShinkouCore.scheduleKind(x)===kind&&!/日程|スケジュール|スタジオ.*調整/.test(x.n));
+  const pending=recording.some(x=>{const n=r.nodes.find(n=>n.keys.includes(x.k))||r.node[kind==='vocal'?'vocal':'stage:revodb'];return n&&!n.done;});
+  if(!pending)continue;
+  const slots=stages.filter(x=>ShinkouCore.scheduleKind(x)===kind).flatMap(x=>s.stages?.[x.k]?.slots||[]).filter(v=>!v.done&&ShinkouProduction.validDate(v.date)&&v.date>=today);
+  if(slots.length)return {state:kind==='vocal'?'歌録り待ち':'追加歌録り待ち',label:kind==='vocal'?'VoDB':'ReVoDB',dates:[...new Set(slots.map(v=>v.date))].sort(),tentative:slots.some(v=>v.swait||v.tentative||v.prov)};
+ }
+ return null;
+}
 function productionReleaseContents(list){
  return productionReleaseGroups(list).map(g=>{
   const name=g.p?.custom||((g.p?.num?g.p.num+'枚目 ': '')+(g.p?.kind||'案件未設定'));
@@ -49,10 +61,12 @@ function productionReleaseContents(list){
    if(!item)return '<div class="release-song-row is-complete"><span class="release-song-title">'+esc(number+t.title)+'</span><span class="release-song-state">✓ 追加制作なし</span><span class="release-song-next">既存曲・収録対象</span></div>';
    const {s,r}=item;
    const next=r.actions[0],deadline=r.nodes.filter(n=>!n.done&&n.due.value).sort((a,b)=>a.due.value.localeCompare(b.due.value))[0];
-   const state=r.audioComplete?'音源制作完了':r.node.mix?.state==='done'?'TD済み':r.node.edit?.state==='done'?'編集済み':r.node.vocal?.state==='done'?'歌録り済み':r.node.full?.state==='done'?'フルサイズ確定':'制作中';
+   const upcoming=productionUpcomingVocal(s,r);
+   const state=upcoming?.state||(r.audioComplete?'音源制作完了':r.node.mix?.state==='done'?'TD済み':r.node.edit?.state==='done'?'編集済み':r.node.vocal?.state==='done'?'歌録り済み':r.node.full?.state==='done'?'フルサイズ確定':'制作中');
    const ball=r.balls[0],completed=r.audioComplete||r.custom&&r.archive;
-   const nextText=completed?(r.archive?'すべて完了':r.admin?.length?'残り：'+r.admin.map(n=>n.id==='invoice'?'請求書':n.label).join('・'):'残りの確認・提出あり'):(next?.title||'次の作業を確認');
-   return '<button class="release-song-row'+(completed?' is-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="release-song-title">'+(completed?'<span class="release-complete-mark" aria-hidden="true">✓</span>':'')+esc(number+songTitle(s))+'</span><span class="release-song-state">'+esc(completed?(r.custom?'制作完了':'音源制作完了'):state)+'</span><span class="release-song-next">'+esc(nextText)+'</span><span class="release-song-meta">'+esc([deadline?'締切 '+productionDate(deadline.due)+(deadline.due.kind==='target'?'（目安）':'' ):completed?'':'締切未定',ball?productionBallText(ball):''].filter(Boolean).join(' · '))+'</span><span class="release-row-arrow" aria-hidden="true">›</span></button>';
+   const nextText=completed?(r.archive?'すべて完了':r.admin?.length?'残り：'+r.admin.map(n=>n.id==='invoice'?'請求書':n.label).join('・'):'残りの確認・提出あり'):upcoming?upcoming.label+' '+upcoming.dates.map(date=>productionDate({value:date})).join('・')+(upcoming.tentative?'（仮）':''):(next?.title||'次の作業を確認');
+   const meta=upcoming?'':deadline?'締切 '+productionDate(deadline.due)+(deadline.due.kind==='target'?'（目安）':''):completed?'':'締切未定';
+   return '<button class="release-song-row'+(completed?' is-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="release-song-title">'+(completed?'<span class="release-complete-mark" aria-hidden="true">✓</span>':'')+esc(number+songTitle(s))+'</span><span class="release-song-state">'+esc(completed?(r.custom?'制作完了':'音源制作完了'):state)+'</span><span class="release-song-next">'+esc(nextText)+'</span><span class="release-song-meta">'+esc([meta,ball?productionBallText(ball):''].filter(Boolean).join(' · '))+'</span><span class="release-row-arrow" aria-hidden="true">›</span></button>';
   }).join('');
   const tasks=g.p?'<details class="release-common"><summary>作品共通の作業 <span>'+ShinkouProduction.RELEASE_TASKS.filter(t=>['done','na'].includes(ShinkouProduction.releaseTask(g.p,t.id,S.songs).state)).length+'/'+ShinkouProduction.RELEASE_TASKS.length+'</span></summary>'+ShinkouProduction.RELEASE_TASKS.map(t=>{
    const v=ShinkouProduction.releaseTask(g.p,t.id,S.songs);
@@ -358,5 +372,4 @@ function productionDateEditor(s,key){
  const initial=s.dates?.[anchor]||'';
  s3(songTitle(s),label,'<label class="quick-field">'+label+'<input type="date" class="inp" id="productionAnchor" value="'+esc(initial)+'"></label><label class="quick-field">日程の状態<select class="inp" id="productionAnchorKind" aria-label="日程の状態">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(key==='release'&&!initial&&relOf(s)?'<p class="hint">案件の発売日 '+esc(relOf(s))+' を使用中。入力するとこの曲の日付を優先します。</p>':''),[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(RO||!S.songs.includes(s))return;const d=document.getElementById('productionAnchor').value;if(d&&!ShinkouProduction.validDate(d))return toast('日付を確認してください');if(initial!==(s.dates?.[anchor]||'')||kind!==(s.production?.dateKinds?.[anchor]||'registered'))return toast('日程が更新されました。開き直してください');s.dates||={};s.dates[anchor]=d;s.production||={};s.production.dateKinds||={};s.production.dateKinds[anchor]=document.getElementById('productionAnchorKind').value;productionAfterSave(s);hide('sheet3');toast('保存しました')}}]);
 }
-
 

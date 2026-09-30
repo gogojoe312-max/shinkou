@@ -81,3 +81,26 @@ test('read-only and excluded stages cannot be scheduled',()=>{
  const c=app(),op={t:'slot_add',s:0,st:'record',date:'2026-10-08'},row=c.aiResolve(op);c.RO=true;assert.throws(()=>c.aiApplyBatch([row]),/閲覧/);
  c.RO=false;c.S.songs[0].stages.record.excluded=true;assert.equal(c.aiResolve(op).ok,false);
 });
+test('VoEDIT and other English editing labels wait for recording, then become actionable',()=>{
+ for(const label of ['VoEDIT','Vo Edit','EDIT','ChoEDIT','エディット']){
+  const s=fixture().songs[0];s.stageList.find(x=>x.k==='edit').n=label;
+  s.stages.record.slots=[{date:'2026-10-08',done:false},{date:'2026-10-09',done:false}];
+  let r=P.report(s,{today});assert(r.node['stage:edit'].blockers.includes('stage:record'),label);assert(!r.actions.some(a=>a.id==='stage:edit'),label);
+  s.stages.prep.done=true;s.stages.record.done=true;
+  r=P.report(s,{today});assert(r.actions.some(a=>a.id==='stage:edit'),label);
+ }
+});
+function releaseUI(s){
+ const r=P.report(s,{today}),c={ShinkouCore:C,ShinkouProduction:P,D:{today:()=>today},productionDate:d=>d.value.slice(5).replace('-','/'),songTitle:s=>s.title,esc:x=>String(x||''),productionBallText:()=>'',productionReleaseGroups:()=>[{p:null,artist:s.artist,items:[{s,r}],done:0}]};
+ vm.createContext(c);const ui=fs.readFileSync(require.resolve('../production-ui.js'),'utf8');vm.runInContext(ui.slice(ui.indexOf('function productionUpcomingVocal('),ui.indexOf('function refreshProductionReleases(')),c);return c;
+}
+test('release row shows recording wait with both dates, never VoEDIT or a recording deadline',()=>{
+ const s=fixture().songs[0];s.stages.record.slots=[{date:'2026-10-08',done:false},{date:'2026-10-09',done:false}];
+ const c=releaseUI(s),html=c.productionReleaseContents([s]);
+ assert.match(html,/歌録り待ち/);assert.match(html,/VoDB 10\/08・10\/09/);assert.doesNotMatch(html,/VoEDIT|締切 10\/08/);
+});
+test('finished, excluded and unscheduled recordings do not display a future recording wait',()=>{
+ const s=fixture().songs[0];let c=releaseUI(s);assert.equal(c.productionUpcomingVocal(s,P.report(s,{today})),null);
+ s.stages.record.slots=[{date:'2026-10-08',done:false}];s.stages.record.done=true;c=releaseUI(s);assert.equal(c.productionUpcomingVocal(s,P.report(s,{today})),null);
+ s.stages.record.done=false;s.stages.record.excluded=true;c=releaseUI(s);assert.equal(c.productionUpcomingVocal(s,P.report(s,{today})),null);
+});

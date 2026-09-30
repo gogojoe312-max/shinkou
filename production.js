@@ -216,7 +216,7 @@ function interpretFlow(s,nodes){
  if(s.customWorkflow&&!live){
   const work=nodes.filter(n=>(n.stage||['mixBooking','mix','master'].includes(n.id))&&!n.shared&&n.state!=='na');
   const booking=n=>/日程|スタジオ.*(?:調整|確保)|予約/.test(n.label);
-  const phase=n=>booking(n)?-1:/マスタリング|マスター/.test(n.label)?8:n.id==='mix'?6:/TD.*(?:確認|承認|OK)|ミックス.*(?:確認|承認|OK)/i.test(n.label)?7:/ミックス|トラックダウン|\bTD\b/i.test(n.label)?6:/エディット|編集/.test(n.label)?5:/依頼|発注/.test(n.label)?1:/共有|版確認|録音準備/.test(n.label)?3:/レコーディング|録音|歌録り|歌の録り直し|収録/.test(n.label)?4:n.group==='plan'?0:/既存.*素材|ステム.*受領/.test(n.label)?1:n.group==='arrange'||/効果音.*制作/.test(n.label)?2:0;
+ const phase=n=>booking(n)?-1:/マスタリング|マスター/.test(n.label)?8:n.id==='mix'?6:/TD.*(?:確認|承認|OK)|ミックス.*(?:確認|承認|OK)/i.test(n.label)?7:/ミックス|トラックダウン|\bTD\b/i.test(n.label)?6:/エディット|編集|edit/i.test(n.label)?5:/依頼|発注/.test(n.label)?1:/共有|版確認|録音準備/.test(n.label)?3:/レコーディング|録音|歌録り|歌の録り直し|収録/.test(n.label)?4:n.group==='plan'?0:/既存.*素材|ステム.*受領/.test(n.label)?1:n.group==='arrange'||/効果音.*制作/.test(n.label)?2:0;
   for(const n of work){
    const rank=phase(n),definition=(s.stageList||[]).find(x=>n.keys.includes(x.k));
    const explicit=(definition?.dependsOn||[]).map(k=>byTask(k)||byKey(k)).filter(x=>x&&x!==n);
