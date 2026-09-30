@@ -24,6 +24,11 @@ function wireSnapshotEditors(root){
  });
 }
 
+/* Shared navigation is required after progress edits rebuild the list. */
+function wireBriefLinks(root){
+ root.querySelectorAll('[data-brief-song]').forEach(b=>b.onclick=()=>openSong(b.dataset.briefSong));
+}
+
 function renderWorkspace(){
   document.body.classList.toggle('desk-mode',V.mode==='desk');
   document.body.classList.toggle('progress-first',V.mode!=='desk'&&V.use!=='cal');
