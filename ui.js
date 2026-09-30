@@ -12,7 +12,7 @@ function songSnapshotContents(s){return productionSnapshot(s)}
 function songSnapshotHTML(s){return '<div class="song-snapshot" data-snapshot-song="'+esc(s.id)+'">'+songSnapshotContents(s)+'</div>'}
 function songOverview(list){return productionOverview(list)}
 function refreshCompletion(s){
- document.querySelectorAll('[data-snapshot-song]').forEach(root=>{if(root.dataset.snapshotSong===s.id){root.innerHTML=songSnapshotContents(s);wireSnapshotEditors(root)}});
+ document.querySelectorAll('[data-snapshot-song]').forEach(root=>{if(root.dataset.snapshotSong===s.id){const open=new Set([...root.querySelectorAll('[data-state-fold][open]')].map(x=>x.dataset.stateFold));root.innerHTML=songSnapshotContents(s);root.querySelectorAll('[data-state-fold]').forEach(x=>x.open=open.has(x.dataset.stateFold));wireSnapshotEditors(root)}});
  refreshProductionShows();refreshProductionReleases();
  if(cur?.id===s.id)head();
 }
@@ -33,7 +33,7 @@ function renderWorkspace(){
   document.body.classList.toggle('desk-mode',V.mode==='desk');
   document.body.classList.toggle('progress-first',V.mode!=='desk'&&V.use!=='cal');
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
-  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'制作の見通し';
+  document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'仕事の状態';
   const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();

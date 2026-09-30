@@ -12,9 +12,10 @@ function deferredChorus(){const s=song();for(const k of ['cho','chodb','choed'])
 function arrangement(){const s=song();for(const k of ['recordable','vodb','rhythm','tsunagi','pitch','arr'])s.stages[k].done=false;s.stages.vo.slots=[{date:'2026-11-04',done:false},{date:'2026-11-05',done:false}];return s;}
 const report=s=>P.report(s,{today});
 function ui(s){
- const r=report(s),c={ShinkouCore:C,ShinkouProduction:P,D:{today:()=>today},RO:true,productionReport:()=>r,productionDate:d=>d.value?.slice(5).replace('-','/')||'未定',productionDateKind:()=>'',songTitle:s=>s.title,esc:x=>String(x||''),productionBallText:()=>'',productionReleaseGroups:()=>[{p:null,artist:s.artist,items:[{s,r}],done:0}]};
+ const r=report(s),c={S:{log:[]},V:{q:'',who:'all',dir:'__all'},ShinkouCore:C,ShinkouProduction:P,D:{today:()=>today},RO:true,productionReport:()=>r,productionDate:d=>d.value?.slice(5).replace('-','/')||'未定',productionDateKind:()=>'',songTitle:s=>s.title,esc:x=>String(x||''),productionBallText:()=>'',productionReleaseGroups:()=>[{p:null,artist:s.artist,items:[{s,r}],done:0}]};
  vm.createContext(c);const src=fs.readFileSync(require.resolve('../production-ui.js'),'utf8');
  for(const [a,b] of [['function productionButton(','function productionIsLive('],['function productionUpcomingVocal(','function refreshProductionReleases(']])vm.runInContext(src.slice(src.indexOf(a),src.indexOf(b)),c);
+ c.songSnapshotHTML=s=>'<div class="song-snapshot" data-snapshot-song="'+s.id+'">'+c.productionSnapshot(s)+'</div>';
  return c;
 }
 test('deferred unrecorded chorus stays visible after vocal editing and an old materials check',()=>{
@@ -24,7 +25,8 @@ test('deferred unrecorded chorus stays visible after vocal editing and an old ma
  assert(r.node.mix.blockers.includes('chorus'));assert(r.node['stage:mixBrief'].blockers.includes('chorus'));
  assert(!r.actions.some(a=>['mix','stage:mixBrief'].includes(a.id)));
  assert.match(c.productionReleaseContents([s]),/コーラス未収録/);assert.match(c.productionSnapshot(s),/コーラス未収録/);
- assert.doesNotMatch(c.productionReleaseContents([s]),/編集済み|全素材と要望を共有/);
+ // The main state must reflect the pending chorus; collapsed details retain completed vocal editing.
+ assert.doesNotMatch(c.productionReleaseContents([s]).split('<details class="state-detail"')[0],/編集済み|全素材と要望を共有/);
  assert.equal(JSON.stringify(s),before);
 });
 test('booked vocal dates do not conceal unfinished arrangement in either view',()=>{
