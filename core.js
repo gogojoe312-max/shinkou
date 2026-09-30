@@ -53,6 +53,22 @@
       });
     });
   }
-  root.ShinkouCore={merge,mergeList,activeStages,ensureSlots,copy,equal};
+  // Scheduling is a capability, not a consequence of an AI-generated stage ID.
+  // Only execution/booking labels qualify; sharing, approval and editing are distinct.
+  function scheduleKind(x){
+    const key={vo:'vocal',vodb:'vocal',revo:'revocal',revodb:'revocal',cho:'chorus',chodb:'chorus',instrec:'instrument',instdb:'instrument',tdes:'mix',td:'mix',mas:'master'}[x.k];
+    if(key)return key;
+    const n=String(x.n||'').normalize('NFKC').replace(/\s/g,'');
+    if(/共有|版確認|受領|提出|素材|依頼|発注|編集|EDIT|試聴|最終OK|チェック/i.test(n))return '';
+    if(/^(?:追加歌録り|ReVoDB)(?:の日程.*)?$/i.test(n))return 'revocal';
+    if(/^(?:VoDB|歌録り|歌どり|歌の録り直し|ボーカル録音|ボーカルレコーディング)(?:の日程.*)?$/i.test(n))return 'vocal';
+    if(/^(?:ChoDB|コーラス録音|コーラス収録)(?:の日程.*)?$/i.test(n))return 'chorus';
+    if(/^(?:楽器DB|楽器録音|楽器収録)(?:の日程.*)?$/i.test(n))return 'instrument';
+    if(/^(?:TD|ミックス|トラックダウン)(?:日程.*|の日程.*)?$/i.test(n))return 'mix';
+    if(/^(?:マスタリング)(?:日程.*|の日程.*)?$/.test(n))return 'master';
+    return '';
+  }
+  function isScheduledStage(x){return x.t==='multi'||!['vodb','revodb','chodb','instdb','td','mas'].includes(x.k)&&!!scheduleKind(x)}
+  root.ShinkouCore={merge,mergeList,activeStages,ensureSlots,copy,equal,scheduleKind,isScheduledStage};
   if(typeof module!=='undefined')module.exports=root.ShinkouCore;
 })(typeof globalThis!=='undefined'?globalThis:this);

@@ -2,6 +2,7 @@
 (function(root){
 'use strict';
 const invoices=root.ShinkouInvoices||(typeof module!=='undefined'?require('./invoices.js'):null);
+const core=root.ShinkouCore||(typeof module!=='undefined'?require('./core.js'):null);
 const STATES={unknown:'未確認',undecided:'未定',todo:'これから',doing:'作業中',requested:'依頼済み・相手待ち',received:'受領・確認前',review:'確認中',revision:'修正待ち',waiting:'日程待ち',done:'完了',na:'対象外'};
 const GROUPS=[['plan','企画・デモ'],['arrange','アレンジ'],['vocal','歌録り・編集'],['chorus','コーラス'],['instrument','楽器'],['finish','仕上げ'],['delivery','確認・提出']];
 const defs=[
@@ -99,7 +100,7 @@ function groupIds(s,group){
 function groupSnapshot(s,group){const ids=groupIds(s,group),keys=[...new Set(ids.flatMap(id=>resolve(s,id).keys))];return JSON.stringify({list:s.stageList,tasks:ids.map(id=>[id,s.production?.tasks?.[id]]),stages:keys.map(k=>[k,s.stages?.[k]]),dateKinds:s.production?.dateKinds})}
 function deferGroup(s,group,today){
  // Keep performed work and stable slot IDs; clear every unfinished record in this group.
- const ids=groupIds(s,group),targets=ids.filter(id=>{const n=task(s,id,{today});return n&&!n.done});
+ const ids=groupIds(s,group),targets=ids.filter(id=>{const n=task(s,id,{today});return n&&(!n.done||n.bookingDerived)});
  for(const id of targets)apply(s,id,{state:'undecided'},today);
  return s;
 }
@@ -115,7 +116,9 @@ function deferredIntent(text,songs,scope='global'){
 // Resolve against current work, retaining the original song indices used by AI operations.
 function consultationTargets(songs,projects,text='',scope='global',today,previousText=''){
  const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
- const titleForms=v=>{const raw=String(v||'').normalize('NFKC');return [...new Set([norm(raw),norm(raw.replace(/\([^)]*(?:ver\.?|バージョン|再録|新録)[^)]*\)/gi,''))].filter(x=>x.length>=2))]};
+ const titleForms=v=>{const raw=String(v||'').normalize('NFKC'),base=raw.replace(/\([^)]*(?:ver\.?|バージョン|再録|新録)[^)]*\)/gi,'');
+   const words=base.trim().match(/^([A-Za-z]+)\s+([A-Za-z]+)\s+[A-Za-z]+/);
+   return [...new Set([norm(raw),norm(base),...(words?[norm(words[1]+' '+words[2])]:[])].filter(x=>x.length>=2))]};
  const matches=(row,value)=>row.forms.some(t=>value.includes(t));
  const input=norm(text),prior=norm(previousText),history=/(履歴|過去|以前の|完了済|終了済|終わった(?:方|ほう|曲|工程)|再開|やり直|両方|全曲|完了分も)/.test(input);
  const aliases={'ochanorma':['ocha','オチャノーマ'],'ロージークロニクル':['ロージー'],'譜久村聖':['譜久村']};
@@ -125,7 +128,7 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
  const rows=songs.map((s,i)=>{const p=projects.find(p=>p.id===s.projectId),r=report(s,{today,release:p?.release}),artist=s.artist||p?.artist||'',names=[artist,...(aliases[norm(artist)]||[]),p?.custom].map(norm).filter(v=>v.length>=2);
    const work=r.nodes.filter(n=>!['invoice','lyricCheck','credits'].includes(n.id));
    const complete=r.custom?work.length>0&&work.every(n=>n.done):r.audioComplete;
-   return {i,s,p,r,complete,title:norm(s.title||s.work),forms:titleForms(s.title||s.work),qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
+   return {i,s,p,r,complete,title:norm(s.title||s.work),forms:[...new Set([...titleForms(s.title||s.work),...titleForms(s.work),...(Array.isArray(s.aliases)?s.aliases.map(norm).filter(x=>x.length>=2):[])])],qualified:names.some(n=>input.includes(n)),previousQualified:names.some(n=>prior.includes(n))};
  });
  const focus=rows.find(x=>x.s.id===scope);
  const explicitScope=rows.some(x=>x.qualified)||(requestedKind!=='')||!!focus&&rows.some(x=>x.s.id!==scope&&x.title!==focus?.title&&matches(x,input));
@@ -134,7 +137,7 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
  const freshArtist=rows.some(x=>x.qualified);
  const titleInput=freshMentions.length?input:prior,mentions=freshMentions.length?freshMentions:(freshArtist||requestedKind)?[]:rows.filter(x=>matches(x,prior));
  // A longer title contains a shorter one, but does not name a second song.
- const named=mentions.filter(x=>x.forms.some(form=>mentions.filter(y=>y.title!==x.title&&y.forms.some(t=>t.includes(form)&&t!==form)).reduce((rest,y)=>y.forms.reduce((v,t)=>v.replaceAll(t,''),rest),titleInput).includes(form)));
+ const named=mentions.filter(x=>x.forms.some(form=>mentions.filter(y=>y.title!==x.title&&y.forms.some(t=>t.includes(form)&&t!==form)).reduce((rest,y)=>y.forms.filter(t=>t!==form).reduce((v,t)=>v.replaceAll(t,''),rest),titleInput).includes(form)));
  const freshQualified=rows.filter(x=>x.qualified),qualified=freshQualified.length?freshQualified:freshMentions.length?[]:rows.filter(x=>x.previousQualified),explicit=qualified.length>0,qualifiedIds=new Set(qualified.map(x=>x.i));
  let candidates=named.length?named:explicit?qualified:rows;
  if(named.length&&explicit){const same=candidates.filter(x=>qualifiedIds.has(x.i));if(same.length)candidates=same;else return {indices:[...new Set([...named,...qualified].map(x=>x.i))],selected:-1,reason:'mixed_reference',history,rows};}
@@ -152,13 +155,60 @@ function consultationTargets(songs,projects,text='',scope='global',today,previou
    // An explicit artist/project can refer back to completed work. Otherwise one current
    // match wins over any number of completed namesakes, even with invoices outstanding.
    if(!named.length&&!explicit&&!taskLabels.length)candidates=candidates.filter(x=>!x.r.archive);
-   else if(current.length)candidates=current;
+   else if(current.length){
+     // Filter completed namesakes within each named title, never drop a different
+     // explicitly named song merely because another song has unfinished work.
+     candidates=named.length?candidates.filter(x=>pending(x)||!current.some(y=>y.title===x.title)):current;
+   }
    else if(!named.length&&!explicit)candidates=candidates.filter(x=>!x.r.archive);
  }
  const selected=(named.length||explicit||taskLabels.length)&&candidates.length===1?candidates[0].i:-1;
- return {indices:candidates.map(x=>x.i),selected,bulk,requestedKind,excludeKind,reason:selected>=0?(explicit?'named_context':history?'history':'current_work'):named.length?'multiple_matches':'current_overview',history,rows};
+ const matchedForms=candidates.map(x=>x.forms.filter(f=>titleInput.includes(f)).sort((a,b)=>b.length-a.length)[0]);
+ const ambiguous=!!named.length&&new Set(matchedForms).size<candidates.length;
+ return {indices:candidates.map(x=>x.i),named:!!named.length,selected,ambiguous,bulk:bulk||named.length>1&&!ambiguous,requestedKind,excludeKind,reason:selected>=0?(explicit?'named_context':history?'history':'current_work'):named.length?'multiple_matches':'current_overview',history,rows};
 }
 // Read related records together without changing saved completion checks or dates.
+// Handle fully specified, shared recording dates without asking a model to invent
+// stage IDs. Complex requests (different dates per song, changes, questions) stay AI.
+function scheduleIntent(text,songs,projects,today,scope='global'){
+ const raw=String(text||'').normalize('NFKC').trim();
+ const m=raw.match(/^(.+?)の(VoDB|歌録り|歌どり|ChoDB|コーラス録音|楽器DB|楽器録音|TD|ミックス)(?:は|を)?\s*([\d\s/年月日.・、,と]+)(?:に)?(?:やります|行います|予定です|です|でお願いします|で登録して(?:ください)?|に登録して(?:ください)?)[。!！]*$/i);
+ if(!m)return null;
+ const kind=/^(VoDB|歌録り|歌どり)$/i.test(m[2])?'vocal':/^(ChoDB|コーラス録音)$/i.test(m[2])?'chorus':/楽器/.test(m[2])?'instrument':'mix';
+ const selection=consultationTargets(songs,projects,m[1],scope,today);
+ if(!selection.named||!selection.indices.length)return null;
+ const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s「」『』“”"']/g,'');
+ let rest=norm(m[1]);const used=new Set();
+ for(const i of selection.indices){
+   const row=selection.rows[i],form=row.forms.slice().sort((a,b)=>b.length-a.length).find(f=>rest.includes(f));
+   if(!form||used.has(form))return null;
+   used.add(form);rest=rest.replaceAll(form,'');
+ }
+ if(rest.replace(/[、,・&と]/g,''))return null; // Never silently omit an unknown name.
+ const dateText=m[3].replace(/年|月/g,'/').replace(/日/g,'').replace(/\s/g,'');
+ const parts=dateText.split(/[.・、,と]/);let year=Number(today.slice(0,4)),month;
+ const dates=[];
+ for(const part of parts){
+   if(!part||!/^\d+(?:\/\d+){0,2}$/.test(part))return null;
+   const nums=part.split('/').map(Number);let day;
+   if(nums.length===3){[year,month,day]=nums;if(year<1000)return null;}
+   else if(nums.length===2){[month,day]=nums;if(!dates.length&&`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`<today)year++;}
+   else{day=nums[0];if(!month)return null;}
+   const date=`${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+   if(!validDate(date))return null;
+   if(!dates.includes(date))dates.push(date);
+ }
+ const ops=[];
+ for(const i of selection.indices){
+   const s=songs[i],all=active(s).filter(x=>core.scheduleKind(x)===kind&&core.isScheduledStage(x));
+   const booking={vocal:'vo',chorus:'cho',instrument:'instrec',mix:'tdes'}[kind];
+   const standard=all.find(x=>x.k===booking),execution=all.filter(x=>!/日程|スケジュール|スタジオ.*調整/.test(x.n));
+   const targets=standard?[standard]:execution.length?execution:all;
+   if(targets.length!==1||s.stages?.[targets[0].k]?.done)return null;
+   for(const date of dates)ops.push({t:'slot_add',s:i,songId:s.id,st:targets[0].k,date,who:'',note:''});
+ }
+ return {ops,indices:selection.indices,dates,kind};
+}
 function interpretFlow(s,nodes){
  const byKey=k=>nodes.find(n=>n.keys.includes(k)),byTask=id=>nodes.find(n=>n.id===id),live=isShow(s);
  // Custom remakes/SE have their own stage IDs: connect their actual work, not
@@ -185,9 +235,11 @@ function interpretFlow(s,nodes){
  // A dated booking is complete as scheduling, never as recording/editing performed.
  const bookingKeys=new Set(['vo','voes','cho','choes','instrec','revo','revoes','tdes','guideBooking','masterBooking']);
  for(const n of nodes){
-  if(n.state==='na'||n.done||!['unknown','waiting'].includes(n.state))continue;
-  if(!n.keys.some(k=>bookingKeys.has(k)))continue;
-  const records=n.keys.map(k=>s.stages?.[k]||{}),slots=records.flatMap(g=>g.slots||[]).filter(v=>validDate(v.date));
+  if(n.state==='na'||n.done||!['unknown','todo','waiting'].includes(n.state))continue;
+  const customBooking=n.keys.map(k=>active(s).find(x=>x.k===k)).find(x=>x&&core.scheduleKind(x)&&/日程|スタジオ.*調整/.test(x.n));
+  if(!n.keys.some(k=>bookingKeys.has(k))&&!customBooking)continue;
+  const keys=customBooking?active(s).filter(x=>core.scheduleKind(x)===core.scheduleKind(customBooking)).map(x=>x.k):n.keys;
+  const records=keys.map(k=>s.stages?.[k]||{}),slots=records.flatMap(g=>g.slots||[]).filter(v=>validDate(v.date));
   const tentative=records.some(g=>g.prov||g.st==='studio')||slots.some(v=>v.swait||v.tentative||v.prov)||n.keys.some(k=>s.production?.dateKinds?.[k]==='tentative')||s.production?.tasks?.[n.id]?.dueKind==='tentative';
   if(slots.length&&!tentative){Object.assign(n,{state:'done',done:true,wait:false,derived:true,bookingDerived:true});n.due={value:slots.map(v=>v.date).sort()[0],kind:'registered',source:'登録した日程'};}
  }
@@ -401,7 +453,8 @@ function validatePatch(patch){
 }
 function apply(s,id,patch,today){
  const d=resolve(s,id);if(!d)throw Error('作業が見つかりません');const error=validatePatch(patch);if(error)throw Error(error);
- if(patch.state==='undecided'&&task(s,id,{today})?.done)throw Error('完了済みの実績は未定に戻しません');
+ const current=task(s,id,{today});
+ if(patch.state==='undecided'&&current?.done&&!current.bookingDerived)throw Error('完了済みの実績は未定に戻しません');
  if(id==='invoice'&&Object.hasOwn(patch,'state'))throw Error('請求書は相手ごとの受領・送付記録から自動で判定します');
  const keys=keysFor(s,d),completeGroup=keys.length>0&&keys.every(k=>s.stages?.[k]?.done),allKeys=(s.stageList||[]).map(x=>x.k);
  if(d.keys.some(k=>allKeys.includes(k))&&!keys.length)throw Error('対象外の作業です。一覧から対象に戻してください');
@@ -442,7 +495,6 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets};
+root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup,deferredIntent,consultationTargets,scheduleIntent};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
-

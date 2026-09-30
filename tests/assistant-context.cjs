@@ -19,3 +19,14 @@ function context(f=fixture()){const c={ShinkouProduction:P,ShinkouWorkflow:W,Shi
 test('actual AI payload omits completed namesakes and sends only stable song indices',async()=>{const c=context();let sent;c.aiChat=async msgs=>{sent=JSON.parse(msgs[0].content.split('データ:\n')[1].split('\n\n入力:')[0]);return {out:{ops:[],ans:'進行中グループのメドレーとして確認します'},tx:'{}'};};const result=await c.aiCall('メドレーは担当者さん待ちです。今日中に来る予定です。','global');assert.deepEqual(sent.songs.map(s=>s.i),[1]);assert.equal(sent.targeting.selected_song,1);assert.equal(result.out.targeting.selected_song,1);assert.equal(sent.songs[0].production_complete,false);assert.ok(sent.songs[0].candidate_tasks.includes('stage:make'));});
 test('completed tasks remain facts in context but never appear among open task candidates',()=>{const f=fixture();f.songs[1].stages.mix.done=true;const c=context(f),ctx=c.aiCtx('global','メドレーを確認'),s=ctx.songs[0];assert.ok(s.completed_tasks.includes('stage:mix'));assert.equal(s.candidate_tasks.includes('stage:mix'),false);const stage=s.stages.find(st=>typeof st==='object'&&ctx.stage_catalog[st.ref].k==='mix');assert.equal(stage.done,1);});
 test('filtered context retains release targets inherited from the project',()=>{const f=fixture();f.songs[1].use='master';f.projects[1].release='2027-02-24';const c=context(f),s=c.aiCtx('current','今後の予定').songs[0];assert.equal(s.targets.master,'2027-01-24');});
+test('missing song details are loaded once automatically, using snapshot IDs',async()=>{
+ const c=context();let calls=0;
+ c.aiChat=async()=>++calls===1?{out:{ops:[],needs_songs:[0]},tx:'{"needs_songs":[0],"ops":[]}'}:{out:{ops:[{t:'memo',s:0,st:'make',memo:'確認'}],ans:'確認'},tx:'{}'};
+ const r=await c.aiCall('メドレーを確認','global');assert.equal(calls,2);assert.equal(r.out.ops[0].songId,'old');assert(r.out.targeting.candidate_ids.includes('old'));
+});
+test('a second missing-detail request or invalid lookup does not loop or apply anything',async()=>{
+ const c=context();let calls=0;c.aiChat=async()=>{calls++;return {out:{ops:[],needs_songs:[0]},tx:'{}'}};
+ await assert.rejects(()=>c.aiCall('メドレーを確認','global'),/確定できません/);assert.equal(calls,2);
+ calls=0;c.aiChat=async()=>{calls++;return {out:{ops:[],needs_songs:[999]},tx:'{}'}};
+ await assert.rejects(()=>c.aiCall('メドレーを確認','global'),/追加確認/);assert.equal(calls,1);
+});
