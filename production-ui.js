@@ -50,14 +50,14 @@ function productionReleaseGroups(list,matched=pool({includeCompleted:true})){
  const groups=new Map();
  for(const s of matched.filter(s=>!productionIsLive(s))){
   const p=projOf(s.projectId),id=p&&!isShow(p)?p.id:'unassigned:'+s.artist;
-  if(!visible.has(id))continue;
+  if(!visible.has(id)&&V.fin!=='hide')continue;
   if(!groups.has(id))groups.set(id,{id,p:p&&!isShow(p)?p:null,artist:s.artist,items:[]});
   groups.get(id).items.push({s,r:productionReport(s)});
  }
  for(const p of S.projects.filter(p=>!isShow(p))){
-  if((V.fin!=='hide'||V.q)&&p.tracklist?.some(t=>productionTrackComplete(t,p)&&productionTrackMatches(t,p))&&!groups.has(p.id))groups.set(p.id,{id:p.id,p,artist:p.artist,items:[]});
+  if(p.tracklist?.some(t=>productionTrackMatches(t,p)&&(V.fin!=='done'||productionTrackComplete(t,p)))&&!groups.has(p.id))groups.set(p.id,{id:p.id,p,artist:p.artist,items:[]});
  }
- return [...groups.values()].map(g=>{
+ return [...groups.values()].filter(g=>V.fin!=='hide'||!productionReleaseComplete(g.p,g.items.map(x=>x.s))).map(g=>{
   g.items.sort((a,b)=>{const pos=s=>{const i=g.p?.tracklist?.findIndex(t=>t.title===s.title);return i>=0?i:(s.ord||0)};return pos(a.s)-pos(b.s)});
   g.done=g.items.filter(x=>x.r.audioComplete).length;
   g.deadline=g.items.flatMap(({s,r})=>r.nodes.filter(n=>!n.done&&!n.excluded&&n.due.value).map(n=>({s,n}))).sort((a,b)=>a.n.due.value.localeCompare(b.n.due.value))[0];
@@ -84,6 +84,15 @@ function productionTrackComplete(t,p){
  const current=p&&(S.songs||[]).find(s=>s.projectId===p.id&&(s.id===t.songId||s.title===t.title));
  return !current||productionReport(current).archive;
 }
+// Completion is a property of the entire work, never of the current search result.
+function productionReleaseComplete(p,items=[]){
+ const songs=p?(S.songs||[]).filter(s=>s.projectId===p.id&&!productionIsLive(s)):items;
+ const tracks=p?.tracklist||[];
+ if(!songs.length&&!tracks.length)return false;
+ if(songs.some(s=>!productionReport(s).archive))return false;
+ if(tracks.some(t=>{const s=songs.find(s=>s.id===t.songId||s.title===t.title);return s?!productionReport(s).archive:!productionTrackComplete(t,p)}))return false;
+ return !p||ShinkouProduction.RELEASE_TASKS.every(t=>['done','na'].includes(ShinkouProduction.releaseTask(p,t.id,S.songs).state));
+}
 function productionTrackMatches(t,p){
  if(V.who!=='all'||V.dir!=='__all'||(V.use&&!['master','all'].includes(V.use)))return false;
  const q=(V.q||'').trim().toLowerCase();
@@ -97,7 +106,7 @@ function productionReleaseContents(list){
   const complete=e=>e.item?e.item.r.archive:productionTrackComplete(e.t,g.p);
   const row=({t,index,item})=>item?productionCompactItem(item.s,index):'<div class="polished-row '+(productionTrackComplete(t,g.p)?'recorded-complete':'unregistered')+'"><span class="polished-number">'+String(index).padStart(2,'0')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(t.title)+'</strong>'+(productionTrackComplete(t,g.p)?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'')+'</span><span class="polished-state">'+(productionTrackComplete(t,g.p)?'既存曲・追加制作なし':'制作状況未登録')+'</span></span></div>';
   const completed=entries.filter(complete),active=entries.filter(e=>!complete(e)&&V.fin!=='done');
-  const rows=active.map(row).join('')+(completed.length&&(V.fin!=='hide'||V.q)?'<details '+(V.q||V.fin==='done'?'open ':'')+'class="polished-completed" data-state-fold="completed:'+esc(g.id)+'"><summary>✓ 完了 '+completed.length+'曲 <span>開く</span></summary>'+completed.map(row).join('')+'</details>':'');
+  const rows=(V.fin==='done'?completed:entries).map(row).join('');
   const tasks=g.p?'<details class="release-common" data-state-fold="project:'+esc(g.p.id)+'"><summary>作品の共通作業 <span>'+ShinkouProduction.RELEASE_TASKS.filter(t=>['done','na'].includes(ShinkouProduction.releaseTask(g.p,t.id,S.songs).state)).length+'/'+ShinkouProduction.RELEASE_TASKS.length+'</span></summary>'+ShinkouProduction.RELEASE_TASKS.map(t=>{
    const v=ShinkouProduction.releaseTask(g.p,t.id,S.songs);
    return '<div class="release-common-task"><span>'+ (['done','na'].includes(v.state)?'✓':'○')+' '+esc(t.label)+'</span><small>'+esc([ShinkouProduction.STATES[v.state]||'未確認',v.owner,v.due].filter(Boolean).join(' · '))+'</small></div>';
