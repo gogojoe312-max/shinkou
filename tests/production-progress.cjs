@@ -12,7 +12,7 @@ function deferredChorus(){const s=song();for(const k of ['cho','chodb','choed'])
 function arrangement(){const s=song();for(const k of ['recordable','vodb','rhythm','tsunagi','pitch','arr'])s.stages[k].done=false;s.stages.vo.slots=[{date:'2026-11-04',done:false},{date:'2026-11-05',done:false}];return s;}
 const report=s=>P.report(s,{today});
 function ui(s){
- const r=report(s),c={S:{log:[]},V:{q:'',who:'all',dir:'__all'},ShinkouCore:C,ShinkouProduction:P,D:{today:()=>today},RO:true,productionReport:()=>r,productionDate:d=>d.value?.slice(5).replace('-','/')||'未定',productionDateKind:()=>'',songTitle:s=>s.title,esc:x=>String(x||''),productionBallText:()=>'',productionReleaseGroups:()=>[{p:null,artist:s.artist,items:[{s,r}],done:0}]};
+ const r=report(s),c={S:{log:[]},V:{q:'',who:'all',dir:'__all'},ShinkouCore:C,ShinkouProduction:P,D:{today:()=>today,addD:(d,n)=>new Date(Date.parse(d)+n*86400000).toISOString().slice(0,10)},RO:true,productionReport:()=>r,productionDate:d=>d.value?.slice(5).replace('-','/')||'未定',productionDateKind:()=>'',songTitle:s=>s.title,esc:x=>String(x||''),productionBallText:()=>'',productionReleaseGroups:()=>[{p:null,artist:s.artist,items:[{s,r}],done:0}]};
  vm.createContext(c);const src=fs.readFileSync(require.resolve('../production-ui.js'),'utf8');
  for(const [a,b] of [['function productionButton(','function productionIsLive('],['function productionUpcomingVocal(','function refreshProductionReleases(']])vm.runInContext(src.slice(src.indexOf(a),src.indexOf(b)),c);
  c.songSnapshotHTML=s=>'<div class="song-snapshot" data-snapshot-song="'+s.id+'">'+c.productionSnapshot(s)+'</div>';
@@ -49,7 +49,7 @@ test('explicitly unnecessary chorus does not block finishing',()=>{
  assert(!r.progress.remaining.some(n=>n.id==='chorus'));assert(!r.node.mix.blockers.includes('chorus'));assert.notEqual(r.progress.state,'コーラス未収録');
 });
 test('assistant receives the same remaining work and prerequisites as the visible summary',()=>{
- const s=deferredChorus(),c={ShinkouProduction:P,ShinkouCore:C,S:{songs:[s],projects:[],masters:{},assistantRules:[]},D:{today:()=>today},songTitle:s=>s.title,projTitle:p=>p.custom,isShow:()=>false,sortOf:()=>'',songHasMV:()=>false,stages:C.activeStages,stg:(s,k)=>s.stages[k],isMulti:C.isScheduledStage,ANCHOR_KEYS:[],rulesForSong:()=>[]};
+ const s=deferredChorus(),c={ShinkouProduction:P,ShinkouCore:C,S:{songs:[s],projects:[],masters:{},assistantRules:[]},D:{today:()=>today,addD:(d,n)=>new Date(Date.parse(d)+n*86400000).toISOString().slice(0,10)},songTitle:s=>s.title,projTitle:p=>p.custom,isShow:()=>false,sortOf:()=>'',songHasMV:()=>false,stages:C.activeStages,stg:(s,k)=>s.stages[k],isMulti:C.isScheduledStage,ANCHOR_KEYS:[],rulesForSong:()=>[]};
  vm.createContext(c);const src=fs.readFileSync(require.resolve('../app.js'),'utf8');vm.runInContext(src.slice(src.indexOf('function aiCtx('),src.indexOf('const AI_SYS=')),c);
  const out=c.aiCtx('song','状況を確認').songs[0];
  assert.equal(out.current_progress.state,'コーラス未収録');assert(out.incomplete_tasks.includes('chorus'));
