@@ -239,7 +239,8 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-09-30-dot-view-2";
+const APP_VER="2026-10-01-viewer-1";
+const VIEW_ONLY=true;
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
 
@@ -305,7 +306,9 @@ securityChannel?.addEventListener('message',event=>{if(!ShinkouServer.enabled&&e
 let sT=null,dirty=false,chg=0;
 let curProj=null;
 let saveRevision=0,markedEntities=new Map();
-function mark(){undoPushMaybe();
+function mark(){
+  if(VIEW_ONLY){dirty=true;saveRevision++;dot("busy");clearTimeout(sT);sT=setTimeout(flush,400);if(typeof syQueue==="function")syQueue();return}
+  undoPushMaybe();
   S.songs.forEach(s=>ShinkouCore.ensureSlots(s,false,uid));
   for(const kind of ["songs","projects","templates"]){
     (S[kind]||[]).forEach(o=>{const c=Object.assign({},o);delete c.mtime;const k=kind+":"+o.id,v=JSON.stringify(c);
@@ -416,7 +419,9 @@ function masDate(s){if(s.dates.mastering)return s.dates.mastering;
   const m=s.tplMastering;if(!m)return"";
   const b=m.anchor==="release"?relOf(s):(s.dates[m.anchor]||"");
   if(!b)return"";return m.unit==="m"?D.addM(b,m.off):D.addD(b,m.off)}
-function stg(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],asg:""};
+let readingStages=true;
+function stg(s,k){if(VIEW_ONLY&&readingStages)return stageRecord({stages:{[k]:ShinkouCore.copy(s.stages?.[k]||{})}},k);return stageRecord(s,k)}
+function stageRecord(s,k){if(!s.stages[k])s.stages[k]={done:false,date:"",dl:"",st:"",req:"",ret:"",slots:[],asg:""};
   const o=s.stages[k];if(o.st===undefined)o.st="";if(o.req===undefined)o.req="";
   if(o.ret===undefined)o.ret="";if(!o.slots)o.slots=[];if(o.asg===undefined)o.asg="";
   if(o.memo===undefined)o.memo="";
@@ -724,14 +729,17 @@ function mAdd(k,v){v=nfc((v||"").trim());if(!v)return;if(!S.masters[k])S.masters
   if(S.masters[k].indexOf(v)<0){S.masters[k].push(v);S.masters[k].sort((a,b)=>a.localeCompare(b,"ja"));mark()}}
 
 /* ===================== view state ===================== */
-let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"hide",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
+let V={dir:"__all",q:"",grp:"artist",use:"master",fin:"show",who:"all",dense:false,collapsed:{},edit:false,reorder:false};
 try{const sv=JSON.parse(localStorage.getItem("shinkou_view")||"null");
   if(sv&&typeof sv==="object")["dir","grp","use","fin","who","dense","calmode","mode","releaseView"].forEach(k=>{if(sv[k]!==undefined)V[k]=sv[k]})}catch(e){}
+try{if(!localStorage.getItem("shinkou_viewer_seen")){V.fin="show";localStorage.setItem("shinkou_viewer_seen","1")}}catch(e){}
 function viewSave(){if(RO)return;try{localStorage.setItem("shinkou_view",
   JSON.stringify({dir:V.dir,grp:V.grp,use:V.use,fin:V.fin,who:V.who,dense:V.dense,mode:V.mode||"work",calmode:V.calmode||"list",releaseView:V.releaseView||"releases"}))}catch(e){}}
 function pool({includeCompleted=false}={}){const q=V.q.trim().toLowerCase();
   return S.songs.filter(s=>{
-    if(!includeCompleted&&V.fin==="hide"&&productionReport(s).archive)return false;
+    const complete=productionReport(s).archive;
+    if(!includeCompleted&&V.fin==="hide"&&complete)return false;
+    if(V.fin==="done"&&!complete)return false;
     if(V.dir!=="__all"&&(s.director||"")!==V.dir)return false;
     if(V.use!=="all"&&(productionIsLive(s)?"live":"master")!==V.use)return false;
     if(!matchesWho(s))return false;
@@ -755,7 +763,7 @@ function renderUse(){
     '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+'</button>').join("");
   bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
   const fab=document.getElementById("fab");
-  fab.style.display=V.use==="cal"?"none":"";
+  fab.style.display=VIEW_ONLY||V.use==="cal"?"none":"";
   fab.textContent=V.use==="live"?"＋ 制作物":"＋ 楽曲"}
 
 /* ===================== 予定（日付順に全曲まとめて） ===================== */
@@ -829,9 +837,10 @@ function agListBind(m){
   m.querySelectorAll("[data-song]").forEach(b=>{
     if(!b.classList.contains("ag"))return;
     b.onclick=()=>{if(b._swiped){b._swiped=false;return}openSong(b.dataset.song)};
+    if(VIEW_ONLY)return;
     b.addEventListener("touchstart",ev=>{const t=ev.touches[0];b._tx=t.clientX;b._ty=t.clientY},{passive:true});
     b.addEventListener("touchend",ev=>{
-      if(RO||b._tx==null)return;
+      if(RO||VIEW_ONLY||b._tx==null)return;
       const t=ev.changedTouches[0],dx=t.clientX-b._tx,dy=t.clientY-b._ty;b._tx=null;
       if(Math.abs(dx)<64||Math.abs(dy)>40)return;
       b._swiped=true;
@@ -897,7 +906,7 @@ function calHTML(mode){
   return h}
 
 function calMove(ref,iso){
-  if(RO)return;
+  if(RO||VIEW_ONLY)return;
   const a=ref.split("|"),s=S.songs.find(z=>z.id===a[0]);if(!s)return;
   const x=stages(s).find(z=>z.k===a[1]);if(!x)return;
   if(a[2]==="rec"){const o=stg(s,a[1]);const v=o.slots.find(z=>z.date===a[3]);if(!v)return;
@@ -917,6 +926,7 @@ function calBind(m,mode){
   /* チップ：タップで曲を開く（週）、長押しドラッグで日付移動（週・月） */
   let ghost=null;
   m.querySelectorAll("[data-ev]").forEach(ch=>{
+    if(VIEW_ONLY){ch.onclick=()=>{if(ch.dataset.song2)openSong(ch.dataset.song2)};return}
     ch.addEventListener("touchstart",ev=>{
       const t=ev.touches[0];
       ch._sx=t.clientX;ch._sy=t.clientY;ch._drag=false;
@@ -1167,7 +1177,7 @@ function wireSong(){
   const ec=b.querySelector("#expCr");if(ec)ec.onclick=()=>creditSheet(s);
 }
 
-document.getElementById("shDel").onclick=async()=>{if(!cur||RO)return;
+document.getElementById("shDel").onclick=async()=>{if(!cur||RO||VIEW_ONLY)return;
   if(!await ask("「"+songTitle(cur)+"」をゴミ箱へ移します。"+TRASH_DAYS+"日以内なら戻せます。","ゴミ箱へ"))return;
   logAdd("削除: "+(cur.artist?cur.artist+" / ":"")+songTitle(cur));
   toTrash("song",cur,(cur.artist?cur.artist+" / ":"")+songTitle(cur));
@@ -1371,6 +1381,7 @@ function showStat(s){const L=stages(s);
   const n=L.filter(x=>x.d!==1).length,d=L.filter((x,i)=>x.d!==1&&doneOf(s,L,i)).length;
   return d>=n?"✓":d+"/"+n}
 function editProject(id,after){
+  if(VIEW_ONLY||RO)return;
   if(id&&isShow(projOf(id)))return productionShowEditor(id);
   /* 入力したそばから保存する。新規もこの時点で作ってしまう */
   let p=id?projOf(id):null,isNew=false;
@@ -1524,7 +1535,7 @@ const syCfg=()=>{if(!S.settings.sync)S.settings.sync={owner:"",repo:"",path:"dat
 function syOk(){const c=syCfg();return c.on&&c.owner&&c.repo&&c.path&&c.token}
 function syDot(st,msg){SY.st=st;SY.msg=msg||"";
   const e=document.getElementById("syncDot");if(!e)return;
-  const t={off:"",wait:"同期待ち",busy:"同期中",ok:"同期済",err:"同期エラー",offline:"オフライン"}[st]||"";
+  const t={off:"",wait:"更新待ち",busy:"読込中",ok:"更新済",err:"読込エラー",offline:"オフライン"}[st]||"";
   e.textContent=t;e.className=st;e.title=msg||"";
   e.style.display=st==="off"?"none":""}
 /* 変更したものに時刻を刻む。どちらの端末の版が新しいか判定するのに使う */
@@ -1596,6 +1607,7 @@ const syncable=st=>({v:st.v,songs:st.songs,projects:st.projects,templates:st.tem
   masters:st.masters,trash:st.trash,assistantRules:st.assistantRules||[],log:st.log||[],at:Date.now()});
 
 async function syncNow(reason){
+  if(VIEW_ONLY)return syncReadOnly(reason);
   if(RO||SY.busy||securityChanging||!syOk())return;
   if(!navigator.onLine){syDot("offline");return}
   SY.busy=true;syDot("busy");
@@ -1633,6 +1645,25 @@ async function syncNow(reason){
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
   }catch(e){syDot("err",String(e.message||e))}
   finally{SY.busy=false}}
+async function syncReadOnly(reason){
+  if(RO||SY.busy||securityChanging||!syOk())return;
+  if(!navigator.onLine){syDot("offline");return}
+  SY.busy=true;syDot("busy");
+  try{
+    await flush();
+    const got=await ghRead(syCfg());
+    if(!got.json)throw Error("同期先にデータがありません。端末の内容は保持しています。");
+    const remote=ShinkouSecurity.validState(got.json);
+    if(!samePayload(remote,S)){
+      const settings=S.settings;S=migrate(remote);S.settings=settings;
+      dirty=true;saveRevision++;await flush();render();
+      if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}
+    }
+    await sbPut(JSON.parse(JSON.stringify(syncable(S))));
+    SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 読み込み");
+  }catch(e){syDot("err",String(e.message||e))}
+  finally{SY.busy=false}
+}
 function syQueue(){if(!syOk())return;syDot("wait");
   clearTimeout(SY.timer);SY.timer=setTimeout(()=>syncNow("change"),4000)}
 function syStart(){
@@ -1714,8 +1745,9 @@ function openSettings(){
         '<div class="fg" style="margin-top:12px"><button class="btn w" id="crAll">すべての曲をWordで書き出す</button></div>'}},
     {id:"workflow",t:"仕事の連携",h:()=>'<button class="btn w" id="mWorkflow">連絡・資料・実績をまとめる</button><button class="btn w" id="mConnections">外部サービスの接続設定</button>'},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領・送付状況</button></div>'},
-    {id:"sync",t:"端末間の同期",h:()=>ShinkouServer.enabled?'<p class="hint">認証された端末間で自動同期します。接続キーはサーバーで管理しています。</p><button class="btn w" id="syNow">いま同期する</button>':
+    {id:"sync",t:"同期・更新",h:()=>ShinkouServer.enabled?'<p class="hint">最新の制作データを読み取ります。接続キーはサーバーで管理しています。</p><button class="btn w" id="syNow">最新の内容を読み込む</button>':
       ''+
+      '<p class="hint">dotで更新された内容を読み込みます。制作データを同期先へ書き戻すことはありません。</p>'+
       '<div class="fg"><div class="seg2" id="syOn">'+
         '<button data-sy="0" aria-pressed="'+(!syCfg().on)+'">同期しない</button>'+
         '<button data-sy="1" aria-pressed="'+(!!syCfg().on)+'">同期する</button></div></div>'+
@@ -1724,8 +1756,8 @@ function openSettings(){
       '<div class="row fg"><div><span class="lbl">Path</span><input class="inp" id="sP" value="'+esc(syCfg().path)+'"></div>'+
       '<div><span class="lbl">Branch</span><input class="inp" id="sB" value="'+esc(syCfg().branch||"main")+'"></div></div>'+
       '<div class="fg"><span class="lbl">Token</span><input class="inp" id="sT2" type="password" value="'+esc(syCfg().token)+'"></div>'+
-      '<div class="row fg"><button class="btn" id="syNow">いま同期する</button>'+
-        '<button class="btn" id="syPull">相手側の内容で上書き</button></div>'+
+      '<div class="row fg"><button class="btn" id="syNow">最新の内容を読み込む</button>'+
+        '<button class="btn" id="syPull">同期先から端末を復旧</button></div>'+
       '<div class="fg"><button class="btn w" id="syHistory">同期の確認履歴を見る</button></div>'},
      {id:"cal",t:"カレンダーから取り込む",h:()=>
       ''+
@@ -1742,7 +1774,7 @@ function openSettings(){
         : '<div class="warnbox">端末が壊れるとブラウザ内のデータは戻せません。月に一度はJSONを書き出して、別の場所に控えてください。</div>')+
       '<div class="row fg"><button class="btn" id="exJ">JSONを書き出す</button><button class="btn" id="imJ">JSONを読み込む</button></div>'+
       '<div class="row fg"><button class="btn" id="exC">CSV（Excel用）</button><button class="btn" id="rest">バックアップから復元</button></div>'+
-      (ShinkouServer.enabled&&ShinkouServer.session?.role==='admin'?'<button class="btn w" id="serverBackups">サーバーのバックアップから復元</button>':'')+'<div class="fg"><button class="btn w" id="mTrash">ゴミ箱（'+((S.trash||[]).length)+'件）</button></div>'},
+      (ShinkouServer.enabled&&ShinkouServer.session?.role==='admin'?'<button class="btn w" id="serverBackups">サーバーのバックアップから復元</button>':'')+''},
     {id:"sec",t:"セキュリティ",h:()=>ShinkouServer.enabled?ShinkouServer.securitySettings():
       '<div class="fg"><button class="btn w" id="pinBtn">'+(encOn?"パスコードを変更":"パスコードを設定してデータを暗号化")+'</button></div>'+
       '<p class="hint">パスコードを忘れると復号できません。</p>'},
@@ -1754,9 +1786,11 @@ function openSettings(){
     {id:"ver",t:"版",h:()=>'<p class="hint" style="margin:0">いま動いている版：<b>'+APP_VER+'</b>'+
       '<br>古いままなら、アプリを閉じて開き直すか、下のボタンで読み込み直してください。</p>'+
       '<div class="fg"><button class="btn w" id="reld">最新を読み込み直す</button></div>'}];
+  const viewSections=VIEW_ONLY?secs.filter(x=>["sync","save","sec","ver"].includes(x.id)):secs;
+  if(VIEW_ONLY&&!viewSections.some(x=>x.id===setOpen))setOpen="sync";
   const draw=()=>{
     const w=mem?'<div class="warnbox">保存先が使えない環境です。この画面ではデータが残りません。</div>':"";
-    document.getElementById("s2Body").innerHTML=w+secs.map(x=>
+    document.getElementById("s2Body").innerHTML=w+(VIEW_ONLY?'<p class="viewer-settings-note">制作データはdotで登録・更新。ここでは閲覧と端末の接続・復旧を行います。</p>':'')+viewSections.map(x=>
       '<div class="acc"><button class="acch" data-ac="'+x.id+'" aria-expanded="'+(setOpen===x.id)+'">'+
         '<span>'+esc(x.t)+'</span><span class="caret">▼</span></button>'+
         (setOpen===x.id?'<div class="accb">'+x.h()+'</div>':"")+'</div>').join("");
@@ -1834,7 +1868,7 @@ function wireSettings(B){
     syStart()};
   on("#syHistory",()=>showSyncRecords());
   on("#syNow",async()=>{if(!syOk())return toast("先に設定を入れてください");
-    await syncNow("manual");toast(SY.st==="ok"?"同期しました":"同期できません："+SY.msg)});
+    await syncNow("manual");toast(SY.st==="ok"?"最新の内容を読み込みました":"読み込めません："+SY.msg)});
   on("#syPull",async()=>{if(!syOk())return toast("先に設定を入れてください");
     if(!await ask("この端末の内容を破棄して、同期先の内容を取り込みます。","取り込む"))return;
     try{const got=await ghRead(syCfg());
@@ -1979,7 +2013,7 @@ document.getElementById("finSel").onchange=e=>{V.fin=e.target.value;render()};
 document.getElementById("whoSel").onchange=e=>{V.who=e.target.value;render()};
 document.getElementById("btnSet").onclick=openSettings;
 document.getElementById("btnSort").onclick=()=>{
-  if(RO)return;
+  if(RO||VIEW_ONLY)return;
   V.reorder=!V.reorder;
   if(V.reorder){V.grp="artist";document.getElementById("grpSel").value="artist"}
   document.getElementById("btnSort").setAttribute("aria-pressed",V.reorder);
@@ -2007,10 +2041,11 @@ function undoPushMaybe(){
   undoPushMaybe._t=now;
   clearTimeout(undoPushMaybe._s);
   undoPushMaybe._s=setTimeout(()=>{LASTSNAP=snapNow()},1200)}
-function undoBtnUpd(){const b=document.getElementById("btnUndo");
+function undoBtnUpd(){if(VIEW_ONLY)return;const b=document.getElementById("btnUndo");
   if(b)b.style.display=UNDO.length?"":"none"}
 function undoInit(){LASTSNAP=snapNow();undoBtnUpd()}
 function doUndo(){
+  if(VIEW_ONLY)return;
   if(!UNDO.length)return;
   const d=JSON.parse(UNDO.pop());
   UNDOSKIP=true;
@@ -2414,6 +2449,7 @@ async function boot(){
     document.getElementById("lockPin").focus();return}
   if(rec)S=migrate(rec);
   if(RO){render();return}
+  if(VIEW_ONLY){dot("");render();syStart();return}
   purgeTrash();
   {let ch=false;S.songs.forEach(x=>{if(syncInstKids(x))ch=true;if(syncOrder(x))ch=true;if(fixDeps(x))ch=true});if(ch)mark()}
   if(harvestMasters()|cleanMasters())mark();

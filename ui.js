@@ -20,7 +20,7 @@ function deskPreviewURL(){const u=new URL(location.href);u.searchParams.set('mod
 function wireSnapshotEditors(root){
  wireProduction(root);
  root.querySelectorAll('[data-show-completed]').forEach(b=>b.onclick=()=>{
-  V.fin=V.fin==='show'?'hide':'show';viewSave();document.getElementById('finSel').value=V.fin;render();
+  V.fin=V.fin!=='hide'?'hide':'show';viewSave();document.getElementById('finSel').value=V.fin;render();
  });
 }
 
@@ -34,7 +34,7 @@ function renderWorkspace(){
   document.body.classList.toggle('progress-first',V.mode!=='desk'&&V.use!=='cal');
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
   document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'仕事の状態';
-  const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
+  const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='done'?' · 完了のみ':V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();
   const dirs=[...new Set(S.songs.map(s=>s.director).filter(Boolean))];
@@ -57,17 +57,19 @@ function drawSongPage(){
   if(songTab==='summary'){
     h+=progressSongCard(s);
     if(s.note&&V.mode!=='desk')h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
-    if(V.mode!=='desk'&&!RO)h+='<div class="summary-options"><button class="btn" id="editSongInfo">'+(productionIsLive(s)?'情報を編集':'曲の情報を編集')+'</button></div>';
+    if(V.mode!=='desk'&&!(RO||VIEW_ONLY))h+='<div class="summary-options"><button class="btn" id="editSongInfo">'+(productionIsLive(s)?'情報を編集':'曲の情報を編集')+'</button></div>';
   }else if(songTab==='credits'){
-    h+='<div class="detail-panel"><h3>制作クレジット</h3><div id="crW">'+crRows(s,'work')+'</div><button class="btn sm" data-add="work">＋ 人を追加</button></div><div class="detail-panel"><h3>ミュージシャンクレジット</h3><div id="crM">'+crRows(s,'mus')+'</div><button class="btn sm" data-add="mus">＋ 人を追加</button></div>';
+    const rows=group=>(s.credits||[]).filter(c=>c.g===group).map(c=>'<div class="viewer-credit"><b>'+esc(c.name||'名前未登録')+'</b><span>'+esc(group==='work'?(c.roles||[]).map(k=>WROLES.find(r=>r[0]===k)?.[1]||k).join('・'):rowParts(c).join('・'))+'</span></div>').join('')||'<p class="hint">記録はありません。</p>';
+    h+='<section class="detail-panel"><h3>制作クレジット</h3>'+rows('work')+'</section><section class="detail-panel"><h3>ミュージシャンクレジット</h3>'+rows('mus')+'</section>';
   }else{
-    h+='<section class="detail-panel"><h3>曲のメモ・申し送り</h3><textarea class="inp" data-f="note" rows="5" placeholder="申し送りを入力">'+esc(s.note||'')+'</textarea></section><section class="detail-panel"><h3>最近の更新</h3>'+(S.log.filter(z=>z.t.includes(songTitle(s))).slice(0,15).map(z=>'<div class="history-row"><small>'+esc(new Date(z.at).toLocaleDateString('ja-JP'))+'</small><span>'+esc(z.t)+'</span></div>').join('')||'<p class="muted">記録はありません</p>')+'</section>';
+    const history=S.log.filter(z=>z.detail?.id===s.id||z.t.includes(songTitle(s))).slice(0,15);
+    h+='<section class="detail-panel"><h3>曲のメモ・申し送り</h3><p class="preserve">'+esc(s.note||'記録はありません。')+'</p></section><section class="detail-panel"><h3>最近の更新</h3>'+(history.map(z=>'<div class="history-row"><small>'+esc(new Date(z.at).toLocaleDateString('ja-JP'))+'</small><span>'+esc(z.t)+'</span></div>').join('')||'<p class="muted">記録はありません。</p>')+'</section>';
   }
   b.innerHTML=h;wireSnapshotEditors(b);b.classList.add('summary-body');wireSongTabs();
-  if(songTab!=='summary')wireSong();
+  if(songTab!=='summary'&&!VIEW_ONLY)wireSong();
   const edit=document.getElementById('editSongInfo');if(edit)edit.onclick=()=>productionSongInfo(s);
-  if(V.mode==='desk'||RO){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
-  document.getElementById('shDel').style.display=V.mode==='desk'||RO?'none':'';
+  if(V.mode==='desk'||RO||VIEW_ONLY){b.querySelectorAll('input,textarea,select').forEach(e=>e.disabled=true);b.querySelectorAll('.detail-panel button').forEach(e=>e.disabled=true)}
+  document.getElementById('shDel').style.display=V.mode==='desk'||RO||VIEW_ONLY?'none':'';
 }
 function applyPreset(s,t){
   s.stageList=ShinkouCore.copy(t.stages);s.tplDates=t.dates.slice();s.tplMastering=ShinkouCore.copy(t.mastering);
@@ -82,7 +84,7 @@ if(DEMO){
   syOk=()=>false;
   idb=function(){return new Promise((res,rej)=>{const r=indexedDB.open('shinkou-preview-20260906',2);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains('kv'))r.result.createObjectStore('kv')};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})};
   const realBoot=boot;
-  boot=async function(){await realBoot();if(!S.songs.length){seed();const active=S.songs[0],L=stages(active);L.forEach(x=>{const o=stg(active,x.k);o.done=['gather','sdemo','lyric','kario','demo','meeting','arr','stemO','stemR','stemM','vo','vodb','warigo','voes','rhythm','tsunagi'].includes(x.k)});stg(active,'pitch').st='me';stg(active,'pitch').dl=D.today();stg(active,'pitch').memo='歌の編集内容を確認して、ラフミックスへ進める';S.songs.forEach(s=>{s.dlFixed=true});mark();render()}seedLivePreview();document.body.classList.add('demo-mode');document.querySelector('.top .brand small').textContent='デモ · サンプルデータ'};
+  boot=async function(){readingStages=false;try{await realBoot();if(!S.songs.length){seed();const active=S.songs[0],L=stages(active);L.forEach(x=>{const o=stg(active,x.k);o.done=['gather','sdemo','lyric','kario','demo','meeting','arr','stemO','stemR','stemM','vo','vodb','warigo','voes','rhythm','tsunagi'].includes(x.k)});stg(active,'pitch').st='me';stg(active,'pitch').dl=D.today();stg(active,'pitch').memo='歌の編集内容を確認して、ラフミックスへ進める';S.songs.forEach(s=>{s.dlFixed=true});mark();render()}seedLivePreview();document.body.classList.add('demo-mode');document.querySelector('.top .brand small').textContent='デモ · サンプルデータ'}finally{readingStages=true}};
 }
 function seedLivePreview(){
  if(!DEMO||S.projects.some(p=>p.id==='demo_show_autumn'))return;
@@ -141,10 +143,10 @@ function setupSimpleHome(){
  const top=document.querySelector('.top'),tools=document.querySelector('.tools');if(!top||!tools)return;
  const filters=document.createElement('details');filters.id='homeFilters';filters.innerHTML='<summary><span id="filterLabel">絞り込み</span><span aria-hidden="true">⌄</span></summary><div class="filter-content"></div>';
  const box=filters.querySelector('.filter-content');
- ['dirbar','grpSel','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
+ ['dirbar','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
  top.append(filters);
  // Home has one consistent deadline order; grouping controls remain for legacy views.
- document.getElementById('grpSel').setAttribute('aria-label','並び順');
+ document.getElementById('grpSel').hidden=true;
  document.getElementById('whoSel').setAttribute('aria-label','作業状況');document.getElementById('finSel').setAttribute('aria-label','完了曲の表示');
 }
 setupSimpleHome();
