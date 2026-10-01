@@ -54,6 +54,9 @@ function productionReleaseGroups(list,matched=pool({includeCompleted:true})){
   if(!groups.has(id))groups.set(id,{id,p:p&&!isShow(p)?p:null,artist:s.artist,items:[]});
   groups.get(id).items.push({s,r:productionReport(s)});
  }
+ for(const p of S.projects.filter(p=>!isShow(p))){
+  if((V.fin!=='hide'||V.q)&&p.tracklist?.some(t=>productionTrackComplete(t,p)&&productionTrackMatches(t,p))&&!groups.has(p.id))groups.set(p.id,{id:p.id,p,artist:p.artist,items:[]});
+ }
  return [...groups.values()].map(g=>{
   g.items.sort((a,b)=>{const pos=s=>{const i=g.p?.tracklist?.findIndex(t=>t.title===s.title);return i>=0?i:(s.ord||0)};return pos(a.s)-pos(b.s)});
   g.done=g.items.filter(x=>x.r.audioComplete).length;
@@ -65,13 +68,35 @@ function productionUpcomingVocal(s,r,today=D.today()){
  if(r.audioComplete||r.archive)return null;
  return r.progress?.schedules.find(x=>['vocal','revocal'].includes(x.kind))||null;
 }
+// Existing catalogue recordings with no additional production are complete even without a work record.
+// Missing work records alone never establish completion.
+function productionTrackComplete(t,p){
+ if(!t||t.additionalProduction===true||(t.kind&&t.kind!=='existing'))return false;
+ let existing=t.kind==='existing'&&t.additionalProduction===false;
+ // Older project records declare completed catalogue tracks by exact track numbers in a note.
+ // Read only an explicit no-additional-work sentence; never infer completion from a missing record.
+ if(!existing&&p?.tracklist?.includes(t)){
+  const number=p.tracklist.indexOf(t)+1,note=String(p.note||'').normalize('NFKC');
+  const declarations=note.matchAll(/(?:^|\n)\s*([0-9]+(?:\s*[・,、]\s*[0-9]+)*)\s*の既存曲は追加(?:作業|制作)なし(?:[。.]|\n|$)/g);
+  existing=[...declarations].some(m=>m[1].split(/[・,、]/).map(Number).includes(number));
+ }
+ if(!existing)return false;
+ const current=p&&(S.songs||[]).find(s=>s.projectId===p.id&&(s.id===t.songId||s.title===t.title));
+ return !current||productionReport(current).archive;
+}
+function productionTrackMatches(t,p){
+ if(V.who!=='all'||V.dir!=='__all'||(V.use&&!['master','all'].includes(V.use)))return false;
+ const q=(V.q||'').trim().toLowerCase();
+ return !q||[t.title,p?.custom,p?.artist].join(' ').toLowerCase().includes(q);
+}
 function productionReleaseContents(list){
  return productionReleaseGroups(list).map(g=>{
   const name=g.p?.custom||((g.p?.num?g.p.num+'枚目 ': '')+(g.p?.kind||'案件未設定'));
-  const entries=(g.p?.tracklist||[]).map((t,i)=>({t,index:i+1,item:g.items.find(x=>x.s.id===t.songId||x.s.title===t.title)})).filter(e=>e.item||!(V.q||V.who!=='all'||V.dir!=='__all'));
+  const entries=(g.p?.tracklist||[]).map((t,i)=>({t,index:i+1,item:g.items.find(x=>x.s.id===t.songId||x.s.title===t.title)})).filter(e=>e.item||productionTrackMatches(e.t,g.p));
   for(const item of g.items)if(!entries.some(e=>e.item===item))entries.push({t:{title:item.s.title},index:entries.length+1,item});
-  const row=({t,index,item})=>item?productionCompactItem(item.s,index):'<div class="polished-row unregistered"><span class="polished-number">'+String(index).padStart(2,'0')+'</span><span class="polished-row-main"><strong>'+esc(t.title)+'</strong><span class="polished-state">制作状況未登録</span></span></div>';
-  const completed=entries.filter(e=>e.item?.r.archive),active=entries.filter(e=>!e.item?.r.archive&&V.fin!=='done');
+  const complete=e=>e.item?e.item.r.archive:productionTrackComplete(e.t,g.p);
+  const row=({t,index,item})=>item?productionCompactItem(item.s,index):'<div class="polished-row '+(productionTrackComplete(t,g.p)?'recorded-complete':'unregistered')+'"><span class="polished-number">'+String(index).padStart(2,'0')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(t.title)+'</strong>'+(productionTrackComplete(t,g.p)?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'')+'</span><span class="polished-state">'+(productionTrackComplete(t,g.p)?'既存曲・追加制作なし':'制作状況未登録')+'</span></span></div>';
+  const completed=entries.filter(complete),active=entries.filter(e=>!complete(e)&&V.fin!=='done');
   const rows=active.map(row).join('')+(completed.length&&(V.fin!=='hide'||V.q)?'<details '+(V.q||V.fin==='done'?'open ':'')+'class="polished-completed" data-state-fold="completed:'+esc(g.id)+'"><summary>✓ 完了 '+completed.length+'曲 <span>開く</span></summary>'+completed.map(row).join('')+'</details>':'');
   const tasks=g.p?'<details class="release-common" data-state-fold="project:'+esc(g.p.id)+'"><summary>作品の共通作業 <span>'+ShinkouProduction.RELEASE_TASKS.filter(t=>['done','na'].includes(ShinkouProduction.releaseTask(g.p,t.id,S.songs).state)).length+'/'+ShinkouProduction.RELEASE_TASKS.length+'</span></summary>'+ShinkouProduction.RELEASE_TASKS.map(t=>{
    const v=ShinkouProduction.releaseTask(g.p,t.id,S.songs);

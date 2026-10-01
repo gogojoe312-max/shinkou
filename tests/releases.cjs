@@ -17,7 +17,7 @@ test('booking can start early; required materials block recording; no SE templat
 test('release groups isolate projects, include completed tracks and exclude live material',()=>{
  const songs=[{id:'a',title:'A',projectId:'p1',artist:'同じ',ord:2},{id:'b',title:'B',projectId:'p1',artist:'同じ',ord:1},{id:'c',title:'C',projectId:'p2',artist:'同じ'},{id:'l',projectId:'p1',live:true}];
  const projects=[{id:'p1',kind:'アルバム',tracklist:[{title:'A'},{title:'B'}]},{id:'p2',kind:'シングル'}];
- const ctx={ShinkouProduction:P,productionIsLive:s=>!!s.live,projOf:id=>projects.find(p=>p.id===id),isShow:()=>false,productionReport:s=>({audioComplete:s.id==='b',nodes:[]}),pool:()=>songs};
+ const ctx={S:{songs,projects},V:{q:"",who:"all",dir:"__all",use:"master",fin:"show"},ShinkouProduction:P,productionIsLive:s=>!!s.live,projOf:id=>projects.find(p=>p.id===id),isShow:()=>false,productionReport:s=>({audioComplete:s.id==='b',nodes:[]}),pool:()=>songs};
  vm.createContext(ctx);
  const src=fs.readFileSync(__dirname+'/../production-ui.js','utf8');
  vm.runInContext(src.slice(src.indexOf('function productionReleaseGroups'),src.indexOf('function productionReleaseContents')),ctx);
