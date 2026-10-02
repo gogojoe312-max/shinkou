@@ -431,7 +431,38 @@ function dropboxURL(value){
  if(!String(value||'').trim())return '';
  try{const u=new URL(String(value).trim());if(u.protocol!=='https:'||!['dropbox.com','www.dropbox.com','db.tt'].includes(u.hostname)||u.username||u.password||u.port)throw Error();return u.href}catch{throw Error('Dropboxの共有リンク（https://www.dropbox.com/…）を入力してください')}
 }
-root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,groupIds,groupSnapshot,deferGroup};
+// Calendar dates stay date-only. Deadlines and release-based estimates are not event dates.
+function keyDates(s){
+ const kinds=s.production?.dateKinds||{},kind=v=>['confirmed','tentative','completed','registered'].includes(v)?v:'registered';
+ const row=(date,k,extra={})=>({date:validDate(date)?date:'',kind:kind(k),...extra});
+ const vocal=[];let performed=false;
+ for(const x of core.activeStages(s)){
+  const type=core.scheduleKind(x);if(!['vocal','revocal'].includes(type))continue;
+  const g=s.stages?.[x.k]||{},additional=type==='revocal',recording=!core.isScheduledStage(x);
+  for(const v of g.slots||[])if(validDate(v.date))vocal.push(row(v.date,v.done?'completed':v.swait||v.tentative||v.prov||g.prov||g.st==='studio'?'tentative':v.kind||kinds[x.k],{additional}));
+  if(recording&&g.done){performed=true;if(validDate(g.date))vocal.push(row(g.date,'completed',{additional}))}
+ }
+ const task=s.production?.tasks?.vocal;if(task?.state==='done'){performed=true;if(validDate(task.completedAt))vocal.push(row(task.completedAt,'completed',{additional:false}))}
+ const unique=list=>list.filter((v,i,a)=>a.findIndex(z=>z.date===v.date&&z.kind===v.kind&&!!z.additional===!!v.additional)===i).sort((a,b)=>a.date.localeCompare(b.date));
+ const lessonRecords=s.production?.schedules?.lesson;
+ const lesson=Array.isArray(lessonRecords)?lessonRecords.filter(v=>validDate(v.date)).map(v=>row(v.date,v.done?'completed':v.kind||kinds.lesson)):(validDate(s.dates?.lesson)?[row(s.dates.lesson,kinds.lesson)]:[]);
+ const single=k=>validDate(s.dates?.[k])?[row(s.dates[k],kinds[k])]:[];
+ const mv=s.mvEnabled===false?'MVなし':s.mvEnabled===true||validDate(s.dates?.mv)||s.sort==='single'||s.single===true?'未定':'未確認';
+ const vocalStages=(s.stageList||[]).filter(x=>['vocal','revocal'].includes(core.scheduleKind(x)));
+ const excluded=vocalStages.length&&!core.activeStages(s).some(x=>['vocal','revocal'].includes(core.scheduleKind(x)))||task?.excluded||task?.state==='na';
+ return [
+  {key:'vocal',label:'VoDB日',dates:unique(vocal),empty:excluded?'対象外':performed?'実施済み・日付未登録':'未定'},
+  {key:'lesson',label:'ダンスレッスン日',dates:unique(lesson),empty:s.production?.choreography===false?'対象外':'未定'},
+  {key:'mv',label:'MV撮影日',dates:s.mvEnabled===false?[]:single('mv'),empty:mv},
+  {key:'live',label:'ライブ初披露日',dates:single('live'),empty:'未定'}
+ ];
+}
+function dropboxLinkInfo(value){
+ let url;try{url=dropboxURL(value)}catch{return {url:'',kind:'invalid'}}if(!url)return {url:'',kind:'missing'};
+ const path=new URL(url).pathname,kind=/^\/(?:scl\/fo|sh)\/[^/]+/.test(path)?'folder':/^\/(?:scl\/fi|s)\/[^/]+/.test(path)?'file':'unknown';
+ return {url,kind};
+}
+function dropboxFolderURL(value){const link=dropboxLinkInfo(value);if(link.kind==='missing')return '';if(link.kind!=='folder')throw Error(link.kind==='file'?'ファイルのリンクです。曲のフォルダを開いてリンクをコピーしてください':'Dropboxのフォルダ共有リンク（/scl/fo/ または /sh/）を入力してください');return link.url}
+root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,dropboxFolderURL,dropboxLinkInfo,keyDates,groupIds,groupSnapshot,deferGroup};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
-
