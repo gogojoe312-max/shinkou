@@ -588,123 +588,12 @@ function トリガーを作る() {
 }
 
 
-/* ==================== 進行 ⇄ Googleカレンダー（差分同期） ====================
- * 「進行」カレンダーに締切・録り日程を反映。予定にref/d0タグを持たせ、
- * カレンダー側で日付を動かされたらアプリ（shinkou-data）へ書き戻す。
- * 予定の追加・削除はアプリが正。カレンダーで消しても次回復活する。 */
-
-const EXP_CAL_NAME = "進行";
-const EXP_PAST = 30, EXP_FUTURE = 180;
-
-function syncShinkouCal() { return withSyncLock_(exportCalendar_); }
-function exportCalendar_() {
-  const got = ghGet_();
-  const data = got.json;
-  const cal = expCal_();
-  const from = expShift_(new Date(), -EXP_PAST);
-  const to = expShift_(new Date(), EXP_FUTURE);
-
-  const want = {};
-  expItems_(data).forEach(function(it){ want[it.ref] = it; });
-
-  const seen = {};
-  let dirty = false, made = 0, moved = 0, backed = 0, killed = 0;
-  const acknowledge = [];
-
-  cal.getEvents(from, to).forEach(function(ev){
-    const ref = ev.getTag("ref");
-    if (!ref) return;
-    if (!want[ref] || seen[ref]) { ev.deleteEvent(); killed++; return }
-    seen[ref] = true;
-    const it = want[ref];
-    const evDate = expIso_(ev.getAllDayStartDate());
-    const d0 = ev.getTag("d0") || evDate;
-    if (evDate !== d0) {
-      /* カレンダー側で動かされた → アプリへ書き戻す */
-      it.apply(evDate); it.date = evDate; dirty = true; backed++;
-      if(!data.log)data.log=[];
-      data.log.unshift({id:Utilities.getUuid(),at:Date.now(),by:"カレンダー",t:"書き戻し: "+it.title+" "+d0+"→"+evDate});
-      if(data.log.length>500)data.log.length=500;
-      console.log("書き戻し: " + it.title + " → " + evDate);
-    }
-    if (it.date !== evDate) {
-      /* アプリ側で動いた → 予定を置き直す */
-      ev.deleteEvent(); expMk_(cal, it); moved++;
-    } else {
-      if (ev.getTitle() !== it.title) ev.setTitle(it.title);
-      if(evDate !== d0) acknowledge.push(function(){ev.setTag("d0",it.date)});
-      else ev.setTag("d0", it.date);
-    }
-  });
-
-  Object.keys(want).forEach(function(ref){
-    if (seen[ref]) return;
-    const d = expDate_(want[ref].date);
-    if (!d || d < from || d > to) return;
-    expMk_(cal, want[ref]); made++;
-  });
-
-  if (dirty) ghPut_(got.sha, data);
-  acknowledge.forEach(function(fn){fn()});
-  console.log("進行カレンダー: 追加" + made + " 移動" + moved + " 書き戻し" + backed + " 整理" + killed);
-}
-
-function expMk_(cal, it) {
-  const ev = cal.createAllDayEvent(it.title, expDate_(it.date), { description: it.desc || "" });
-  ev.setTag("ref", it.ref);
-  ev.setTag("d0", it.date);
-}
-
-function expItems_(data) {
-  const out = [];
-  (data.songs || []).forEach(function(s){
-    const title = s.title || "（無題）";
-    const st = s.stages || {};
-    const active = activeStageKeys_(s);
-    (s.stageList || []).forEach(function(x){
-      const o = st[x.k] || {};
-      if (o.done || !active[x.k]) return;
-      const slots = o.slots || [];
-      if (slots.length) {
-        slots.forEach(function(v, i){
-          if (!v.date || v.done) return;
-          out.push({ ref: s.id + "|" + x.k + "|s" + (v.calRef === undefined ? i : v.calRef), date: v.date,
-            title: "🎙 " + x.n + (v.note ? " " + v.note : "") + " — " + title,
-            desc: [v.who ? "相手: " + v.who : "", s.artist || ""].filter(String).join("\n"),
-            apply: function(d){ v.date = d; s.mtime=Date.now() } });
-        });
-      } else if (o.dl) {
-        out.push({ ref: s.id + "|" + x.k + "|dl", date: o.dl,
-          title: "〆 " + x.n + " — " + title,
-          desc: s.artist || "",
-          apply: function(d){ o.dl = d; s.mtime=Date.now() } });
-      }
-    });
-  });
-  return out;
-}
-
-function expCal_() {
-  const props = PropertiesService.getScriptProperties();
-  let id = props.getProperty("SHINKOU_CAL_ID");
-  if (id) { const c = CalendarApp.getCalendarById(id); if (c) return c; }
-  const found = CalendarApp.getCalendarsByName(EXP_CAL_NAME);
-  const cal = found.length ? found[0] : CalendarApp.createCalendar(EXP_CAL_NAME, { color: CalendarApp.Color.GREEN });
-  props.setProperty("SHINKOU_CAL_ID", cal.getId());
-  return cal;
-}
-
-function expIso_(d) { return Utilities.formatDate(d, "Asia/Tokyo", "yyyy-MM-dd") }
-function expDate_(s) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s || "")) return null;
-  const a = s.split("-");
-  return new Date(+a[0], +a[1] - 1, +a[2]);
-}
-function expShift_(d, n) {
-  const r = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  r.setDate(r.getDate() + n);
-  return r;
-}
+/* 専用「進行」カレンダーの生成・双方向同期は廃止。
+ * 既存の予定・カレンダー・設定・制作データは変更しない。
+ * このソースの公開だけでは、別途デプロイ済みのGASやトリガーは更新されない。 */
+function syncShinkouCal() { return {disabled:true, reason:"calendar-generation-retired"}; }
+function exportCalendar_() { return syncShinkouCal(); }
+function expCal_() { return null; }
 
 /* 同一GASの取り込み・書き出しを直列化する。端末との競合はGitHubのSHAで検出。 */
 function withSyncLock_(fn){
@@ -728,3 +617,4 @@ function ensureSlots_(song){
     });
   });
 }
+

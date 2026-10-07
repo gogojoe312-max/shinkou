@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-10-01-viewer-1";
+const APP_VER="2026-10-07-calendar-retired-1";
 const VIEW_ONLY=true;
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
@@ -1765,7 +1765,6 @@ function openSettings(){
         '<input class="inp" id="calU" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(calUrl())+'"></div>'+
       '<div class="row fg"><button class="btn" id="calDry">下見（書き込まない）</button>'+
         '<button class="btn pri" id="calGo">いま取り込む</button></div>'+
-      '<div class="fg"><button class="btn w" id="calOut">カレンダーへ書き出す（.ics）</button></div>'+
       ''+
       '<pre class="callog" id="calLog"></pre>'},
     {id:"save",t:"保存とバックアップ",h:()=>
@@ -1831,7 +1830,6 @@ function wireSettings(B){
         render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}}
         toast("取り込みました")}
     }catch(e){if(box)box.textContent="つながりませんでした："+e.message}};
-  on("#calOut",exportICS);
   on("#calDry",()=>calRun(true));
   on("#calGo",()=>calRun(false));
   {const cm2=q("#crMode2");
@@ -1938,11 +1936,7 @@ function buildICS(){
       "END:VEVENT")});
   L.push("END:VCALENDAR");
   return L.join("\r\n")}
-function exportICS(){
-  const n=agenda().length;
-  if(!n)return toast("書き出す予定がありません");
-  dlFile("shinkou-"+D.today()+".ics",buildICS(),"text/calendar");
-  toast(n+"件を書き出しました")}
+function exportICS(){return toast("予定の調整はdotへお伝えください")}
 
 function dlFile(n,t,ty){const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([t],{type:ty||"application/json"}));a.download=n;a.click();
@@ -2461,4 +2455,5 @@ if("serviceWorker" in navigator&&location.protocol==="https:")
   window.addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{})});
 /* ブラウザにデータを消されにくくする */
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+
 

@@ -57,7 +57,7 @@ async function createDraft(draft){need('draft');return json('google','gmail/v1/u
 function attachments(payload){return [...(payload?.filename?[{name:payload.filename,type:payload.mimeType,size:payload.body?.size||0}]:[]),...(payload?.parts||[]).flatMap(attachments)]}
 async function calendars(){need('calendar');const items=[];let page='';do{const j=await json('google','calendar/v3/users/me/calendarList?'+new URLSearchParams({maxResults:'250',...(page?{pageToken:page}:{})}));items.push(...j.items);page=j.nextPageToken||'';if(items.length>2000)throw Error('カレンダーが多すぎるため一覧を確認できませんでした')}while(page);return items.filter(x=>!x.deleted)}
 async function busy(ids,day){need('calendar');if(!ids.length||ids.length>50)throw Error('空きを確認するカレンダーを1〜50件選んでください');const lo=day+'T00:00:00+09:00',hi=new Date(Date.parse(lo)+864e5).toISOString();const j=await json('google','calendar/v3/freeBusy',{method:'POST',body:JSON.stringify({timeMin:lo,timeMax:hi,timeZone:'Asia/Tokyo',items:ids.map(id=>({id}))})});let all=[];for(const id of ids){const c=j.calendars?.[id];if(!c||c.errors?.length)throw Error('選択したカレンダーすべてを確認できませんでした。空き候補は表示しません');all.push(...c.busy.map(b=>({start:{dateTime:b.start},end:{dateTime:b.end}})))}return all}
-async function createEvent(calendarId,event){need('event');if(!/^[a-v0-9]{5,1024}$/.test(event.id||'')||!Number.isFinite(Date.parse(event.start?.dateTime))||!Number.isFinite(Date.parse(event.end?.dateTime))||Date.parse(event.start.dateTime)>=Date.parse(event.end.dateTime)||event.attendees)throw Error('自分の予定の内容を確認してください');return json('google','calendar/v3/calendars/'+encodeURIComponent(calendarId)+'/events',{method:'POST',body:JSON.stringify({...event,start:{...event.start,timeZone:'Asia/Tokyo'},end:{...event.end,timeZone:'Asia/Tokyo'}})})}
+async function createEvent(){throw Error('進行アプリからの予定作成は廃止しました。予定の調整はdotへお伝えください')}
 async function dropboxList(url,path=''){
  if(root.ShinkouServer?.enabled)return (await root.ShinkouServer.api('/api/dropbox/list',{method:'POST',body:JSON.stringify({url,path})})).items;
  const u=new URL(url);if(u.protocol!=='https:'||u.username||u.password||!['www.dropbox.com','dropbox.com','db.tt'].includes(u.hostname))throw Error('曲のDropbox共有リンクを登録してください');
@@ -67,3 +67,4 @@ async function dropboxList(url,path=''){
 }
 root.ShinkouConnections={SCOPES,setup,status,disconnect,prepareGoogle,connectGoogle,connectDropbox,mailSearch,head,mailThread,mailText,attachments,mimeDraft,createDraft,calendars,busy,createEvent,dropboxList};if(typeof module!=='undefined')module.exports=root.ShinkouConnections;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
