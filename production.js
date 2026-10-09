@@ -345,7 +345,8 @@ function progressSummary(s,r){
  if(r.audioComplete)return {...base,state:'音源制作完了',detail:r.archive?'すべて完了':r.admin.length?'残り：'+r.admin.map(n=>n.id==='invoice'?'請求書':n.label).join('・'):'残りの確認・提出あり',taskId:''};
  let focus;
  if(s.customWorkflow){
-  const own=orderedNodes(remaining.filter(n=>n.stage||['mixBooking','mix','master'].includes(n.id)));
+  const groupOrder=GROUPS.map(g=>g[0]);
+  const own=orderedNodes(remaining.filter(n=>n.stage||['mixBooking','mix','master'].includes(n.id)).sort((a,b)=>groupOrder.indexOf(a.group)-groupOrder.indexOf(b.group)));
   focus=own.find(n=>!n.blockers.length)||own[0];
  }else{
   const sequence=['selection','full','recordable','vocal','edit','chorus','instrument','arrange','materials','mix','master'];
@@ -371,21 +372,39 @@ function progressSummary(s,r){
  return {...base,state,detail,taskId:focus.id};
 }
 // A compact, read-only view of explicit engineering states. Never parse notes as progress.
+const shortLabels={theme:'曲のテーマ',order:'作曲',lyricOrder:'作詞依頼',lyrics:'歌詞',guide:'仮歌',demo:'デモ',selection:'選曲',full:'フルサイズ',recordable:'歌録り用アレンジ',stems:'ステム',arrange:'最終アレンジ',vocalBooking:'歌録り日程',vocal:'歌録り',split:'歌割',edit:'歌の編集',chorusRequest:'コーラス依頼',chorus:'コーラス',instrument:'楽器録音',materials:'素材確認',mixBooking:'TD日程',mix:'TD',master:'マスタリング','stage:version_recording_plan':'収録日程','stage:version_recording':'収録','stage:version_edit':'収録音源の編集','stage:version_materials':'既存素材の確認','stage:version_arrange':'アレンジ修正','stage:version_share':'収録資料の共有','stage:version_scope':'変更内容の確認'};
+function shortLabel(n){return shortLabels[n.id]||n.label.replace(/（[^）]*）/g,'').split('／')[0].replace(/の受領・内容確認|の受領・確認/,'確認').replace(/^細かいテーマ・構成を詰める$/,'テーマ・構成').replace(/^OPの方向性・構成・尺・次曲との接続を決める$/,'OPの構成').replace(/の検討・決定$/,'');}
 function overview(s,r){
  const nodes=orderedNodes(r.nodes.filter(n=>!n.excluded&&!n.shared&&n.state!=='na'&&!n.actionCoveredBy));
  const completed=nodes.filter(n=>n.done&&!n.bookingDerived),pending=nodes.filter(n=>!n.done);
+ const groupOrder=GROUPS.map(g=>g[0]),rank=n=>{const i=groupOrder.indexOf(n.group);return i<0?0:i};
+ const flowFocus=r.node[r.progress?.taskId]||pending.find(n=>n.id===r.actions?.[0]?.id)||pending[0];
  const active=pending.filter(n=>['received','review','doing','revision','requested','waiting'].includes(n.state));
- const status=n=>({received:'受領済み・本人確認待ち',review:'本人確認中',doing:'作業中',revision:'修正待ち',requested:'依頼済み・相手待ち',waiting:'日程待ち'}[n.state]||STATES[n.state]||'未確認');
- const current=active.map(n=>({id:n.id,label:n.label,state:n.state,text:n.label+' · '+(n.wait&&(n.owner||n.recipient)?(n.owner||n.recipient)+'：':'')+status(n),owner:['received','review'].includes(n.state)?'自分':n.owner||n.recipient||''}));
- const review=active.find(n=>['received','review'].includes(n.state));
- const first=review||active.find(n=>n.state==='doing'&&!n.blockers?.length);
- let next=first?{id:first.id,title:nextAction(first).title,owner:review?'自分':first.owner||'担当未確認'}:null;
- if(!next){const a=r.actions?.[0],n=a&&r.node[a.id],waiting=active.find(n=>n.wait);
-  if(waiting&&(!a||a.score>=0))next={id:waiting.id,title:(waiting.owner||waiting.recipient||'相手')+'の'+(waiting.state==='revision'?'修正':'返答・納品')+'待ち → 届いた内容を確認',owner:'自分'};
-  else if(a)next={...a,owner:n?.wait?'自分':n?.owner||'自分'};}
- if(!next&&active.length){const n=active[0];next={id:n.id,title:n.wait?'返答・納品を待って内容を確認':nextAction(n).title,owner:n.owner||n.recipient||'担当未確認'};}
+ // Finishing administration cannot become the headline while an earlier production phase is unfinished.
+ const earlierWork=pending.some(n=>rank(n)<groupOrder.indexOf('finish')&&n.group!=='delivery');
+ const eligible=active.filter(n=>!(n.id==='mixBooking'&&earlierWork));
+ const focus=eligible.find(n=>['received','review'].includes(n.state))||eligible.find(n=>n.state==='doing')||eligible.find(n=>n.wait)||eligible[0]||flowFocus;
+ const status=n=>({received:'受領済み・本人確認待ち',review:'本人確認中',doing:'作業中',revision:'修正待ち',requested:'依頼済み・相手待ち',waiting:'日程待ち',undecided:'未定',unknown:'状況未確認',todo:'これから',partial:'一部完了'}[n.state]||STATES[n.state]||'未確認');
+ const current=focus?[{id:focus.id,label:shortLabel(focus),state:focus.state,text:shortLabel(focus)+' · '+status(focus),owner:['received','review'].includes(focus.state)?'自分':focus.owner||focus.recipient||''}]:[];
+ let headline=r.archive?'完了':r.audioComplete?'音源制作完了':focus?shortLabel(focus):'制作状況を確認',detail=focus?status(focus):'',next=null;
+ if(focus){
+  const label=shortLabel(focus),who=focus.owner||focus.recipient||'相手';
+  if(['received','review'].includes(focus.state)){headline=label+'の確認待ち';detail=focus.state==='review'?'本人確認中':'受領済み';next={id:focus.id,title:label+'を確認する',owner:'自分'};}
+  else if(focus.wait){headline=label+'の'+(focus.state==='revision'?'修正待ち':'返答・納品待ち');detail=who+'へ依頼済み';next={id:focus.id,title:'届いた内容を確認する',owner:'自分'};}
+  else if(focus.state==='doing'){headline=label+'を作業中';detail=focus.owner&&focus.owner!=='自分'?focus.owner+'が担当':'';next={id:focus.id,title:label+'を進める',owner:focus.owner||'自分'};}
+  else {headline=!s.customWorkflow&&focus.id===r.progress?.taskId?r.progress.state:label;next={id:focus.id,title:label+(focus.state==='unknown'?'の状況を確認する':'を進める'),owner:focus.owner||'自分'};}
+  const rec=focus.id==='vocal'||focus.id==='stage:version_recording'||focus.keys.some(k=>{const st=(s.stageList||[]).find(x=>x.k===k);return st&&['vocal','revocal','chorus','instrument'].includes(core.scheduleKind(st))&&!/日程|スケジュール|編集|共有|確認/.test(st.n)});
+  if(rec&&!['doing','received','review'].includes(focus.state)){
+   const kind=focus.id==='vocal'?'vocal':focus.keys.map(k=>core.scheduleKind((s.stageList||[]).find(x=>x.k===k)||{})).find(Boolean);
+   const schedule=(r.progress?.schedules||[]).find(x=>x.kind===kind);
+   const relatedKeys=[...new Set([...focus.keys,...(focus.deps||[]).map(id=>r.node[id]).filter(n=>n&&/日程|スケジュール/.test(n.label)).flatMap(n=>n.keys)])];
+   const dates=relatedKeys.flatMap(k=>s.stages?.[k]?.slots||[]).filter(x=>!x.done&&validDate(x.date)&&x.date>=r.today);
+   if(!schedule&&!dates.length){headline=focus.id==='chorus'?'コーラス未収録':label+'前';detail=focus.state==='undecided'?'日程未定':'日程未登録';next={id:focus.id,title:label+'の日程を確認する',owner:'自分'};}
+   else {headline=label+'待ち';detail='収録予定あり';next={id:focus.id,title:label+'の準備を進める',owner:'自分'};}
+  }
+ }
  const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
- return {completed:completed.map(n=>({id:n.id,label:n.label})),current,next,groups};
+ return {completed:completed.map(n=>({id:n.id,label:n.label})),current,headline,detail,next,groups,focusId:focus?.id||''};
 }
 function invoiceNode(s,n){
  const r=invoices.report(s),state=r.done?'done':r.ready.length?'received':r.missing.length?'todo':'unknown';

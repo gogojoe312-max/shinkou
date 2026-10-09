@@ -61,14 +61,14 @@ test('received arrangement appears on the first screen as owner review, never co
  assert(o.current.some(n=>n.id==='recordable'&&n.text.includes('受領済み・本人確認待ち')));
  assert.equal(o.next.id,'recordable');assert.equal(o.next.owner,'自分');
  assert(!o.completed.some(n=>n.id==='recordable'));
- for(const html of [c.productionCompactItem(s),c.productionSnapshot(s)])assert.match(html,/受領済み・本人確認待ち/);
+ for(const html of [c.productionCompactItem(s),c.productionSnapshot(s)])assert.match(html,/歌録り用アレンジの確認待ち/);
  assert.equal(JSON.stringify(s),before);
 });
-test('waiting on a named producer and completed work are visible without opening notes',()=>{
+test('waiting on a named producer is visible while completed-stage prose stays off the first screen',()=>{
  const s=arrangement();Object.assign(s.stages.recordable,{st:'req',asg:'制作担当',workState:'revision'});
  const r=report(s),o=P.overview(s,r),c=ui(s),html=c.productionCompactItem(s);
  assert(o.current.some(n=>n.id==='recordable'&&n.owner==='制作担当'&&n.state==='revision'));
- assert.match(html,/修正待ち/);assert.match(html,/polished-completed-stages/);
+ assert.match(html,/修正待ち/);assert.doesNotMatch(html,/polished-completed-stages/);
  assert.doesNotMatch(html,/工程の記録|記録メモ/);
 });
 test('freeform notes and elapsed recording dates never create completion',()=>{
@@ -83,5 +83,37 @@ test('overview excludes not-applicable steps from performed-work display',()=>{
 
 test('explicit commissioned work takes precedence over old unknown prerequisites in next summary',()=>{
  const s=song();s.stages.pick.done=false;s.stages.gather={done:false,st:'req',asg:'制作担当'};s.production.tasks.theme={state:'unknown'};
- const o=P.overview(s,report(s));assert.equal(o.next.id,'order');assert.match(o.next.title,/制作担当.*待ち/);assert(!o.completed.some(n=>n.id==='theme'));
+ const o=P.overview(s,report(s));assert.equal(o.next.id,'order');assert.match(o.detail,/制作担当へ依頼済み/);assert(!o.completed.some(n=>n.id==='theme'));
+});
+
+function remake(){
+ const s={id:'remake',title:'テスト新録版',artist:'検証',customWorkflow:true,use:'master',stageList:[
+ {k:'version_materials',n:'既存音源・ステム・歌素材を確認／必要な素材を受領',productionGroup:'arrange'},
+ {k:'version_recording_plan',n:'歌・コーラス・楽器の収録要否と日程を確認',productionGroup:'vocal'},
+ {k:'version_recording',n:'必要な歌・コーラス・楽器の収録',productionGroup:'vocal'},
+ {k:'version_edit',n:'必要な歌割・音源編集・内容確認',productionGroup:'vocal'},
+ {k:'tdes',n:'ミックス担当・日程確保',productionGroup:'finish',t:'multi'},
+ {k:'td',n:'ミックス',productionGroup:'finish'},{k:'mixCheck',n:'TD試聴・修正・最終OK',productionGroup:'finish'},
+ {k:'mas',n:'マスタリング',productionGroup:'finish'},{k:'masterCheck',n:'マスター試聴・修正・最終OK',productionGroup:'finish'}],stages:{version_materials:{done:true},version_recording_plan:{done:true}}};return s;
+}
+test('custom remake headline and next task both stay on recording before mix booking',()=>{
+ const s=remake(),before=JSON.stringify(s),r=report(s),o=P.overview(s,r),c=ui(s);
+ assert.equal(r.progress.taskId,'stage:version_recording');assert.equal(o.focusId,'stage:version_recording');assert.equal(o.next.id,o.focusId);
+ assert.equal(o.headline,'収録前');assert.equal(o.detail,'日程未登録');assert.match(o.next.title,/収録の日程/);
+ const html=c.productionCompactItem(s);assert.doesNotMatch(html,/ミックス|polished-completed-stages/);assert.match(html,/<strong>収録前<\/strong>/);
+ assert.equal(JSON.stringify(s),before);
+});
+test('booking a recording is not recording completion and uses its known date',()=>{
+ const s=remake();s.stages.version_recording_plan.slots=[{date:'2026-10-12'}];let o=P.overview(s,report(s));
+ assert.equal(o.headline,'収録待ち');assert.equal(o.detail,'収録予定あり');assert.match(o.next.title,/収録の準備/);
+ s.stages.version_recording={done:true};o=P.overview(s,report(s));assert.equal(o.focusId,'stage:version_edit');assert.equal(o.next.id,'stage:version_edit');
+ s.stages.version_edit={done:true};o=P.overview(s,report(s));assert.equal(o.focusId,'mixBooking');
+});
+test('mix booking waiting cannot hide an unrecorded custom vocal phase',()=>{
+ const s=remake();s.stages.tdes={st:'req',asg:'TD担当'};const o=P.overview(s,report(s));assert.equal(o.focusId,'stage:version_recording');assert.equal(o.next.id,'stage:version_recording');
+});
+test('compact review avoids repeated formal stage wording but preserves full detail labels',()=>{
+ const s=arrangement();Object.assign(s.stages.recordable,{st:'me',workState:'received'});const c=ui(s),html=c.productionCompactItem(s);
+ assert.match(html,/歌録り用アレンジの確認待ち/);assert.match(html,/歌録り用アレンジを確認する/);assert.doesNotMatch(html,/受領・確認の内容を確認|polished-completed-stages/);
+ assert.equal(report(s).node.recordable.label,'歌録り用アレンジの受領・確認');
 });
