@@ -46,7 +46,8 @@ function productionStateSummary(s){
  const due=r.nodes.filter(n=>!n.done&&!n.excluded&&n.due?.value).sort((a,b)=>a.due.value.localeCompare(b.due.value))[0];
  const materials=(s.workflow?.materials||[]).filter(f=>!f.removed&&!f.deleted),unverified=materials.filter(f=>!f.approved||(f.rev&&f.approvedRev!==f.rev));
  const admin=r.nodes.filter(n=>['invoice','credits','lyricCheck'].includes(n.id)&&!n.done&&!n.excluded);
- return {r,state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
+ const overview=ShinkouProduction.overview(s,r);
+ return {r,overview,state:overview.current.length?overview.current.map(n=>n.text).join(" / "):state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
 }
 function productionEvidenceHTML(s,summary,collection='songs'){
  if(s.viewerRestricted)return '<p class="muted">資料・連絡・請求書の詳細は、この閲覧画面には表示していません。</p>';
@@ -61,21 +62,28 @@ function productionNearDates(x){
  const end=D.addD(D.today(),30),all=[...x.dates,...x.r.nodes.filter(n=>!n.done&&!n.excluded&&n.due?.value).map(n=>({label:n.label,...n.due}))];
  return all.filter(d=>d.kind==='confirmed'&&d.value>=D.today()&&d.value<=end).sort((a,b)=>a.value.localeCompare(b.value)).filter((d,i,all)=>all.findIndex(v=>v.value===d.value&&v.label===d.label)===i).slice(0,2);
 }
+function productionCompletedHTML(x){
+ const done=x.overview.completed;
+ return '<span class="polished-completed-stages"><span class="progress-label">完了</span>'+esc(done.length?done.slice(-3).map(n=>n.label).join('・')+(done.length>3?' ほか'+(done.length-3)+'工程':''):'完了の記録なし')+'</span>';
+}
+function productionFlowHTML(x){
+ return '<div class="overview-stage-flow" aria-label="工程ごとの進捗">'+x.overview.groups.map(g=>'<span class="overview-stage '+(g.done?'is-done':'')+'"><b>'+esc(g.label)+'</b><small>'+esc(g.completed+'/'+g.total+' 完了 · '+g.text)+'</small></span>').join('')+'</div>';
+}
 function productionCompactItem(s,index){
- const x=productionStateSummary(s),r=x.r,next=r.actions[0],dates=productionNearDates(x),schedules=(r.progress?.schedules||[]).map(z=>z.label+' '+z.dates.map(d=>productionDate({value:d})).join('・')+(z.tentative?'（仮）':'（登録）')).join(' / ');
+ const x=productionStateSummary(s),r=x.r,next=x.overview.next,dates=productionNearDates(x),schedules=(r.progress?.schedules||[]).map(z=>z.label+' '+z.dates.map(d=>productionDate({value:d})).join('・')+(z.tentative?'（仮）':'（登録）')).join(' / ');
  const meta=r.archive?[]:[...x.waiting.slice(0,1),...dates.map(d=>d.label+' '+productionDate(d)+' 確定'),schedules].filter(Boolean);
  const badge=r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':r.audioComplete?'<span class="viewer-status audio">音源完了</span>':'';
- return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+(!r.archive?'<span class="polished-state">'+esc(x.state)+'</span>':'')+(!r.archive&&next?'<span class="polished-next"><span>次</span>'+esc(next.title)+'</span>':!r.archive&&r.progress?.detail?'<span class="polished-next">'+esc(r.progress.detail)+'</span>':'')+(meta.length?'<span class="polished-meta">'+esc(meta.join(' · '))+'</span>':'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
+ return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+productionCompletedHTML(x)+(!r.archive?'<span class="polished-state"><span class="progress-label">現在</span>'+esc(x.state)+'</span>':'')+(!r.archive&&next?'<span class="polished-next"><span>次</span>'+esc((next.owner?next.owner+'：':'')+next.title)+'</span>':!r.archive&&r.progress?.detail?'<span class="polished-next">'+esc(r.progress.detail)+'</span>':'')+(meta.length?'<span class="polished-meta">'+esc(meta.join(' · '))+'</span>':'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
 }
 
 function productionSnapshot(s){
- const x=productionStateSummary(s),r=x.r,b=(kind,key,cls,html)=>productionButton(s,kind,key,cls,html),next=r.actions[0],near=productionNearDates(x);
+ const x=productionStateSummary(s),r=x.r,b=(kind,key,cls,html)=>productionButton(s,kind,key,cls,html),next=x.overview.next,near=productionNearDates(x);
  const schedules=(r.progress?.schedules||[]).map(z=>'<span>'+esc(z.label+' '+z.dates.map(d=>productionDate({value:d})).join('・')+' · '+(z.tentative?'仮':'登録日'))+'</span>').join('');
  const dates=schedules+x.dates.map(d=>'<span>'+esc(d.label+' '+productionDate(d)+' · '+productionDateKind(d))+'</span>').join('');
- const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span><p class="viewer-complete-note">登録された工程・対応が完了しています。</p>':'<p class="polished-focus-state">'+esc(x.state)+'</p>')+(!r.archive&&r.progress?.detail?'<p class="polished-focus-detail">'+esc(r.progress.detail)+'</p>':'')+(!r.archive&&next?'<div class="polished-action"><small>次の作業</small><strong>'+esc(next.title)+'</strong></div>':'')+(x.waiting.length?'<p class="polished-waiting">対応：'+esc(x.waiting.join(' / '))+'</p>':'')+(near.length?'<div class="polished-date-chips">'+near.map(d=>'<span>'+esc(d.label)+' <b>'+esc(productionDate(d))+'</b> 確定</span>').join(''):'')+'</div>';
+ const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span><p class="viewer-complete-note">登録された工程・対応が完了しています。</p>':'<p class="polished-focus-state">'+esc(x.state)+'</p>')+(!r.archive&&!x.overview.current.length&&r.progress?.detail?'<p class="polished-focus-detail">'+esc(r.progress.detail)+'</p>':'')+(!r.archive&&next?'<div class="polished-action"><small>次の作業</small><strong>'+esc((next.owner?next.owner+'：':'')+next.title)+'</strong></div>':'')+(x.waiting.length?'<p class="polished-waiting">対応：'+esc(x.waiting.join(' / '))+'</p>':'')+(near.length?'<div class="polished-date-chips">'+near.map(d=>'<span>'+esc(d.label)+' <b>'+esc(productionDate(d))+'</b> 確定</span>').join(''):'')+'</div>';
  const info='<details class="polished-info" data-state-fold="info:'+esc(s.id)+'"><summary><span>日程・資料・確認事項</span><small>'+(x.checks.length?x.checks.length+'件の確認項目':'記録を見る')+'</small></summary><section><h4>日程</h4><div class="state-dates">'+(dates||'<span>日程未登録</span>')+(x.due?'<span>次の日付：'+esc(x.due.label+' '+productionTaskDateLabel(s,x.due)+' '+productionDate(x.due.due)+' · '+productionDateKind(x.due.due))+'</span>':'')+'</div></section><section><h4>素材・請求書・クレジット</h4><p>'+esc(s.viewerRestricted?'資料・請求書の詳細は、この閲覧画面には表示していません。':x.checks.join(' / ')||'不足の記録はありません。必要素材の確認状況は資料記録をご確認ください。')+'</p></section><section class="state-evidence-section"><h4>資料・根拠・確認日時</h4>'+productionFolderLink(s)+productionEvidenceHTML(s,x)+'</section>'+(!s.viewerRestricted&&!r.archive&&!x.waiting.length?'<p class="polished-unconfirmed">対応待ちの記録はありません。現在の状況は未確認です。</p>':'')+'</details>';
  const details='<details class="state-detail" data-state-fold="song:'+esc(s.id)+'"><summary>工程の記録</summary><div class="production-progress">'+r.groups.filter(g=>g.id!=='delivery').map(g=>b('group',g.id,'production-phase '+(g.done?'complete':''),'<span class="phase-mark">'+(g.done?'✓':'')+'</span><span><b>'+esc(g.label)+'</b><small>'+esc(g.text)+'</small></span>')).join('')+'</div>'+(!(RO||VIEW_ONLY)?'<div class="production-footer">'+b('all','','production-more','作業・提出を訂正')+b('dates','','production-more','日程を訂正')+b('workflow','','production-more','連絡・資料を記録')+'</div>':'')+'</details>';
- return r.custom?productionLiveFocus(s,x)+productionKeyDatesHTML(s)+info:productionKeyDatesHTML(s)+overview+info+details;
+ return r.custom?productionCompletedHTML(x)+productionLiveFocus(s,x)+productionKeyDatesHTML(s)+info:overview+productionCompletedHTML(x)+productionFlowHTML(x)+productionKeyDatesHTML(s)+info+details;
 }
 
 function productionIsLive(s){return s.use==='live'||s.templateId==='tpl_show'||isShow(projOf(s.projectId))}

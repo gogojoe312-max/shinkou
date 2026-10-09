@@ -22,5 +22,7 @@ test('ICS download entrance is removed and old handler does not download',()=>{
  assert.match(source,/function agenda\(/);assert.match(source,/カレンダー（週・月）/);
 });
 test('HTML and service worker use the same new asset revision',()=>{
- for(const p of ['index.html','sw.js']){assert.match(read(p),/20261007calendar1/);assert.doesNotMatch(read(p),/20261002details2/)}
+ const html=read('index.html'),sw=read('sw.js'),revision=sw.match(/const CACHE='shinkou-v5-([^']+)'/)[1];
+ assert(revision);for(const p of [html,sw]){assert(p.includes('?v='+revision));assert.doesNotMatch(p,/20261002details2/)}
+ assert([...html.matchAll(/(?:src|href)="[^"]+\?v=([^"]+)/g)].every(m=>m[1]===revision));
 });

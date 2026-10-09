@@ -370,6 +370,23 @@ function progressSummary(s,r){
  if(s.customWorkflow&&focus.group==='vocal'&&/共有|版確認|録音準備/.test(focus.label))state='歌録り準備が未完了';
  return {...base,state,detail,taskId:focus.id};
 }
+// A compact, read-only view of explicit engineering states. Never parse notes as progress.
+function overview(s,r){
+ const nodes=orderedNodes(r.nodes.filter(n=>!n.excluded&&!n.shared&&n.state!=='na'&&!n.actionCoveredBy));
+ const completed=nodes.filter(n=>n.done&&!n.bookingDerived),pending=nodes.filter(n=>!n.done);
+ const active=pending.filter(n=>['received','review','doing','revision','requested','waiting'].includes(n.state));
+ const status=n=>({received:'受領済み・本人確認待ち',review:'本人確認中',doing:'作業中',revision:'修正待ち',requested:'依頼済み・相手待ち',waiting:'日程待ち'}[n.state]||STATES[n.state]||'未確認');
+ const current=active.map(n=>({id:n.id,label:n.label,state:n.state,text:n.label+' · '+(n.wait&&(n.owner||n.recipient)?(n.owner||n.recipient)+'：':'')+status(n),owner:['received','review'].includes(n.state)?'自分':n.owner||n.recipient||''}));
+ const review=active.find(n=>['received','review'].includes(n.state));
+ const first=review||active.find(n=>n.state==='doing'&&!n.blockers?.length);
+ let next=first?{id:first.id,title:nextAction(first).title,owner:review?'自分':first.owner||'担当未確認'}:null;
+ if(!next){const a=r.actions?.[0],n=a&&r.node[a.id],waiting=active.find(n=>n.wait);
+  if(waiting&&(!a||a.score>=0))next={id:waiting.id,title:(waiting.owner||waiting.recipient||'相手')+'の'+(waiting.state==='revision'?'修正':'返答・納品')+'待ち → 届いた内容を確認',owner:'自分'};
+  else if(a)next={...a,owner:n?.wait?'自分':n?.owner||'自分'};}
+ if(!next&&active.length){const n=active[0];next={id:n.id,title:n.wait?'返答・納品を待って内容を確認':nextAction(n).title,owner:n.owner||n.recipient||'担当未確認'};}
+ const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
+ return {completed:completed.map(n=>({id:n.id,label:n.label})),current,next,groups};
+}
 function invoiceNode(s,n){
  const r=invoices.report(s),state=r.done?'done':r.ready.length?'received':r.missing.length?'todo':'unknown';
  return {...n,state,done:r.done,excluded:false,derived:true,wait:false,owner:r.ready.length?'自分':'',recipient:'小森',channel:'email',invoice:r,date:r.done?r.sent.map(x=>x.sentAt).sort().at(-1)||'':'',memo:r.title};
@@ -463,6 +480,6 @@ function dropboxLinkInfo(value){
  return {url,kind};
 }
 function dropboxFolderURL(value){const link=dropboxLinkInfo(value);if(link.kind==='missing')return '';if(link.kind!=='folder')throw Error(link.kind==='file'?'ファイルのリンクです。曲のフォルダを開いてリンクをコピーしてください':'Dropboxのフォルダ共有リンク（/scl/fo/ または /sh/）を入力してください');return link.url}
-root.ShinkouProduction={releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,dropboxFolderURL,dropboxLinkInfo,keyDates,groupIds,groupSnapshot,deferGroup};
+root.ShinkouProduction={overview,releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,dropboxFolderURL,dropboxLinkInfo,keyDates,groupIds,groupSnapshot,deferGroup};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);

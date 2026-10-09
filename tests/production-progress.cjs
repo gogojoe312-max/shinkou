@@ -55,3 +55,33 @@ test('assistant receives the same remaining work and prerequisites as the visibl
  assert.equal(out.current_progress.state,'コーラス未収録');assert(out.incomplete_tasks.includes('chorus'));
  assert(!out.candidate_tasks.includes('stage:mixBrief'));assert(out.task_catalog.find(n=>n.id==='mix').blockers.includes('chorus'));
 });
+test('received arrangement appears on the first screen as owner review, never completion',()=>{
+ const s=arrangement();Object.assign(s.stages.recordable,{st:'me',workState:'received'});
+ const before=JSON.stringify(s),r=report(s),o=P.overview(s,r),c=ui(s);
+ assert(o.current.some(n=>n.id==='recordable'&&n.text.includes('受領済み・本人確認待ち')));
+ assert.equal(o.next.id,'recordable');assert.equal(o.next.owner,'自分');
+ assert(!o.completed.some(n=>n.id==='recordable'));
+ for(const html of [c.productionCompactItem(s),c.productionSnapshot(s)])assert.match(html,/受領済み・本人確認待ち/);
+ assert.equal(JSON.stringify(s),before);
+});
+test('waiting on a named producer and completed work are visible without opening notes',()=>{
+ const s=arrangement();Object.assign(s.stages.recordable,{st:'req',asg:'制作担当',workState:'revision'});
+ const r=report(s),o=P.overview(s,r),c=ui(s),html=c.productionCompactItem(s);
+ assert(o.current.some(n=>n.id==='recordable'&&n.owner==='制作担当'&&n.state==='revision'));
+ assert.match(html,/修正待ち/);assert.match(html,/polished-completed-stages/);
+ assert.doesNotMatch(html,/工程の記録|記録メモ/);
+});
+test('freeform notes and elapsed recording dates never create completion',()=>{
+ const s=arrangement();s.note='歌録り完了、納品済み';s.stages.vodb.slots=[{date:'2026-01-01',done:false}];
+ const o=P.overview(s,report(s));assert(!o.completed.some(n=>n.id==='vocal'));
+ assert(!o.current.some(n=>n.state==='done'));
+});
+test('overview excludes not-applicable steps from performed-work display',()=>{
+ const s=deferredChorus();s.production.chorus='none';const o=P.overview(s,report(s));
+ assert(!o.completed.some(n=>n.id==='chorus'));assert(!o.current.some(n=>n.id==='chorus'));
+});
+
+test('explicit commissioned work takes precedence over old unknown prerequisites in next summary',()=>{
+ const s=song();s.stages.pick.done=false;s.stages.gather={done:false,st:'req',asg:'制作担当'};s.production.tasks.theme={state:'unknown'};
+ const o=P.overview(s,report(s));assert.equal(o.next.id,'order');assert.match(o.next.title,/制作担当.*待ち/);assert(!o.completed.some(n=>n.id==='theme'));
+});
