@@ -426,15 +426,25 @@ function overview(s,r){
  const facts=[];
  for(const n of nodes){
   if(n.bookingDerived||/日程|スケジュール|スタジオ.*確保/.test(n.label))continue;
-  if(n.done)facts.push({id:n.id,label:shortLabel(n),date:validDate(n.date)?n.date:'',text:shortLabel(n)+(/OK|承認/.test(n.label)?'済み':'完了')});
-  else for(const k of n.keys){const g=s.stages?.[k]||{},x=(s.stageList||[]).find(x=>x.k===k);if(g.done&&x)facts.push({id:n.id+':'+k,label:x.n,date:validDate(g.date)?g.date:'',text:x.n+(/OK|承認/.test(x.n)?'済み':'完了')});}
+  if(n.done)facts.push({id:n.id,taskId:n.id,label:shortLabel(n),date:validDate(n.date)?n.date:'',text:n.id==='recordable'?'歌録り用アレンジOK':shortLabel(n)+(/OK|承認/.test(n.label)?'済み':'完了')});
+  else for(const k of n.keys){const g=s.stages?.[k]||{},x=(s.stageList||[]).find(x=>x.k===k);if(g.done&&x)facts.push({id:n.id+':'+k,taskId:n.id,label:x.n,date:validDate(g.date)?g.date:'',text:x.n+(/OK|承認/.test(x.n)?'済み':'完了')});}
  }
- // Receiving an initial draft is evidence of receipt, not of final approval.
+ // Receipt is evidence of received content, not of final approval.
  if(focus?.state==='revision'){
   const receipt=focus.keys.map(k=>s.stages?.[k]?.ret).filter(validDate).sort().at(-1);
-  if(receipt)facts.push({id:focus.id+':received',label:shortLabel(focus)+'受領済み',date:receipt,text:shortLabel(focus)+'受領済み'});
+  if(receipt)facts.push({id:focus.id+':received',taskId:focus.id,label:shortLabel(focus)+'受領済み',date:receipt,text:shortLabel(focus)+'受領済み'});
  }
- const latest=facts.filter(n=>!n.id.endsWith(':received')||n.id.startsWith(focus?.id||'!')).slice().sort((a,b)=>{if(a.date&&b.date)return a.date.localeCompare(b.date);return a.date?1:b.date?-1:0}).slice(-2).reverse();
+ // Keep reached prerequisites even when older dated administration would outrank them.
+ // Approval of the recording arrangement is distinct from the final arrangement.
+ const prerequisites=new Set();
+ const visit=id=>{if(prerequisites.has(id))return;prerequisites.add(id);for(const dep of r.node[id]?.deps||[])visit(dep)};
+ if(focus)for(const id of focus.deps||[])visit(id);
+ const milestoneTasks=new Set(['recordable','vocal','edit','mix','master','stage:editCheck','stage:chorusCheck','stage:instrumentCheck','stage:arrangeFinalCheck']);
+ const milestones=facts.filter(f=>f.id===focus?.id+':received'||(
+  (!focus?/納品|最終OK|マスタリング/.test(f.text):prerequisites.has(f.taskId)||r.audioComplete&&f.taskId==='master')&&
+  (milestoneTasks.has(f.taskId)||((s.customWorkflow||r.custom)&&!/依頼|共有|日程|資料/.test(f.label)&&/録り直し|録音|歌録り|収録|編集|EDIT|納品|確認|OK|承認/i.test(f.label)))
+ ));
+ const latest=milestones.length?milestones:facts.slice().sort((a,b)=>{if(a.date&&b.date)return a.date.localeCompare(b.date);return a.date?1:b.date?-1:0}).slice(-2).reverse();
  const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
  return {completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,detail,next,groups,focusId:focus?.id||''};
 }
