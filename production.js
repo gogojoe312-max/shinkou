@@ -107,7 +107,7 @@ function interpretFlow(s,nodes){
  if(s.customWorkflow&&!live){
   const work=nodes.filter(n=>(n.stage||['mixBooking','mix','master'].includes(n.id))&&!n.shared&&n.state!=='na');
   const booking=n=>/日程|スタジオ.*(?:調整|確保)|予約/.test(n.label);
- const phase=n=>booking(n)?-1:/マスタリング|マスター/.test(n.label)?8:n.id==='mix'?6:/TD.*(?:確認|承認|OK)|ミックス.*(?:確認|承認|OK)/i.test(n.label)?7:/ミックス|トラックダウン|\bTD\b/i.test(n.label)?6:/エディット|編集|edit/i.test(n.label)?5:/依頼|発注/.test(n.label)?1:/共有|版確認|録音準備/.test(n.label)?3:/レコーディング|録音|歌録り|歌の録り直し|収録/.test(n.label)?4:n.group==='plan'?0:/既存.*素材|ステム.*受領/.test(n.label)?1:n.group==='arrange'||/効果音.*制作/.test(n.label)?2:0;
+ const phase=n=>booking(n)?-1:/納品|最終.*提出/.test(n.label)?9:/マスタリング|マスター/.test(n.label)?8:n.id==='mix'?6:/TD.*(?:確認|承認|OK)|ミックス.*(?:確認|承認|OK)/i.test(n.label)?7:/ミックス|トラックダウン|\bTD\b/i.test(n.label)?6:/エディット|編集|edit/i.test(n.label)?5:/依頼|発注/.test(n.label)?1:/共有|版確認|録音準備/.test(n.label)?3:/レコーディング|録音|歌録り|歌の録り直し|収録/.test(n.label)?4:n.group==='plan'?0:/既存.*素材|ステム.*受領/.test(n.label)?1:n.group==='arrange'||/効果音.*制作/.test(n.label)?2:0;
   for(const n of work){
    const rank=phase(n),definition=(s.stageList||[]).find(x=>n.keys.includes(x.k));
    const explicit=(definition?.dependsOn||[]).map(k=>byTask(k)||byKey(k)).filter(x=>x&&x!==n);
@@ -390,8 +390,8 @@ function overview(s,r){
  if(focus){
   const label=shortLabel(focus),who=focus.owner||focus.recipient||'相手';
   if(['received','review'].includes(focus.state)){headline=label+'の確認待ち';detail=focus.state==='review'?'本人確認中':'受領済み';next={id:focus.id,title:label+'を確認する',owner:'自分'};}
-  else if(focus.wait){headline=label+'の'+(focus.state==='revision'?'修正待ち':'返答・納品待ち');detail=who+'へ依頼済み';next={id:focus.id,title:'届いた内容を確認する',owner:'自分'};}
-  else if(focus.state==='doing'){headline=label+'を作業中';detail=focus.owner&&focus.owner!=='自分'?focus.owner+'が担当':'';next={id:focus.id,title:label+'を進める',owner:focus.owner||'自分'};}
+  else if(focus.wait){const revision=focus.state==='revision';headline=label+'の'+(revision?'改稿待ち':'返答・納品待ち');detail=who+(revision?'へ修正依頼済み':'へ依頼済み');next={id:focus.id,title:revision?'改稿が届いたら変更点を確認する':'返答・納品が届いたら内容を確認する',owner:'自分',after:true};}
+  else if(focus.state==='doing'){headline=label+'を作業中';detail=focus.owner&&focus.owner!=='自分'?focus.owner+'が担当':'';const following=pending.find(n=>n.id!==focus.id&&n.deps.includes(focus.id));next=following?{id:following.id,title:label+'の完了後、'+shortLabel(following),owner:following.owner||'',after:true}:null;}
   else {headline=!s.customWorkflow&&focus.id===r.progress?.taskId?r.progress.state:label;next={id:focus.id,title:label+(focus.state==='unknown'?'の状況を確認する':'を進める'),owner:focus.owner||'自分'};}
   const rec=focus.id==='vocal'||focus.id==='stage:version_recording'||focus.keys.some(k=>{const st=(s.stageList||[]).find(x=>x.k===k);return st&&['vocal','revocal','chorus','instrument'].includes(core.scheduleKind(st))&&!/日程|スケジュール|編集|共有|確認/.test(st.n)});
   if(rec&&!['doing','received','review'].includes(focus.state)){
@@ -403,8 +403,40 @@ function overview(s,r){
    else {headline=label+'待ち';detail='収録予定あり';next={id:focus.id,title:label+'の準備を進める',owner:'自分'};}
   }
  }
+ // Main-screen facts come from explicit stage records, never freeform notes.
+ const schedules=[];
+ for(const n of nodes.filter(n=>!n.done&&!n.bookingDerived)){
+  const records=n.keys.map(k=>({k,g:s.stages?.[k]||{}}));
+  // Editing dates are often recorded on a separate booking stage.
+  const bookingIds=n.id==='edit'?['stage:voes']:n.id==='chorus'?['stage:choes']:[];
+  for(const id of bookingIds)for(const k of r.node[id]?.keys||[])records.push({k,g:s.stages?.[k]||{}});
+  const slots=records.flatMap(({k,g})=>(g.slots||[]).filter(v=>!v.done&&validDate(v.date)&&v.date>=r.today).map(v=>({date:v.date,kind:v.swait||v.tentative||v.prov||g.prov||g.st==='studio'||s.production?.dateKinds?.[k]==='tentative'?'tentative':v.kind==='confirmed'||v.calRef||s.production?.dateKinds?.[k]==='confirmed'||s.production?.tasks?.[n.id]?.dueKind==='confirmed'?'confirmed':'registered'})));
+  const dates=[...new Map(slots.map(v=>[v.date,v])).values()].sort((a,b)=>a.date.localeCompare(b.date));
+  if(dates.length)schedules.push({id:n.id,label:shortLabel(n),dates,owner:n.owner||''});
+ }
+ for(const z of r.progress?.schedules||[]){if(!schedules.some(x=>x.dates.some(v=>z.dates.includes(v.date))&&x.label===z.label))schedules.push({id:'schedule:'+z.kind,label:z.label,dates:z.dates.map(date=>({date,kind:z.tentative?'tentative':'registered'})),owner:''});}
+ const schedule=schedules.find(x=>x.id===focus?.id);
+ if(schedule&&focus&&!['revision','requested','received','review','doing'].includes(focus.state)){
+  headline=shortLabel(focus)+'予定';detail=schedule.owner?schedule.owner+'が担当':'担当未登録';
+  next={id:focus.id,title:shortLabel(focus)+'を実施する',owner:focus.owner||'',scheduled:true};
+ }else if(focus&&['todo','partial'].includes(focus.state)&&!focus.wait&&!schedule){
+  headline=shortLabel(focus)+'・未完了';
+  if(detail==='これから')detail=focus.owner?focus.owner+'が担当':'担当・実施日未登録';
+ }
+ const facts=[];
+ for(const n of nodes){
+  if(n.bookingDerived||/日程|スケジュール|スタジオ.*確保/.test(n.label))continue;
+  if(n.done)facts.push({id:n.id,label:shortLabel(n),date:validDate(n.date)?n.date:'',text:shortLabel(n)+(/OK|承認/.test(n.label)?'済み':'完了')});
+  else for(const k of n.keys){const g=s.stages?.[k]||{},x=(s.stageList||[]).find(x=>x.k===k);if(g.done&&x)facts.push({id:n.id+':'+k,label:x.n,date:validDate(g.date)?g.date:'',text:x.n+(/OK|承認/.test(x.n)?'済み':'完了')});}
+ }
+ // Receiving an initial draft is evidence of receipt, not of final approval.
+ if(focus?.state==='revision'){
+  const receipt=focus.keys.map(k=>s.stages?.[k]?.ret).filter(validDate).sort().at(-1);
+  if(receipt)facts.push({id:focus.id+':received',label:shortLabel(focus)+'受領済み',date:receipt,text:shortLabel(focus)+'受領済み'});
+ }
+ const latest=facts.filter(n=>!n.id.endsWith(':received')||n.id.startsWith(focus?.id||'!')).slice().sort((a,b)=>{if(a.date&&b.date)return a.date.localeCompare(b.date);return a.date?1:b.date?-1:0}).slice(-2).reverse();
  const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
- return {completed:completed.map(n=>({id:n.id,label:n.label})),current,headline,detail,next,groups,focusId:focus?.id||''};
+ return {completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,detail,next,groups,focusId:focus?.id||''};
 }
 function invoiceNode(s,n){
  const r=invoices.report(s),state=r.done?'done':r.ready.length?'received':r.missing.length?'todo':'unknown';

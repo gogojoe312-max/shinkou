@@ -33,7 +33,7 @@ test('booked vocal dates do not conceal unfinished arrangement in either view',(
  const s=arrangement(),r=report(s),c=ui(s);
  assert.equal(r.progress.state,'VoDB用アレンジ未完了');assert(r.node.vocal.blockers.includes('recordable'));
  for(const html of [c.productionReleaseContents([s]),c.productionSnapshot(s)]){assert.match(html,/VoDB用アレンジ未完了/);assert.doesNotMatch(html,/歌録り待ち/);}
- assert.match(c.productionReleaseContents([s]),/VoDB 11\/04・11\/05/);
+ assert.match(c.productionReleaseContents([s]),/VoDB.*11\/04.*11\/05/);
 });
 test('completing the missing arrangement advances to recording while retaining the dates',()=>{
  const s=arrangement();s.stages.recordable.done=true;
@@ -68,7 +68,7 @@ test('waiting on a named producer is visible while completed-stage prose stays o
  const s=arrangement();Object.assign(s.stages.recordable,{st:'req',asg:'制作担当',workState:'revision'});
  const r=report(s),o=P.overview(s,r),c=ui(s),html=c.productionCompactItem(s);
  assert(o.current.some(n=>n.id==='recordable'&&n.owner==='制作担当'&&n.state==='revision'));
- assert.match(html,/修正待ち/);assert.doesNotMatch(html,/polished-completed-stages/);
+ assert.match(html,/改稿待ち/);assert.doesNotMatch(html,/polished-completed-stages/);
  assert.doesNotMatch(html,/工程の記録|記録メモ/);
 });
 test('freeform notes and elapsed recording dates never create completion',()=>{
