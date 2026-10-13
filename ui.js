@@ -1,6 +1,11 @@
 /* ホーム・曲の詳細。作業の表示と編集は production-ui.js に集約。 */
 let songTab='summary';
-const samePayload=(a,b)=>{const x=syncable(a),y=syncable(b);delete x.at;delete y.at;return ShinkouCore.equal(x,y)};
+function payloadSignature(value){
+ const payload=syncable(value);delete payload.at;
+ const stable=v=>Array.isArray(v)?v.map(stable):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,stable(v[k])])):v;
+ return JSON.stringify(stable(payload));
+}
+const samePayload=(a,b)=>payloadSignature(a)===payloadSignature(b);
 function matchesWho(s){
  if(V.who==='all')return true;const r=productionReport(s);if(r.archive)return false;
  if((s.workflow?.communications||[]).some(c=>V.who==='other'?c.state==='waiting':V.who==='todo'?c.state==='review':V.who==='me'?c.state==='reply':false))return true;
@@ -56,7 +61,7 @@ function drawSongPage(){
   let h=songTabs();
   if(songTab==='summary'){
     h+=progressSongCard(s);
-    if(s.note&&V.mode!=='desk')h+='<section class="detail-panel"><h3>申し送り</h3><p class="preserve">'+esc(s.note)+'</p></section>';
+
     if(V.mode!=='desk'&&!(RO||VIEW_ONLY))h+='<div class="summary-options"><button class="btn" id="editSongInfo">'+(productionIsLive(s)?'情報を編集':'曲の情報を編集')+'</button></div>';
   }else if(songTab==='credits'){
     const rows=group=>(s.credits||[]).filter(c=>c.g===group).map(c=>'<div class="viewer-credit"><b>'+esc(c.name||'名前未登録')+'</b><span>'+esc(group==='work'?(c.roles||[]).map(k=>WROLES.find(r=>r[0]===k)?.[1]||k).join('・'):rowParts(c).join('・'))+'</span></div>').join('')||'<p class="hint">記録はありません。</p>';
@@ -176,3 +181,4 @@ function renderProgressHome(el,list){
 }
 
 ShinkouServer.start(boot);
+

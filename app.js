@@ -1628,7 +1628,7 @@ async function syncNow(reason){
     const changed=!samePayload(merged,S);
     if(changed){S=migrate(merged);harvestMasters();cleanMasters();
       {let fx=false;S.songs.forEach(x=>{if(fixDeps(x))fx=true});if(fx)chg++}
-      dirty=true;await flush();render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}}
+      dirty=true;await flush();refreshSyncedView()}
     const payload=syncable(S);
     const same=got.json&&samePayload(got.json,payload);
     if(!same){
@@ -1645,21 +1645,42 @@ async function syncNow(reason){
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
   }catch(e){syDot("err",String(e.message||e))}
   finally{SY.busy=false}}
+function refreshSyncedView(){
+  // Capture after async saving: the reader may have navigated while the request was pending.
+  const view=ShinkouViewState.capture();
+  render();
+  if(cur){cur=S.songs.find(x=>x.id===cur.id)||null;
+    if(cur&&document.getElementById("sheet").classList.contains("on")){head();drawSong()}
+    else if(!cur)hide("sheet")}
+  if(typeof refreshProductionReadGroup==='function')refreshProductionReadGroup();
+  ShinkouViewState.restore(view);
+}
 async function syncReadOnly(reason){
   if(RO||SY.busy||securityChanging||!syOk())return;
   if(!navigator.onLine){syDot("offline");return}
   SY.busy=true;syDot("busy");
   try{
     await flush();
-    const got=await ghRead(syCfg());
+    const config={...syCfg()},connection=JSON.stringify([config.owner,config.repo,config.branch||'main',config.path]);
+    const got=await ghRead(config),latest=syCfg();
+    if(!syOk()||connection!==JSON.stringify([latest.owner,latest.repo,latest.branch||'main',latest.path]))return;
     if(!got.json)throw Error("同期先にデータがありません。端末の内容は保持しています。");
-    const remote=ShinkouSecurity.validState(got.json);
-    if(!samePayload(remote,S)){
-      const settings=S.settings;S=migrate(remote);S.settings=settings;
-      dirty=true;saveRevision++;await flush();render();
-      if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}else hide("sheet")}
+    const raw=ShinkouSecurity.validState(got.json);
+    const remoteSignature=payloadSignature(raw),localSignature=payloadSignature(S);
+    let refreshed=false;
+    // Legacy migration may generate missing IDs. Reuse the already-applied result for an
+    // unchanged source, instead of creating fresh IDs and rebuilding the screen each poll.
+    if(SY.readConnection!==connection||SY.readRemoteSignature!==remoteSignature||SY.readLocalSignature!==localSignature){
+      const remote=migrate(raw);
+      if(!samePayload(remote,S)){
+        const settings=S.settings;S=remote;S.settings=settings;
+        dirty=true;saveRevision++;await flush();refreshSyncedView();refreshed=true;
+      }
+      await sbPut(JSON.parse(JSON.stringify(syncable(S))));
+      SY.readConnection=connection;SY.readRemoteSignature=remoteSignature;SY.readLocalSignature=payloadSignature(S);
     }
-    await sbPut(JSON.parse(JSON.stringify(syncable(S))));
+    if(SY.readDay&&SY.readDay!==D.today()&&!refreshed)refreshSyncedView();
+    SY.readDay=D.today();
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 読み込み");
   }catch(e){syDot("err",String(e.message||e))}
   finally{SY.busy=false}
@@ -2385,7 +2406,7 @@ function migrate(d){
         if(v.who===undefined)v.who="";if(v.swait===undefined)v.swait=false;delete v.studio;
         if(v.note)v.note=toEnPart(v.note)})});
     return s});
-  (function(){const sv=S;S=b;
+  (function(){const sv=S;S=b;try{
     /* 既存のクレジットから、役割ごとのマスタを作り直す */
     const put=(k,v)=>{v=(v||"").trim();if(!v)return;
       if(!b.masters[k])b.masters[k]=[];
@@ -2415,7 +2436,7 @@ function migrate(d){
           if(isMulti(x)||RECMIRROR[x.k])return;   /* 日程から決まるものは、そのまま */
           const d0=oldAutoDl(s,x);if(d0)o.dl=d0});
         s.dlFixed=true}});
-    S=sv})();
+    }finally{S=sv}})();
   b.songs.forEach(s=>ShinkouCore.ensureSlots(s,true,uid));
   return b}
 
@@ -2455,5 +2476,6 @@ if("serviceWorker" in navigator&&location.protocol==="https:")
   window.addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{})});
 /* ブラウザにデータを消されにくくする */
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+
 
 
