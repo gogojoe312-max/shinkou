@@ -39,7 +39,12 @@ function saveCommunication(s,value){
  if(value.due&&!validDate(value.due))throw Error('確認期限の日付を確認してください');
  if(!text(value.subject,240)&&!text(value.person,120))throw Error('用件か相手の名前を入力してください');
  if(value.email&&!validEmail(value.email))throw Error('メールアドレスを確認してください');
- const row={...list(s,'communications').find(x=>x.id===value.id),id:value.id,subject:text(value.subject,240),person:text(value.person,120),email:text(value.email,200),channel:['email','line','meeting'].includes(value.channel)?value.channel:'email',state:value.state,due:text(value.due,10),taskId:text(value.taskId,100),memo:text(value.memo),url,sourceId:text(value.sourceId,200),sourceModified:text(value.sourceModified,100),updatedAt:value.updatedAt||Date.now()};
+ const old=list(s,'communications').find(x=>x.id===value.id)||{};
+ const row={...old,id:value.id,subject:text(value.subject,240),person:text(value.person,120),email:text(value.email,200),channel:['email','line','meeting'].includes(value.channel)?value.channel:'email',state:value.state,due:text(value.due,10),taskId:text(value.taskId,100),memo:text(value.memo),url,sourceId:text(value.sourceId,200),sourceModified:text(value.sourceModified,100),updatedAt:value.updatedAt||Date.now()};
+ // An old short label must not describe a changed subject or response state.
+ const changed=row.subject!==old.subject||row.state!==old.state||row.taskId!==old.taskId;
+ if(Object.prototype.hasOwnProperty.call(value,'summary')){const summary=text(value.summary,120);if(changed&&summary===text(old.summary,120))delete row.summary;else row.summary=summary;}
+ else if(changed)delete row.summary;
  return upsert(s,'communications',row);
 }
 function communicationDraft(s,c){const title=s.title||s.work||'曲名未登録',who=c.person||'ご担当者';return {to:c.email||'',subject:(c.state==='waiting'?'進捗のご確認／':'ご相談／')+title,body:who+'さま\n\nお世話になっております。\n\n'+(s.artist?s.artist+' ':'')+'「'+title+'」について、'+(c.state==='waiting'?'ご相談している件の進捗を確認させてください。':'ご相談です。')+'\n'+(c.memo?'\n'+c.memo+'\n':'')+(c.due?'\n'+c.due+'までのご対応が可能か、あわせてお知らせいただけますでしょうか。\n':'')+'\nよろしくお願いいたします。'}}

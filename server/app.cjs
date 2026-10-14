@@ -106,7 +106,7 @@ function createApp(env=process.env,dependencies={}){
  });
  app.post('/api/dropbox/disconnect',(req,res)=>{dropboxTokens.delete(req.session.id);res.json({ok:true})});
  // Serve only explicitly listed application assets; never the source tree, server files or env files.
- const assets=new Set(['index.html','ui.css','security.js','server-client.js','core.js','invoices.js','production.js','workflow.js','connections.js','app.js','production-ui.js','invoice-ui.js','workflow-ui.js','ui.js','oauth-callback.html','oauth-callback.js','login.js','login.css','dropbox-complete.html','dropbox-complete.js']);
+ const assets=new Set(['index.html','ui.css','design.css','security.js','server-client.js','core.js','invoices.js','production.js','workflow.js','connections.js','app.js','production-ui.js','invoice-ui.js','workflow-ui.js','ui.js','oauth-callback.html','oauth-callback.js','login.js','login.css','dropbox-complete.html','dropbox-complete.js']);
  app.get('/sw.js',(req,res)=>res.type('js').send("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));"));
  app.get('/login',(req,res)=>res.sendFile(path.join(__dirname,'login.html')));
  app.get('/dropbox-complete.html',authenticate,(req,res)=>res.sendFile(path.join(__dirname,'dropbox-complete.html')));

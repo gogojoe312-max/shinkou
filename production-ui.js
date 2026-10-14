@@ -46,7 +46,7 @@ function productionStateSummary(s){
  const materials=(s.workflow?.materials||[]).filter(f=>!f.removed&&!f.deleted),unverified=materials.filter(f=>!f.approved||(f.rev&&f.approvedRev!==f.rev));
  const admin=r.nodes.filter(n=>['invoice','credits','lyricCheck'].includes(n.id)&&!n.done&&!n.excluded);
  const overview=ShinkouProduction.overview(s,r);
- return {r,overview,state:overview.handoff||overview.headline||state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
+ return {songId:s.id,r,overview,state:overview.handoff||overview.headline||state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
 }
 function productionEvidenceHTML(s,summary,collection='songs'){
  if(s.viewerRestricted)return '<p class="muted">資料・連絡・請求書の詳細は、この閲覧画面には表示していません。</p>';
@@ -69,7 +69,7 @@ function productionFlowHTML(x){return '';}
 function productionScheduleHTML(x,compact=false){
  const all=(x.overview.schedules||[]).slice().sort((a,b)=>(a.dates[0]?.date||'').localeCompare(b.dates[0]?.date||''));
  const items=compact?all.slice(0,3):all;
- const rows=items.map(z=>'<span class="production-schedule"><b>'+esc(z.label)+'</b> '+esc(z.dates.map(d=>productionDate({value:d.date})+(d.kind==='tentative'?' 仮':d.kind==='target'?' 目安':'')).join('・'))+'</span>').join('');
+ const rows=items.map(z=>'<span class="production-schedule"><b>'+esc(z.label)+(!z.arrival&&!z.work?' <small>期限</small>':'')+'</b><span class="schedule-dates">'+z.dates.map(d=>'<time datetime="'+esc(d.date)+'">'+esc(productionDate({value:d.date}))+'</time>'+(d.kind==='tentative'?'<small>仮</small>':d.kind==='target'?'<small>目安</small>':'')).join('<span class="schedule-date-separator">・</span>')+'</span></span>').join('');
  return rows+(compact&&all.length>items.length?'<span class="production-schedule-more">ほかの予定</span>':'');
 }
 function productionHandoffHTML(o){
@@ -85,10 +85,17 @@ function productionParallelWaitHTML(x,compact=false){
  const waiting=x.overview.parallelWaiting||[],shown=compact?waiting.slice(0,2):waiting;
  return shown.map(w=>'<span class="production-own-ready external"><span class="handoff-owner other">相手待ち · '+esc(w.owner)+'</span><span>'+esc(w.labels.join('・'))+'</span></span>').join('')+(compact&&waiting.length>shown.length?'<span class="production-schedule-more">ほかの相手待ち</span>':'');
 }
+function productionSourceFactsHTML(x,compact=false){
+ const facts=x.overview.sourceFacts||[];
+ if(!facts.length||compact&&!x.overview.unconfirmed)return '';
+ if(compact)return '<span class="production-known-facts">'+esc(facts.slice(0,2).map(f=>f.label).join(' · '))+'</span>';
+ const safe=v=>{try{const u=new URL(v);return u.protocol==='https:'&&!u.username&&!u.password?u.href:''}catch{return ''}};
+ return '<details class="production-source-facts" data-state-fold="source-facts:'+esc(x.songId||'')+'"><summary>確認できている資料</summary>'+facts.map(f=>{const link=safe(f.sourceUrl);return '<section><strong>'+esc(f.label)+'</strong>'+(f.detail?'<p>'+esc(f.detail)+'</p>':'')+(link?'<a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">元の資料を開く ↗</a>':'')+'</section>'}).join('')+'</details>';
+}
 function productionCompactItem(s,index){
  const x=productionStateSummary(s),r=x.r;
  const badge=r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':r.audioComplete?'<span class="viewer-status audio">音源完了</span>':'';
- return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+(!r.archive?'<span class="polished-state"><strong>'+esc(x.overview.handoffStatus||x.state)+'</strong>'+productionHandoffHTML(x.overview)+'</span><span class="compact-schedules">'+productionScheduleHTML(x,true)+'</span>'+productionOwnReadyHTML(x,true)+productionParallelWaitHTML(x,true):'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
+ return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+(!r.archive?'<span class="polished-state"><strong>'+esc(x.overview.handoffStatus||x.state)+'</strong>'+productionHandoffHTML(x.overview)+'</span>'+productionSourceFactsHTML(x,true)+productionOwnReadyHTML(x,true)+productionParallelWaitHTML(x,true)+'<span class="compact-schedules">'+productionScheduleHTML(x,true)+'</span>':'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
 }
 
 function productionStageProgressHTML(s,r,groupId=''){
@@ -117,10 +124,12 @@ function productionSnapshot(s){
  const dates=schedules+x.dates.map(d=>'<span>'+esc(d.label+' '+productionDate(d)+' · '+productionDateKind(d))+'</span>').join('');
  const arrivals={...x,overview:{...x.overview,schedules:x.overview.schedules.filter(z=>z.arrival)}};
  const future={...x,overview:{...x.overview,schedules:x.overview.schedules.filter(z=>!z.arrival)}};
- const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'<p class="polished-focus-state">'+esc(x.overview.handoffStatus||x.state)+'</p>'+productionHandoffHTML(x.overview)+productionScheduleHTML(arrivals))+(!r.archive&&next&&!next.scheduled?'<div class="polished-action"><small>'+ (next.after?'届いた後にすること':'次にすること')+'</small><strong>'+esc((next.owner?next.owner+'：':'')+next.title)+'</strong></div>':'')+productionOwnReadyHTML(x)+productionParallelWaitHTML(x)+(future.overview.schedules.length?'<section class="production-upcoming"><h3>この先の予定</h3>'+productionScheduleHTML(future)+'</section>':'')+'</div>';
+ const action=!r.archive&&next&&!next.scheduled?'<div class="polished-action'+(next.after?' is-later':'')+'"><small>'+(next.after?'届いた後に':'今すること')+'</small><strong>'+esc((next.owner?next.owner+'：':'')+next.title)+'</strong></div>':'';
+ const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'"><section class="focus-current">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'<p class="polished-focus-state">'+esc(x.overview.handoffStatus||x.state)+'</p>'+productionHandoffHTML(x.overview)+(x.overview.unconfirmed&&x.overview.detail?'<p class="polished-focus-detail">'+esc(x.overview.detail)+'</p>':'')+(arrivals.overview.schedules.length?'<div class="schedule-tiles">'+productionScheduleHTML(arrivals)+'</div>':''))+'</section>'+(!next?.after?action:'')+productionOwnReadyHTML(x)+productionParallelWaitHTML(x)+(next?.after?action:'')+(future.overview.schedules.length?'<section class="production-upcoming"><h3>この先の予定</h3><div class="schedule-tiles">'+productionScheduleHTML(future)+'</div></section>':'')+'</div>';
+
  const info='<details class="polished-info" data-state-fold="info:'+esc(s.id)+'"><summary><span>日程・資料・確認事項</span><small>記録を見る</small></summary><section><h4>日程</h4><div class="state-dates">'+(dates||'<span>日程未登録</span>')+(x.due?'<span>次の日付：'+esc(x.due.label+' '+productionTaskDateLabel(s,x.due)+' '+productionDate(x.due.due)+' · '+productionDateKind(x.due.due))+'</span>':'')+'</div></section><section><h4>素材・請求書・クレジット</h4><p>'+esc(s.viewerRestricted?'資料・請求書の詳細は、この閲覧画面には表示していません。':x.checks.join(' / ')||'不足の記録はありません。必要素材の確認状況は資料記録をご確認ください。')+'</p></section><section class="state-evidence-section"><h4>資料・根拠・確認日時</h4>'+productionFolderLink(s)+productionEvidenceHTML(s,x)+'</section>'+(!s.viewerRestricted&&!r.archive&&!x.waiting.length?'<p class="polished-unconfirmed">対応待ちの記録はありません。現在の状況は未確認です。</p>':'')+'</details>';
  const details=productionStageProgressHTML(s,r)+(!(RO||VIEW_ONLY)?'<div class="production-footer">'+b('all','','production-more','作業・提出を訂正')+b('dates','','production-more','日程を訂正')+b('workflow','','production-more','連絡・資料を記録')+'</div>':'');
- return overview+details+productionKeyDatesHTML(s)+info;
+ return overview+details+productionKeyDatesHTML(s)+productionSourceFactsHTML(x)+info;
 }
 
 function productionIsLive(s){return s.use==='live'||s.templateId==='tpl_show'||isShow(projOf(s.projectId))}

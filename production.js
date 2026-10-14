@@ -120,7 +120,7 @@ function interpretFlow(s,nodes){
   const c=contacts.find(c=>['reply','review'].includes(c.state))||contacts[0];
   // A reply can be due while the production itself is still awaiting revision.
   // Keep these two facts separate; this projection never changes saved records.
-  if(c&&n.state!=='na'&&!n.excluded){n.communication={id:c.id,state:c.state,person:c.person||'',subject:c.subject||'',due:validDate(c.due)?c.due:''};n.communicationId=c.id;}
+  if(c&&n.state!=='na'&&!n.excluded){n.communication={id:c.id,state:c.state,person:c.person||'',subject:c.subject||'',summary:typeof c.summary==='string'?c.summary:'',due:validDate(c.due)?c.due:''};n.communicationId=c.id;}
   if(c&&['unknown','todo'].includes(n.state)&&['waiting','reply','review'].includes(c.state)){
    n.state=c.state==='waiting'?'requested':c.state==='reply'?'doing':'review';n.wait=c.state==='waiting';
    n.owner=c.state==='reply'||c.state==='review'?'自分':c.person||n.owner;n.recipient=c.person||n.recipient;n.communicationId=c.id;
@@ -432,7 +432,7 @@ function overview(s,r){
   dates.sort((a,b)=>a.date.localeCompare(b.date));
   if(dates.length)schedules.push({id:n.id,label:shortLabel(n),dates,owner:n.owner||'',arrival:n.wait,work:slots.length>0});
  }
- for(const z of r.progress?.schedules||[]){if(!schedules.some(x=>x.dates.some(v=>z.dates.includes(v.date))&&x.label===z.label))schedules.push({id:'schedule:'+z.kind,label:z.label,dates:z.dates.map(date=>({date,kind:z.tentative?'tentative':'registered'})),owner:''});}
+ for(const z of r.progress?.schedules||[]){if(!schedules.some(x=>x.dates.some(v=>z.dates.includes(v.date))&&x.label===z.label))schedules.push({id:'schedule:'+z.kind,label:z.label,dates:z.dates.map(date=>({date,kind:z.tentative?'tentative':'registered'})),owner:'',work:true});}
  const schedule=schedules.find(x=>x.id===focus?.id);
  if(schedule&&schedule.work&&focus&&!communicationAction(focus)&&!['revision','requested','received','review','doing'].includes(focus.state)){
   headline=shortLabel(focus)+'予定';detail=schedule.owner?schedule.owner+'が担当':'担当未登録';
@@ -472,7 +472,7 @@ function overview(s,r){
   const mine=attention||['received','review'].includes(focus.state);
   const owner=mine?me:focus.owner==='自分'?me:focus.owner||focus.recipient||'';
   const label=shortLabel(focus);
-  const work=attention?(attention.state==='reply'?'回答待ち':'確認待ち')+'（'+(focus.communication.subject||label)+'）':
+  const work=attention?(focus.communication.summary||label+(attention.state==='reply'?'の回答待ち':'の確認待ち')):
    ['received','review'].includes(focus.state)?label+'の確認待ち':
    focus.wait?label+(focus.state==='revision'?'の修正待ち':'待ち'):headline;
   handoffOwner=owner||'担当未確認';handoffStatus=work;handoffSide=mine?'me':focus.wait?'other':owner===me?'me':owner?'other':'unknown';
@@ -496,7 +496,12 @@ function overview(s,r){
   waitingByOwner.get(owner).labels.push(shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'));
  }
  const parallelWaiting=[...waitingByOwner.values()];
- return {completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:focus?.id||''};
+ // Source material facts explain what is known, without inventing an active task.
+ const summary=!s.viewerRestricted&&s.production?.statusSummary;
+ const sourceFacts=summary&&Array.isArray(summary.sourceFactIds)&&Array.isArray(s.production?.sourceFacts)?s.production.sourceFacts.filter(f=>f&&summary.sourceFactIds.includes(f.id)&&typeof f.label==='string'&&f.label.trim()):[];
+ const unconfirmed=!!(!r.archive&&summary&&typeof summary.label==='string'&&summary.label.trim()&&!nodes.some(n=>communicationAction(n)||!n.done&&['doing','requested','revision','waiting','received','review','todo','partial'].includes(n.state)));
+ if(unconfirmed){headline=summary.label;handoffStatus=summary.label;handoffOwner='担当未確認';handoffSide='unknown';handoff=handoffOwner+'：'+handoffStatus;detail=typeof summary.detail==='string'?summary.detail:'';next=null;}
+ return {sourceFacts,unconfirmed,completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:unconfirmed?'':focus?.id||''};
 }
 // Detailed rows keep each real task visible in workflow order. Notes remain
 // historical context, never evidence used to infer state, ownership or dates.
