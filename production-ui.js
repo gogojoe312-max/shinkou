@@ -70,7 +70,7 @@ function productionScheduleHTML(x,compact=false){
  const all=(x.overview.schedules||[]).slice().sort((a,b)=>(a.dates[0]?.date||'').localeCompare(b.dates[0]?.date||''));
  const items=compact?all.slice(0,3):all;
  const rows=items.map(z=>'<span class="production-schedule"><b>'+esc(z.label)+'</b> '+esc(z.dates.map(d=>productionDate({value:d.date})+(d.kind==='tentative'?' 仮':d.kind==='target'?' 目安':'')).join('・'))+'</span>').join('');
- return rows+(compact&&all.length>items.length?'<span class="production-schedule-more">ほか'+(all.length-items.length)+'件</span>':'');
+ return rows+(compact&&all.length>items.length?'<span class="production-schedule-more">ほかの予定</span>':'');
 }
 function productionHandoffHTML(o){
  if(!o.handoffOwner)return '';
