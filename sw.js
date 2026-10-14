@@ -1,6 +1,6 @@
 /* 同じ版のHTML・ロジック・スタイルをオフライン用に保持する。 */
-const CACHE='shinkou-v5-20261013flow1';
-const ASSETS=['./security.js?v=20261013flow1','./server-config.js?v=20261013flow1','./server-client.js?v=20261013flow1','./','./index.html','./view-state.js?v=20261013flow1','./core.js?v=20261013flow1','./invoices.js?v=20261013flow1','./workflow.js?v=20261013flow1','./workflow-ui.js?v=20261013flow1','./connections.js?v=20261013flow1','./invoice-ui.js?v=20261013flow1','./production.js?v=20261013flow1','./production-ui.js?v=20261013flow1','./app.js?v=20261013flow1','./ui.js?v=20261013flow1','./ui.css?v=20261013flow1'];
+const CACHE='shinkou-v5-20261014handoff1';
+const ASSETS=['./security.js?v=20261014handoff1','./server-config.js?v=20261014handoff1','./server-client.js?v=20261014handoff1','./','./index.html','./view-state.js?v=20261014handoff1','./core.js?v=20261014handoff1','./invoices.js?v=20261014handoff1','./workflow.js?v=20261014handoff1','./workflow-ui.js?v=20261014handoff1','./connections.js?v=20261014handoff1','./invoice-ui.js?v=20261014handoff1','./production.js?v=20261014handoff1','./production-ui.js?v=20261014handoff1','./app.js?v=20261014handoff1','./ui.js?v=20261014handoff1','./ui.css?v=20261014handoff1'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('shinkou-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{
@@ -17,6 +17,7 @@ self.addEventListener('fetch',event=>{
     return Response.error();
   }));
 });
+
 
 
 

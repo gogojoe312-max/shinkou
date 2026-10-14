@@ -8,7 +8,7 @@ function productionReport(s){
  return r;
 }
 function productionDate(d){return d?.value?(d.value.slice(0,4)===D.today().slice(0,4)?D.md(d.value):d.value.replace(/-/g,'/')):d?.kind==='completed'?'日付未登録':'未定'}
-function productionDateKind(d){return d?.kind==='completed'?'完了':d?.value?({confirmed:'確定',tentative:'仮',target:'目安',registered:'登録日'}[d.kind]||'登録日'):''}
+function productionDateKind(d){return d?.kind==='completed'?'完了':d?.value?({confirmed:'確定',tentative:'仮',target:'目安',registered:''}[d.kind]||''):''}
 function productionButton(s,kind,key,cls,html){return '<button type="button" class="production-button '+cls+'" data-production-song="'+esc(s.id)+'" data-production-kind="'+kind+'" data-production-key="'+esc(key||'')+'">'+html+'</button>'}
 function productionCalendarDate(value){
  if(!ShinkouProduction.validDate(value))return '';
@@ -19,13 +19,13 @@ function productionTaskDateLabel(s,n){
  if(n.due?.kind==='target')return '目安';
  if(n.keys?.some(k=>ShinkouProduction.validDate(s.stages?.[k]?.dl))||ShinkouProduction.validDate(s.production?.tasks?.[n.id]?.due))return '期限';
  if(n.keys?.some(k=>(s.stages?.[k]?.slots||[]).some(v=>v.date===n.due?.value)))return '作業日';
- return '登録日';
+ return '予定日';
 }
 function productionKeyDatesHTML(s){
  const live=s.use==='live'||s.templateId==='tpl_show';
  const cards=live?['open','rehearsal','deliver'].map(key=>({key,label:{open:'公演初日',rehearsal:'リハーサル',deliver:'音源提出期限'}[key],dates:ShinkouProduction.validDate(s.dates?.[key])?[{date:s.dates[key],kind:s.production?.dateKinds?.[key]||'registered'}]:[],empty:'未定'})):ShinkouProduction.keyDates(s);
- const status={confirmed:'確定',tentative:'仮',registered:'登録日',completed:'実施済み'};
- const card=x=>'<section class="key-date-card'+(!x.dates.length?' is-empty':'')+'"><h4>'+esc(x.label)+'</h4>'+(x.dates.length?'<ul>'+x.dates.map(v=>'<li><time datetime="'+esc(v.date)+'">'+esc(productionCalendarDate(v.date))+'</time><span class="key-date-kind '+esc(v.kind)+'">'+esc((v.additional?'追加VoDB · ':'')+(status[v.kind]||'登録日'))+'</span></li>').join('')+'</ul>':'<p>'+esc(x.empty)+'</p>')+'</section>';
+ const status={confirmed:'確定',tentative:'仮',registered:'',completed:'実施済み'};
+ const card=x=>'<section class="key-date-card'+(!x.dates.length?' is-empty':'')+'"><h4>'+esc(x.label)+'</h4>'+(x.dates.length?'<ul>'+x.dates.map(v=>'<li><time datetime="'+esc(v.date)+'">'+esc(productionCalendarDate(v.date))+'</time><span class="key-date-kind '+esc(v.kind)+'">'+esc((v.additional?'追加VoDB · ':'')+(status[v.kind]||''))+'</span></li>').join('')+'</ul>':'<p>'+esc(x.empty)+'</p>')+'</section>';
  const link=ShinkouProduction.dropboxLinkInfo(s.dropboxUrl),folder=link.kind==='folder'?'<a class="key-folder-link" href="'+esc(link.url)+'" target="_blank" rel="noopener noreferrer"><span>曲のDropboxフォルダを開く</span><span aria-hidden="true">↗</span></a>':link.url?'<div class="key-folder-missing">'+(link.kind==='file'?'曲フォルダ未登録（ファイルのリンクが登録されています）':'曲フォルダ未確認')+'</div>':'<div class="key-folder-missing">曲のDropboxフォルダ · 未登録</div>';
  return '<section class="key-dates" aria-label="主要日程と曲フォルダ"><div class="key-dates-heading"><h3>主要日程</h3>'+(!(RO||VIEW_ONLY)?productionButton(s,'dates','','production-more','日程を編集'):'')+'</div><div class="key-dates-grid">'+cards.map(card).join('')+'</div><p class="key-dates-note">登録された日付を表示 · '+(live?'提出は期限、ほかは実施日です':'未定とMVなしは別表示です')+'</p>'+folder+(!(RO||VIEW_ONLY)?productionButton(s,'folder','','production-more',link.kind==='folder'?'フォルダリンクを編集':'フォルダリンクを登録'):'')+'</section>';
 }
@@ -46,7 +46,7 @@ function productionStateSummary(s){
  const materials=(s.workflow?.materials||[]).filter(f=>!f.removed&&!f.deleted),unverified=materials.filter(f=>!f.approved||(f.rev&&f.approvedRev!==f.rev));
  const admin=r.nodes.filter(n=>['invoice','credits','lyricCheck'].includes(n.id)&&!n.done&&!n.excluded);
  const overview=ShinkouProduction.overview(s,r);
- return {r,overview,state:overview.headline||state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
+ return {r,overview,state:overview.handoff||overview.headline||state,waiting:[...new Set(waiting)],dates,due,materials,checks:[...unverified.map(f=>(f.name||'資料')+'（版・内容未確認）'),...admin.map(n=>n.label+'（'+(ShinkouProduction.STATES[n.state]||'未確認')+'）')]};
 }
 function productionEvidenceHTML(s,summary,collection='songs'){
  if(s.viewerRestricted)return '<p class="muted">資料・連絡・請求書の詳細は、この閲覧画面には表示していません。</p>';
@@ -55,7 +55,7 @@ function productionEvidenceHTML(s,summary,collection='songs'){
  const contacts=(s.workflow?.communications||[]).filter(c=>c.url||c.memo).slice(-3).map(c=>{const link=url(c.url);return '<li>'+(link?'<a href="'+esc(link)+'" target="_blank" rel="noopener noreferrer">'+esc(c.subject||'元の連絡')+'</a>':esc(c.subject||'連絡記録'))+'<small>'+esc(c.updatedAt?'記録更新 '+new Date(c.updatedAt).toLocaleString('ja-JP'):'確認日時未登録')+'</small></li>'});
  const records=(S.log||[]).filter(z=>z.detail?.evidence&&z.detail.collection===collection&&z.detail.id===s.id).slice(0,3).map(z=>{const e=z.detail.evidence;return '<li>'+esc(e.fact||z.t)+'<small>'+esc([e.source||'出典未登録',e.observedAt?'確認 '+e.observedAt:'確認日時未登録'].join(' · '))+'</small></li>'});
  const projectNote=collection==='projects'&&s.note?'<details class="stage-record-history" data-state-fold="project-note:'+esc(s.id)+'"><summary>作品・公演のメモ</summary><p>'+esc(s.note)+'</p></details>':'';
- return (rows.length||contacts.length||records.length?'<ul class="state-evidence">'+rows.concat(contacts,records).join('')+'</ul>':'<p class="muted">資料・根拠・確認日時は未登録です。</p>')+projectNote;
+ return (rows.length||contacts.length?'<ul class="state-evidence">'+rows.concat(contacts).join('')+'</ul>':'<p class="muted">資料・根拠・確認日時は未登録です。</p>')+projectNote;
 }
 function productionNearDates(x){
  const end=D.addD(D.today(),30),all=[...x.dates,...x.r.nodes.filter(n=>!n.done&&!n.excluded&&n.due?.value).map(n=>({label:n.label,...n.due}))];
@@ -66,35 +66,61 @@ function productionCompletedHTML(x){
  return facts.length?'<span class="production-recent"><span class="progress-label">ここまで</span>'+esc(facts.map(n=>n.text+(n.date?'（'+productionDate({value:n.date})+'）':'')).join('・'))+'</span>':'';
 }
 function productionFlowHTML(x){return '';}
-function productionScheduleHTML(x){
- return (x.overview.schedules||[]).map(z=>'<span class="production-schedule"><span class="progress-label">予定</span><b>'+esc(z.label)+'</b> '+esc(z.dates.map(d=>productionDate({value:d.date})+' '+({tentative:'仮',confirmed:'確定',registered:'登録日'}[d.kind]||'登録日')).join('・'))+(z.owner?' · '+esc(z.owner):'')+'</span>').join('');
+function productionScheduleHTML(x,compact=false){
+ const all=(x.overview.schedules||[]).slice().sort((a,b)=>(a.dates[0]?.date||'').localeCompare(b.dates[0]?.date||''));
+ const items=compact?all.slice(0,3):all;
+ const rows=items.map(z=>'<span class="production-schedule"><b>'+esc(z.label)+'</b> '+esc(z.dates.map(d=>productionDate({value:d.date})+(d.kind==='tentative'?' 仮':d.kind==='target'?' 目安':'')).join('・'))+'</span>').join('');
+ return rows+(compact&&all.length>items.length?'<span class="production-schedule-more">ほか'+(all.length-items.length)+'件</span>':'');
+}
+function productionHandoffHTML(o){
+ if(!o.handoffOwner)return '';
+ return '<span class="handoff-owner '+esc(o.handoffSide)+'">'+(o.handoffSide==='other'?'相手待ち · ':'')+esc(o.handoffOwner)+'</span>';
+}
+function productionOwnReadyHTML(x,compact=false){
+ const ready=x.overview.ownReady||[];if(!ready.length)return '';
+ const shown=compact?ready.slice(0,2):ready;
+ return '<span class="production-own-ready"><span class="handoff-owner me">'+esc(shown[0].owner)+'の作業</span><span>'+esc(shown.map(n=>n.label).join('・'))+(compact&&ready.length>shown.length?' · ほかの作業':'')+'</span></span>';
+}
+function productionParallelWaitHTML(x,compact=false){
+ const waiting=x.overview.parallelWaiting||[],shown=compact?waiting.slice(0,2):waiting;
+ return shown.map(w=>'<span class="production-own-ready external"><span class="handoff-owner other">相手待ち · '+esc(w.owner)+'</span><span>'+esc(w.labels.join('・'))+'</span></span>').join('')+(compact&&waiting.length>shown.length?'<span class="production-schedule-more">ほかの相手待ち</span>':'');
 }
 function productionCompactItem(s,index){
- const x=productionStateSummary(s),r=x.r,next=x.overview.next,dates=productionNearDates(x);
- const scheduledIds=new Set((x.overview.schedules||[]).map(z=>z.id));
- const meta=r.archive?[]:dates.filter(d=>!x.r.nodes.some(n=>scheduledIds.has(n.id)&&n.label===d.label)).map(d=>d.label+' '+productionDate(d)+' 確定');
+ const x=productionStateSummary(s),r=x.r;
  const badge=r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':r.audioComplete?'<span class="viewer-status audio">音源完了</span>':'';
- const action=next&&!next.scheduled?'<span class="polished-next"><span>'+ (next.after?'届いた後・完了後':'次')+'</span>'+esc((next.owner?next.owner+'：':'')+next.title)+'</span>':'';
- return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+productionCompletedHTML(x)+(!r.archive?'<span class="polished-state"><span class="progress-label">現在</span><strong>'+esc(x.state)+'</strong>'+(x.overview.detail?'<small>'+esc(x.overview.detail)+'</small>':'')+'</span>'+action+productionScheduleHTML(x):'')+(meta.length?'<span class="polished-meta">'+esc(meta.join(' · '))+'</span>':'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
+ return '<button class="polished-row'+(r.archive?' recorded-complete':'')+'" data-brief-song="'+esc(s.id)+'"><span class="polished-number">'+(index?String(index).padStart(2,'0'):'•')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(songTitle(s))+'</strong>'+badge+'</span>'+(!r.archive?'<span class="polished-state"><strong>'+esc(x.overview.handoffStatus||x.state)+'</strong>'+productionHandoffHTML(x.overview)+'</span><span class="compact-schedules">'+productionScheduleHTML(x,true)+'</span>'+productionOwnReadyHTML(x,true)+productionParallelWaitHTML(x,true):'')+'</span><span class="polished-arrow" aria-hidden="true">›</span></button>';
 }
 
 function productionStageProgressHTML(s,r,groupId=''){
- const flow=ShinkouProduction.stageProgress(s,r),editable=!(RO||VIEW_ONLY),groups=flow.groups.filter(g=>!groupId||g.id===groupId);
- const dateHTML=dates=>dates.length?'<ul class="stage-row-dates">'+dates.map(d=>'<li><span>'+esc({work:'作業日',due:'期限',target:'目安',completed:'完了日',registered:'登録日'}[d.type]||'登録日')+'</span><time datetime="'+esc(d.date)+'">'+esc(productionCalendarDate(d.date))+'</time>'+(d.kind!=='completed'&&d.kind!=='target'?'<small>'+esc(productionDateKind({value:d.date,kind:d.kind}))+'</small>':'')+(d.past?'<small class="stage-date-past">過去の予定・状況要確認</small>':'')+'</li>').join('')+'</ul>':'';
- const rowHTML=n=>'<li class="stage-progress-row '+(n.attention?'needs-response':n.bookingDerived?'is-booked':n.done?'is-done':'is-pending')+'" data-stage-record="'+esc(n.id)+'"><span class="stage-progress-mark" aria-hidden="true">'+(n.attention?'→':n.bookingDerived?'◇':n.done?'✓':'○')+'</span><div class="stage-progress-content"><div class="stage-progress-heading">'+(editable?productionButton(s,'task',n.id,'stage-progress-name','<strong>'+esc(n.label)+'</strong>'):'<strong class="stage-progress-name">'+esc(n.label)+'</strong>')+'<span class="stage-progress-status">'+esc(n.status)+'</span></div>'+(n.productionStatus?'<p class="stage-production-state">制作記録：'+esc(n.productionStatus)+'</p>':'')+(n.action?'<p class="stage-progress-action"><span>'+(n.attention?'いま自分が対応':'次')+'</span>'+esc(n.action)+'</p>':'')+dateHTML(n.dates)+(n.parts.length?'<ul class="stage-progress-parts">'+n.parts.map(p=>'<li><span class="stage-part-mark" aria-hidden="true">'+(p.done?'✓':'○')+'</span><div><strong>'+esc(p.label)+'</strong><span>'+esc(p.status)+'</span>'+dateHTML(p.dates)+'</div></li>').join('')+'</ul>':'')+(!s.viewerRestricted&&n.history.length?'<details class="stage-record-history" data-state-fold="stage-history:'+esc(s.id)+':'+esc(n.id)+'"><summary>過去の記録・メモ</summary>'+n.history.map(v=>'<p>'+esc(v)+'</p>').join('')+'</details>':'')+'</div></li>';
- const sections=groups.map(g=>'<section class="stage-progress-group"><header><h4>'+esc(g.label)+'</h4><small>'+esc([g.completed?g.completed+'件完了':'',g.booked?'日程登録 '+g.booked+'件':'',g.pending?'未完了 '+g.pending+'件':''].filter(Boolean).join(' · '))+'</small></header><ol>'+g.rows.map(rowHTML).join('')+'</ol></section>').join('');
+ const focusId=ShinkouProduction.overview(s,r).focusId,flow=ShinkouProduction.stageProgress(s,r),editable=!(RO||VIEW_ONLY);
+ const sectionsById=new Map(),sectionInfo={plan:['music','楽曲制作'],arrange:['music','楽曲制作'],vocal:['recording','録音'],chorus:['recording','録音'],instrument:['recording','録音'],finish:['finishing','仕上げ'],delivery:['finishing','仕上げ']};
+ for(const group of flow.groups.filter(g=>!groupId||g.id===groupId)){
+  const [id,label]=!groupId&&sectionInfo[group.id]||[group.id,group.label];
+  if(!sectionsById.has(id))sectionsById.set(id,{id,label,rows:[],completed:0,booked:0,pending:0});
+  const target=sectionsById.get(id);target.rows.push(...group.rows);for(const k of ['completed','booked','pending'])target[k]+=group[k];
+ }
+ const groups=[...sectionsById.values()];
+ const dateHTML=dates=>dates.length?'<ul class="stage-row-dates">'+dates.map(d=>'<li><span>'+esc({work:'作業日',due:'期限',target:'目安',completed:'完了日',registered:'予定日'}[d.type]||'予定日')+'</span><time datetime="'+esc(d.date)+'">'+esc(productionCalendarDate(d.date))+'</time>'+(d.kind!=='completed'&&d.kind!=='target'?'<small>'+esc(productionDateKind({value:d.date,kind:d.kind}))+'</small>':'')+(d.past?'<small class="stage-date-past">過去の予定・状況要確認</small>':'')+'</li>').join('')+'</ul>':'';
+ const rowHTML=n=>'<li class="stage-progress-row '+(n.id===focusId?'is-current ': '')+(n.attention?'needs-response':n.bookingDerived?'is-booked':n.done?'is-done':'is-pending')+'" data-stage-record="'+esc(n.id)+'"><span class="stage-progress-mark" aria-hidden="true">'+(n.attention||['doing','requested','revision','received','review'].includes(n.state)?'●':n.bookingDerived?'◇':n.done?'✓':n.state==='unknown'?'—':'○')+'</span><div class="stage-progress-content"><div class="stage-progress-heading">'+(editable?productionButton(s,'task',n.id,'stage-progress-name','<strong>'+esc(n.label)+'</strong>'):'<strong class="stage-progress-name">'+esc(n.label)+'</strong>')+'<span class="stage-progress-status">'+esc(n.status)+'</span></div>'+(n.productionStatus?'<p class="stage-production-state">制作記録：'+esc(n.productionStatus)+'</p>':'')+dateHTML(n.dates)+(n.parts.length?'<ul class="stage-progress-parts">'+n.parts.map(p=>'<li><span class="stage-part-mark" aria-hidden="true">'+(p.done?'✓':'○')+'</span><div><strong>'+esc(p.label)+'</strong><span>'+esc(p.status)+'</span>'+dateHTML(p.dates)+'</div></li>').join('')+'</ul>':'')+(!s.viewerRestricted&&n.history.length?'<details class="stage-record-history" data-state-fold="stage-history:'+esc(s.id)+':'+esc(n.id)+'"><summary>過去の記録・メモ</summary>'+n.history.map(v=>'<p>'+esc(v)+'</p>').join('')+'</details>':'')+'</div></li>';
+ const sections=groups.map(g=>{
+  const done=g.rows.filter(n=>n.done&&!n.attention),unknown=g.rows.filter(n=>!n.done&&!n.attention&&n.state==='unknown'&&n.id!==focusId),active=g.rows.filter(n=>!done.includes(n)&&!unknown.includes(n));
+  const fold=(rows,key,label)=>rows.length?'<details class="stage-progress-fold" data-state-fold="stage-'+key+':'+esc(s.id)+':'+esc(g.id)+'"><summary>'+label+'</summary><ol>'+rows.map(rowHTML).join('')+'</ol></details>':'';
+  return '<section class="stage-progress-group"><header><h4>'+esc(g.label)+'</h4></header>'+(active.length?'<ol>'+active.map(rowHTML).join('')+'</ol>':'')+fold(done,'completed','完了した工程を表示')+fold(unknown,'unknown','状況未確認の工程を表示')+'</section>';
+ }).join('');
  const omitted=flow.excluded.filter(n=>!groupId||n.group===groupId);
- return '<section class="stage-progress" aria-label="工程の記録"><div class="stage-progress-title"><h3>工程ごとの進み具合</h3><p>完了したこと・今の対応・次の作業</p></div>'+(sections||'<p class="hint">この曲では対象の工程はありません。</p>')+(omitted.length?'<details class="stage-progress-omitted" data-state-fold="stage-omitted:'+esc(s.id)+':'+esc(groupId)+'"><summary>対象外の工程（'+omitted.length+'件）</summary><ul>'+omitted.map(n=>'<li>'+esc(n.label)+'<span>対象外</span></li>').join('')+'</ul></details>':'')+'</section>';
+ return '<section class="stage-progress" aria-label="工程の記録"><div class="stage-progress-title"><h3>工程ごとの進み具合</h3><p>完了したこと・今の対応・次の作業</p></div>'+(sections||'<p class="hint">この曲では対象の工程はありません。</p>')+(omitted.length?'<details class="stage-progress-omitted" data-state-fold="stage-omitted:'+esc(s.id)+':'+esc(groupId)+'"><summary>対象外の工程を表示</summary><ul>'+omitted.map(n=>'<li>'+esc(n.label)+'<span>対象外</span></li>').join('')+'</ul></details>':'')+'</section>';
 }
 
 function productionSnapshot(s){
  const x=productionStateSummary(s),r=x.r,b=(kind,key,cls,html)=>productionButton(s,kind,key,cls,html),next=x.overview.next,near=productionNearDates(x);
- const schedules=(r.progress?.schedules||[]).map(z=>'<span>'+esc(z.label+' '+z.dates.map(d=>productionDate({value:d})).join('・')+' · '+(z.tentative?'仮':'登録日'))+'</span>').join('');
+ const schedules=(r.progress?.schedules||[]).map(z=>'<span>'+esc(z.label+' '+z.dates.map(d=>productionDate({value:d})).join('・')+' · '+(z.tentative?'仮':''))+'</span>').join('');
  const dates=schedules+x.dates.map(d=>'<span>'+esc(d.label+' '+productionDate(d)+' · '+productionDateKind(d))+'</span>').join('');
- const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span><p class="viewer-complete-note">登録された工程・対応が完了しています。</p>':'<p class="polished-focus-state">'+esc(x.state)+'</p>'+(x.overview.detail?'<p class="polished-focus-detail">'+esc(x.overview.detail)+'</p>':''))+(!r.archive&&!x.overview.detail&&r.progress?.detail?'<p class="polished-focus-detail">'+esc(r.progress.detail)+'</p>':'')+(!r.archive&&next&&!next.scheduled?'<div class="polished-action"><small>'+ (next.after?'届いた後・完了後':'次の作業')+'</small><strong>'+esc((next.owner&&next.owner!=='自分'?next.owner+'：':'')+next.title)+'</strong></div>':'')+productionScheduleHTML(x)+(x.waiting.length?'<p class="polished-waiting">対応：'+esc(x.waiting.join(' / '))+'</p>':'')+(near.length?'<div class="polished-date-chips">'+near.map(d=>'<span>'+esc(d.label)+' <b>'+esc(productionDate(d))+'</b> 確定</span>').join(''):'')+'</div>';
- const info='<details class="polished-info" data-state-fold="info:'+esc(s.id)+'"><summary><span>日程・資料・確認事項</span><small>'+(x.checks.length?x.checks.length+'件の確認項目':'記録を見る')+'</small></summary><section><h4>日程</h4><div class="state-dates">'+(dates||'<span>日程未登録</span>')+(x.due?'<span>次の日付：'+esc(x.due.label+' '+productionTaskDateLabel(s,x.due)+' '+productionDate(x.due.due)+' · '+productionDateKind(x.due.due))+'</span>':'')+'</div></section><section><h4>素材・請求書・クレジット</h4><p>'+esc(s.viewerRestricted?'資料・請求書の詳細は、この閲覧画面には表示していません。':x.checks.join(' / ')||'不足の記録はありません。必要素材の確認状況は資料記録をご確認ください。')+'</p></section><section class="state-evidence-section"><h4>資料・根拠・確認日時</h4>'+productionFolderLink(s)+productionEvidenceHTML(s,x)+'</section>'+(!s.viewerRestricted&&!r.archive&&!x.waiting.length?'<p class="polished-unconfirmed">対応待ちの記録はありません。現在の状況は未確認です。</p>':'')+'</details>';
+ const arrivals={...x,overview:{...x.overview,schedules:x.overview.schedules.filter(z=>z.arrival)}};
+ const future={...x,overview:{...x.overview,schedules:x.overview.schedules.filter(z=>!z.arrival)}};
+ const overview='<div class="polished-focus'+(r.archive?' viewer-complete-focus':'')+'">'+(r.archive?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'<p class="polished-focus-state">'+esc(x.overview.handoffStatus||x.state)+'</p>'+productionHandoffHTML(x.overview)+productionScheduleHTML(arrivals))+(!r.archive&&next&&!next.scheduled?'<div class="polished-action"><small>'+ (next.after?'届いた後にすること':'次にすること')+'</small><strong>'+esc((next.owner?next.owner+'：':'')+next.title)+'</strong></div>':'')+productionOwnReadyHTML(x)+productionParallelWaitHTML(x)+(future.overview.schedules.length?'<section class="production-upcoming"><h3>この先の予定</h3>'+productionScheduleHTML(future)+'</section>':'')+'</div>';
+ const info='<details class="polished-info" data-state-fold="info:'+esc(s.id)+'"><summary><span>日程・資料・確認事項</span><small>記録を見る</small></summary><section><h4>日程</h4><div class="state-dates">'+(dates||'<span>日程未登録</span>')+(x.due?'<span>次の日付：'+esc(x.due.label+' '+productionTaskDateLabel(s,x.due)+' '+productionDate(x.due.due)+' · '+productionDateKind(x.due.due))+'</span>':'')+'</div></section><section><h4>素材・請求書・クレジット</h4><p>'+esc(s.viewerRestricted?'資料・請求書の詳細は、この閲覧画面には表示していません。':x.checks.join(' / ')||'不足の記録はありません。必要素材の確認状況は資料記録をご確認ください。')+'</p></section><section class="state-evidence-section"><h4>資料・根拠・確認日時</h4>'+productionFolderLink(s)+productionEvidenceHTML(s,x)+'</section>'+(!s.viewerRestricted&&!r.archive&&!x.waiting.length?'<p class="polished-unconfirmed">対応待ちの記録はありません。現在の状況は未確認です。</p>':'')+'</details>';
  const details=productionStageProgressHTML(s,r)+(!(RO||VIEW_ONLY)?'<div class="production-footer">'+b('all','','production-more','作業・提出を訂正')+b('dates','','production-more','日程を訂正')+b('workflow','','production-more','連絡・資料を記録')+'</div>':'');
- return overview+productionCompletedHTML(x)+(r.custom?productionLiveFocus(s,x):'')+details+productionKeyDatesHTML(s)+info;
+ return overview+details+productionKeyDatesHTML(s)+info;
 }
 
 function productionIsLive(s){return s.use==='live'||s.templateId==='tpl_show'||isShow(projOf(s.projectId))}
@@ -161,11 +187,12 @@ function productionReleaseContents(list){
   const row=({t,index,item})=>item?productionCompactItem(item.s,index):'<div class="polished-row '+(productionTrackComplete(t,g.p)?'recorded-complete':'unregistered')+'"><span class="polished-number">'+String(index).padStart(2,'0')+'</span><span class="polished-row-main"><span class="viewer-row-title"><strong>'+esc(t.title)+'</strong>'+(productionTrackComplete(t,g.p)?'<span class="viewer-status complete"><span aria-hidden="true">✓</span> 完了</span>':'')+'</span><span class="polished-state">'+(productionTrackComplete(t,g.p)?'既存曲・追加制作なし':'制作状況未登録')+'</span></span></div>';
   const completed=entries.filter(complete),active=entries.filter(e=>!complete(e)&&V.fin!=='done');
   const rows=(V.fin==='done'?completed:entries).map(row).join('');
-  const tasks=g.p?'<details class="release-common" data-state-fold="project:'+esc(g.p.id)+'"><summary>作品の共通作業 <span>'+ShinkouProduction.RELEASE_TASKS.filter(t=>['done','na'].includes(ShinkouProduction.releaseTask(g.p,t.id,S.songs).state)).length+'/'+ShinkouProduction.RELEASE_TASKS.length+'</span></summary>'+ShinkouProduction.RELEASE_TASKS.map(t=>{
+  const tasks=g.p?'<details class="release-common" data-state-fold="project:'+esc(g.p.id)+'"><summary>作品の共通作業</summary>'+ShinkouProduction.RELEASE_TASKS.map(t=>{
    const v=ShinkouProduction.releaseTask(g.p,t.id,S.songs);
    return '<div class="release-common-task"><span>'+ (['done','na'].includes(v.state)?'✓':'○')+' '+esc(t.label)+'</span><small>'+esc([ShinkouProduction.STATES[v.state]||'未確認',v.owner,v.due].filter(Boolean).join(' · '))+'</small></div>';
   }).join('')+'</details>':'';
-  return '<article class="release-card"><header><small>'+esc(g.artist||g.p?.artist||'')+'</small><h3>'+esc(name)+'</h3><div class="release-summary"><span>発売 '+esc(g.p?.release?g.p.release.replace(/-/g,'/'):'未定')+' · '+esc(g.p?.release?productionDateKind({value:g.p.release,kind:g.p.dateKinds?.release||'registered'}):'')+'</span><span class="viewer-counts"><span>進行中 '+active.length+'</span><span class="viewer-complete-count">✓ 完了 '+completed.length+'</span></span></div>'+(g.p?.note||S.log.some(z=>z.detail?.collection==='projects'&&z.detail.id===g.p?.id&&z.detail.evidence)?'<details class="state-project-evidence" data-state-fold="evidence:'+esc(g.id)+'"><summary>作品のメモ・根拠</summary>'+productionEvidenceHTML(g.p,{materials:[]},'projects')+'</details>':'')+'</header><div class="release-song-list">'+rows+'</div>'+tasks+'</article>';
+  const release=g.p?.dateKinds?.release==='undecided'?'':g.p?.release||'',releaseKind=release?productionDateKind({value:release,kind:g.p?.dateKinds?.release||'registered'}):'';
+  return '<article class="release-card"><header><small>'+esc(g.artist||g.p?.artist||'')+'</small><h3>'+esc(name)+'</h3><div class="release-summary"><span>発売 '+esc(release?release.replace(/-/g,'/'):'未定')+(releaseKind?' · '+esc(releaseKind):'')+'</span></div>'+'</header><div class="release-song-list">'+rows+'</div>'+tasks+'</article>';
  }).join('')||'<div class="production-empty">表示する作品がありません</div>';
 }
 function refreshProductionReleases(){
@@ -377,7 +404,7 @@ function productionTaskEditor(s,id,back='all'){
  const field=productionField,schedule=n.keys.map(k=>(s.stageList||[]).find(x=>x.k===k&&isMulti(x))).filter(Boolean);
  let h='<label class="quick-field">状態<select class="inp" id="productionState" aria-label="状態">'+(n.state==='partial'?'<option value="partial" selected>一部完了</option>':'')+Object.entries(ShinkouProduction.STATES).map(([k,v])=>'<option value="'+k+'" '+(n.state===k?'selected':'')+'>'+v+'</option>').join('')+'</select></label>';
  if(n.derived)h+='<p class="hint">アレンジ最終完成の記録から、歌録り可能と判断しています。</p>';
- h+=field('いま対応する人','productionOwner',n.owner)+field('締切・予定日','productionDue',n.due.kind==='target'?'':n.due.value,'date')+'<label class="quick-field">日程の状態<select class="inp" id="productionDueKind" aria-label="日程の状態">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(n.due.kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';
+ h+=field('いま対応する人','productionOwner',n.owner)+field('締切・予定日','productionDue',n.due.kind==='target'?'':n.due.value,'date')+'<label class="quick-field">日程の状態<select class="inp" id="productionDueKind" aria-label="日程の状態">'+[['registered','予定（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(n.due.kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>';
  h+='<div id="workflowImpact"></div>';
  if(n.due.kind==='target'&&n.due.value)h+='<p class="hint">目安 '+esc(productionDate(n.due))+' · '+esc(n.due.source)+'</p>';
  if(n.done)h+=field('完了日','productionCompleted',n.date,'date');
@@ -418,7 +445,7 @@ function productionScheduleEditor(s,key,back=()=>hide('sheet3')){
  const add=()=>({slotId:uid(),date:'',note:'',who:'',done:false});if(!slots.length)slots.push(add());
  const read=()=>{slots.forEach((v,i)=>{v.date=document.getElementById('scheduleDate'+i).value;v.who=document.getElementById('scheduleWho'+i).value.trim();v.note=document.getElementById('scheduleNote'+i).value.trim();v.swait=document.getElementById('scheduleWait'+i).checked});dateKind=document.getElementById('scheduleKind').value};
  const draw=()=>{
-  const h=slots.map((v,i)=>'<section class="production-slot"><h3>日程 '+(i+1)+'</h3>'+productionField('日付','scheduleDate'+i,v.date,'date')+productionField(whoPh(x),'scheduleWho'+i,v.who)+productionField(isInstRec(x)?'パート':'補足','scheduleNote'+i,v.note)+'<label class="quick-check"><input type="checkbox" id="scheduleWait'+i+'" '+(v.swait?'checked':'')+'>返事待ち</label>'+(v.done?'<p class="hint">実施済みの記録あり</p>':'')+'</section>').join('')+'<button class="btn" id="scheduleAdd">＋ 日程を追加</button><label class="quick-field">日程の状態<select class="inp" id="scheduleKind" aria-label="日程の状態">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(dateKind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label><p class="hint">日程を保存しても、録音・編集を完了にはしません。</p>';
+  const h=slots.map((v,i)=>'<section class="production-slot"><h3>日程 '+(i+1)+'</h3>'+productionField('日付','scheduleDate'+i,v.date,'date')+productionField(whoPh(x),'scheduleWho'+i,v.who)+productionField(isInstRec(x)?'パート':'補足','scheduleNote'+i,v.note)+'<label class="quick-check"><input type="checkbox" id="scheduleWait'+i+'" '+(v.swait?'checked':'')+'>返事待ち</label>'+(v.done?'<p class="hint">実施済みの記録あり</p>':'')+'</section>').join('')+'<button class="btn" id="scheduleAdd">＋ 日程を追加</button><label class="quick-field">日程の状態<select class="inp" id="scheduleKind" aria-label="日程の状態">'+[['registered','予定（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(dateKind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label><p class="hint">日程を保存しても、録音・編集を完了にはしません。</p>';
   s3(songTitle(s),productionTask(s,'stage:'+key).label,h,[{t:'戻る',c:'btn',f:back},{sp:1},{t:'保存',c:'btn pri',f:()=>{
    if(RO||VIEW_ONLY||!S.songs.includes(s))return;if(initial!==JSON.stringify(s.stages?.[key]||{}))return toast('日程が更新されました。開き直してください');read();
    if(slots.some(v=>v.date&&!ShinkouProduction.validDate(v.date)))return toast('日付を確認してください');
@@ -437,7 +464,7 @@ function productionLessonEditor(s){
  const add=()=>({slotId:uid(),date:'',kind:'registered'});if(!slots.length)slots.push(add());
  const read=()=>{slots.forEach((v,i)=>{v.date=document.getElementById('lessonDate'+i).value;v.kind=document.getElementById('lessonKind'+i).value;v.done=v.kind==='completed'})};
  const draw=()=>{
-  const h=slots.map((v,i)=>'<section class="production-slot"><h3>レッスン '+(i+1)+'</h3>'+productionField('実施日','lessonDate'+i,v.date,'date')+'<label class="quick-field">日程の状態<select class="inp" id="lessonKind'+i+'">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定'],['completed','実施済み']].map(([k,l])=>'<option value="'+k+'" '+((v.done?'completed':v.kind||'registered')===k?'selected':'')+'>'+l+'</option>').join('')+'</select></label><button class="btn" data-remove-lesson="'+i+'">この日程を外す</button></section>').join('')+'<button class="btn" id="lessonAdd">＋ レッスン日を追加</button><p class="hint">曲ごとの実施日です。作品の発売日や提出期限からは推測しません。従来の基準日には最初のレッスン日を保存します。</p>';
+  const h=slots.map((v,i)=>'<section class="production-slot"><h3>レッスン '+(i+1)+'</h3>'+productionField('実施日','lessonDate'+i,v.date,'date')+'<label class="quick-field">日程の状態<select class="inp" id="lessonKind'+i+'">'+[['registered','予定（確定状況未確認）'],['tentative','仮'],['confirmed','確定'],['completed','実施済み']].map(([k,l])=>'<option value="'+k+'" '+((v.done?'completed':v.kind||'registered')===k?'selected':'')+'>'+l+'</option>').join('')+'</select></label><button class="btn" data-remove-lesson="'+i+'">この日程を外す</button></section>').join('')+'<button class="btn" id="lessonAdd">＋ レッスン日を追加</button><p class="hint">曲ごとの実施日です。作品の発売日や提出期限からは推測しません。従来の基準日には最初のレッスン日を保存します。</p>';
   s3(songTitle(s),'ダンスレッスン日',h,[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{
    if(RO||VIEW_ONLY||!S.songs.includes(s))return;if(initial!==snapshot())return toast('日程が更新されました。開き直してください');read();
    if(slots.some(v=>v.date&&!ShinkouProduction.validDate(v.date)))return toast('日付を確認してください');
@@ -502,6 +529,7 @@ function productionDateEditor(s,key){
  if(key==='vocal'){productionScheduleEditor(s,'vo');return}
  const anchor=key==='master'?'mastering':key,label=ANCHORS[anchor]||anchor,kind=s.production?.dateKinds?.[anchor]||'registered';
  const initial=s.dates?.[anchor]||'';
- s3(songTitle(s),label,'<label class="quick-field">'+label+'<input type="date" class="inp" id="productionAnchor" value="'+esc(initial)+'"></label><label class="quick-field">日程の状態<select class="inp" id="productionAnchorKind" aria-label="日程の状態">'+[['registered','登録日（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(key==='release'&&!initial&&relOf(s)?'<p class="hint">案件の発売日 '+esc(relOf(s))+' を使用中。入力するとこの曲の日付を優先します。</p>':''),[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(RO||VIEW_ONLY||!S.songs.includes(s))return;const d=document.getElementById('productionAnchor').value;if(d&&!ShinkouProduction.validDate(d))return toast('日付を確認してください');if(initial!==(s.dates?.[anchor]||'')||kind!==(s.production?.dateKinds?.[anchor]||'registered'))return toast('日程が更新されました。開き直してください');s.dates||={};s.dates[anchor]=d;s.production||={};s.production.dateKinds||={};s.production.dateKinds[anchor]=document.getElementById('productionAnchorKind').value;productionAfterSave(s);hide('sheet3');toast('保存しました')}}]);
+ s3(songTitle(s),label,'<label class="quick-field">'+label+'<input type="date" class="inp" id="productionAnchor" value="'+esc(initial)+'"></label><label class="quick-field">日程の状態<select class="inp" id="productionAnchorKind" aria-label="日程の状態">'+[['registered','予定（確定状況未確認）'],['tentative','仮'],['confirmed','確定']].map(([v,l])=>'<option value="'+v+'" '+(kind===v?'selected':'')+'>'+l+'</option>').join('')+'</select></label>'+(key==='release'&&!initial&&relOf(s)?'<p class="hint">案件の発売日 '+esc(relOf(s))+' を使用中。入力するとこの曲の日付を優先します。</p>':''),[{t:'キャンセル',c:'btn',f:()=>hide('sheet3')},{sp:1},{t:'保存',c:'btn pri',f:()=>{if(RO||VIEW_ONLY||!S.songs.includes(s))return;const d=document.getElementById('productionAnchor').value;if(d&&!ShinkouProduction.validDate(d))return toast('日付を確認してください');if(initial!==(s.dates?.[anchor]||'')||kind!==(s.production?.dateKinds?.[anchor]||'registered'))return toast('日程が更新されました。開き直してください');s.dates||={};s.dates[anchor]=d;s.production||={};s.production.dateKinds||={};s.production.dateKinds[anchor]=document.getElementById('productionAnchorKind').value;productionAfterSave(s);hide('sheet3');toast('保存しました')}}]);
 }
+
 

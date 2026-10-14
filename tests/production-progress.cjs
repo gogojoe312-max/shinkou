@@ -68,7 +68,7 @@ test('waiting on a named producer is visible while completed-stage prose stays o
  const s=arrangement();Object.assign(s.stages.recordable,{st:'req',asg:'制作担当',workState:'revision'});
  const r=report(s),o=P.overview(s,r),c=ui(s),html=c.productionCompactItem(s);
  assert(o.current.some(n=>n.id==='recordable'&&n.owner==='制作担当'&&n.state==='revision'));
- assert.match(html,/改稿待ち/);assert.doesNotMatch(html,/polished-completed-stages/);
+ assert.match(html,/歌録り用アレンジの修正待ち/);assert.match(html,/相手待ち · 制作担当/);assert.doesNotMatch(html,/polished-completed-stages/);
  assert.doesNotMatch(html,/工程の記録|記録メモ/);
 });
 test('freeform notes and elapsed recording dates never create completion',()=>{
@@ -114,6 +114,7 @@ test('mix booking waiting cannot hide an unrecorded custom vocal phase',()=>{
 });
 test('compact review avoids repeated formal stage wording but preserves full detail labels',()=>{
  const s=arrangement();Object.assign(s.stages.recordable,{st:'me',workState:'received'});const c=ui(s),html=c.productionCompactItem(s);
- assert.match(html,/歌録り用アレンジの確認待ち/);assert.match(html,/歌録り用アレンジを確認する/);assert.doesNotMatch(html,/受領・確認の内容を確認|polished-completed-stages/);
+ assert.match(html,/歌録り用アレンジの確認待ち/);assert.doesNotMatch(html,/歌録り用アレンジを確認する/);assert.match(c.productionSnapshot(s),/歌録り用アレンジを確認する/);assert.doesNotMatch(html,/受領・確認の内容を確認|polished-completed-stages/);
  assert.equal(report(s).node.recordable.label,'歌録り用アレンジの受領・確認');
 });
+

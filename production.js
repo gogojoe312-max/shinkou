@@ -207,7 +207,7 @@ function nextAction(n){
   const overdue=n.left!==null&&n.left<=0,soon=n.left!==null&&n.left<=3;
   title=n.label+(n.state==='revision'?'の修正状況を確認':overdue?'の納期を確認':soon?'の進捗を確認':n.due.value?'の返答・納品を待つ':'の返答・納期を確認');
   reason=(n.state==='revision'?'修正依頼済み':'依頼済み')+'・相手待ちです。'+(n.due.value?(overdue?'予定 '+n.due.value+' に対する進捗と納期を確認します':'予定 '+n.due.value+'。'+(soon?'納品見込みを確認します':'返答・納品が届いたら内容を確認します')):'返答と納期を確認します');
- }else if(n.left!==null&&n.left<0)reason='登録日 '+n.due.value+' を'+(-n.left)+'日過ぎています';
+ }else if(n.left!==null&&n.left<0)reason='予定日 '+n.due.value+' を'+(-n.left)+'日過ぎています';
  return {id:n.id,title,reason,score:n.left??100};
 }
 function workflowPending(s){return (s.workflow?.communications||[]).some(c=>c.state!=='done')||(s.workflow?.issues||[]).some(i=>!i.resolved)}
@@ -237,7 +237,7 @@ function report(s,opt={}){
  const mv=typeof s.mvEnabled==='boolean'?s.mvEnabled:!!s.dates?.mv||kind==='single';
  if(isShow(s))return showReport(s,today);
  const applicable=true;
- const release=s.dates?.release||opt.release||'',live=s.dates?.live||'';
+ const release=p.dateKinds?.release==='undecided'?'':s.dates?.release||opt.release||'',live=s.dates?.live||'';
  const date=(value,kind='registered',source='')=>({value:validDate(value)?value:'',kind,source});
  const dk=k=>p.dateKinds?.[k]||'registered';
  const mvDate=s.dates?.mv?date(s.dates.mv,dk('mv')):date(mv?days(months(release,-1),-15):'','target','発売の1か月半前');
@@ -302,7 +302,7 @@ function report(s,opt={}){
  if(node.master.state==='done')for(const n of pending.filter(n=>['lyricCheck','credits','invoice'].includes(n.id)))if(!actions.includes(n))actions.push(n);
  for(const a of actions.slice())if(a.left!==null&&a.left<=21)for(const id of a.blockers)if(node[id].state!=='undecided'&&!actions.includes(node[id]))actions.push(node[id]);
  const urgency=new Map();
- for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||n.state==='undecided'||n.actionCoveredBy||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'登録日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
+ for(const a of actions)if(a.left!==null&&a.left<=21){const visit=(id,depth)=>{const n=node[id];if(!n||n.done||n.state==='undecided'||n.actionCoveredBy||depth>8)return;if(n.state!=='unknown'||level[id]>=Math.max(0,frontier-1)){const scoreFor=score(a)-depth;const old=urgency.get(id);if(!old||scoreFor<old.score)urgency.set(id,{score:scoreFor,reason:a.label+'（'+a.due.value+' '+(a.due.kind==='target'?'目安':'予定日')+'）の前に必要です'});if(!actions.includes(n))actions.push(n);for(const k of n.blockers)visit(k,depth+1)}};for(const id of a.blockers)visit(id,1)}
  // A deadline must not turn a blocked downstream job into the next executable
  // action. Follow prerequisites even when they have no deadline of their own.
  const visited=new Set();
@@ -317,7 +317,7 @@ function report(s,opt={}){
  const ranked=executable.map(n=>{
    if(communicationAction(n))return nextAction(n);
    let title=nextAction(n).title;
-   let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'登録日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
+   let reason=n.left!==null&&n.left<0?(n.due.kind==='target'?'目安を':'予定日を')+(-n.left)+'日過ぎています':n.left!==null&&n.left<=14?n.left===0?(n.due.kind==='target'?'今日が目安です':'今日が登録された期限です'):(n.due.kind==='target'?'目安まで':'予定まで')+n.left+'日':n.id==='mixBooking'?'素材待ちの間に日程を確保できます':n.id==='vocalBooking'?'先に日程とスタジオを確保します':n.wait?'依頼済みのため返答・納期を確認します':'次の制作を進めるために確認します';
    if(n.wait)reason=nextAction(n).reason;
    if(n.blockers.length)reason+='。先に '+n.blockers.map(k=>node[k].label).join('・')+' を確認';
    if(n.id==='invoice'){const inv=n.invoice;title=inv.missing.length?'未受領の請求書を確認':inv.unknown.length||!inv.confirmed?'請求先の漏れを確認':'小森さんへ請求書を送付';reason=inv.missing.length?inv.missing.map(x=>x.name).join('、')+' から未受領です':inv.unknown.length?inv.unknown.map(x=>x.name).join('、')+' の請求が必要か確認します':!inv.confirmed?'請求先が揃っているか確認してください':inv.ready.map(x=>x.name).join('、')+' の請求書を受領済みです'}
@@ -395,10 +395,10 @@ function overview(s,r){
  // Finishing administration cannot become the headline while an earlier production phase is unfinished.
  const earlierWork=pending.some(n=>rank(n)<groupOrder.indexOf('finish')&&n.group!=='delivery');
  const eligible=active.filter(n=>!(n.id==='mixBooking'&&earlierWork));
- const focus=nodes.find(n=>communicationAction(n))||eligible.find(n=>['received','review'].includes(n.state))||eligible.find(n=>n.state==='doing')||eligible.find(n=>n.wait)||eligible[0]||flowFocus;
+ const focus=nodes.find(n=>communicationAction(n))||eligible.find(n=>['received','review'].includes(n.state))||eligible.find(n=>n.wait)||eligible.find(n=>n.state==='doing')||eligible[0]||flowFocus;
  const status=n=>communicationAction(n)?.status||({received:'受領済み・本人確認待ち',review:'本人確認中',doing:'作業中',revision:'修正待ち',requested:'依頼済み・相手待ち',waiting:'日程待ち',undecided:'未定',unknown:'状況未確認',todo:'これから',partial:'一部完了'}[n.state]||STATES[n.state]||'未確認');
  const current=focus?[{id:focus.id,label:shortLabel(focus),state:focus.state,text:shortLabel(focus)+' · '+status(focus),owner:communicationAction(focus)||['received','review'].includes(focus.state)?'自分':focus.owner||focus.recipient||''}]:[];
- let headline=r.archive?'完了':r.audioComplete?'音源制作完了':focus?shortLabel(focus):'制作状況を確認',detail=focus?status(focus):'',next=null;
+ let headline=r.archive?'完了':r.audioComplete?'音源制作完了':focus?shortLabel(focus):r.custom&&!nodes.length?'制作工程未登録':'制作状況を確認',detail=focus?status(focus):'',next=null;
  if(focus){
   const label=shortLabel(focus),who=focus.owner||focus.recipient||'相手';
   if(communicationAction(focus)){const attention=communicationAction(focus);headline=label+'・'+attention.status;detail=attention.detail+(focus.state==='revision'?' · 制作記録は修正待ち':'');next={id:focus.id,title:attention.title,owner:'自分',communicationId:attention.id};}
@@ -425,11 +425,16 @@ function overview(s,r){
   for(const id of bookingIds)for(const k of r.node[id]?.keys||[])records.push({k,g:s.stages?.[k]||{}});
   const slots=records.flatMap(({k,g})=>(g.slots||[]).filter(v=>!v.done&&validDate(v.date)&&v.date>=r.today).map(v=>({date:v.date,kind:v.kind==='tentative'||v.swait||v.tentative||v.prov||g.prov||g.st==='studio'||s.production?.dateKinds?.[k]==='tentative'?'tentative':v.kind==='confirmed'||s.production?.dateKinds?.[k]==='confirmed'||s.production?.tasks?.[n.id]?.dueKind==='confirmed'?'confirmed':'registered'})));
   const dates=[...new Map(slots.map(v=>[v.date,v])).values()].sort((a,b)=>a.date.localeCompare(b.date));
-  if(dates.length)schedules.push({id:n.id,label:shortLabel(n),dates,owner:n.owner||''});
+  // Explicit delivery deadlines belong on the overview even when no work slot exists.
+  // Release-based targets are estimates, never promised arrival dates.
+  const directDue=n.keys.some(k=>validDate(s.stages?.[k]?.dl))||validDate(s.production?.tasks?.[n.id]?.due);
+  if(directDue&&n.state!=='undecided'&&validDate(n.due.value)&&n.due.kind!=='target'&&!dates.some(v=>v.date===n.due.value))dates.push({date:n.due.value,kind:n.due.kind});
+  dates.sort((a,b)=>a.date.localeCompare(b.date));
+  if(dates.length)schedules.push({id:n.id,label:shortLabel(n),dates,owner:n.owner||'',arrival:n.wait,work:slots.length>0});
  }
  for(const z of r.progress?.schedules||[]){if(!schedules.some(x=>x.dates.some(v=>z.dates.includes(v.date))&&x.label===z.label))schedules.push({id:'schedule:'+z.kind,label:z.label,dates:z.dates.map(date=>({date,kind:z.tentative?'tentative':'registered'})),owner:''});}
  const schedule=schedules.find(x=>x.id===focus?.id);
- if(schedule&&focus&&!communicationAction(focus)&&!['revision','requested','received','review','doing'].includes(focus.state)){
+ if(schedule&&schedule.work&&focus&&!communicationAction(focus)&&!['revision','requested','received','review','doing'].includes(focus.state)){
   headline=shortLabel(focus)+'予定';detail=schedule.owner?schedule.owner+'が担当':'担当未登録';
   next={id:focus.id,title:shortLabel(focus)+'を実施する',owner:focus.owner||'',scheduled:true};
  }else if(focus&&!communicationAction(focus)&&['todo','partial'].includes(focus.state)&&!focus.wait&&!schedule){
@@ -459,7 +464,39 @@ function overview(s,r){
  ));
  const latest=milestones.length?milestones:facts.slice().sort((a,b)=>{if(a.date&&b.date)return a.date.localeCompare(b.date);return a.date?1:b.date?-1:0}).slice(-2).reverse();
  const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
- return {completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,detail,next,groups,focusId:focus?.id||''};
+ // Name the person who must act from explicit work/communication records only.
+ // Credits and unrecorded prerequisites never establish current ownership.
+ const me=s.production?.selfName||'自分',attention=focus&&communicationAction(focus);
+ let handoff='',handoffOwner='',handoffStatus='',handoffSide='unknown';
+ if(focus&&!r.archive){
+  const mine=attention||['received','review'].includes(focus.state);
+  const owner=mine?me:focus.owner==='自分'?me:focus.owner||focus.recipient||'';
+  const label=shortLabel(focus);
+  const work=attention?(attention.state==='reply'?'回答待ち':'確認待ち')+'（'+(focus.communication.subject||label)+'）':
+   ['received','review'].includes(focus.state)?label+'の確認待ち':
+   focus.wait?label+(focus.state==='revision'?'の修正待ち':'待ち'):headline;
+  handoffOwner=owner||'担当未確認';handoffStatus=work;handoffSide=mine?'me':focus.wait?'other':owner===me?'me':owner?'other':'unknown';
+  handoff=handoffOwner+'：'+work;
+  if(next)next={...next,owner:next.owner==='自分'?me:next.owner||''};
+ }
+ // Show genuinely actionable work in parallel with the main handoff.
+ // Unknown steps, blocked prerequisites and future booked work are not ready now.
+ const ownReady=nodes.filter(n=>n.id!==focus?.id&&!n.excluded&&!n.shared&&n.state!=='na').filter(n=>{
+  if(communicationAction(n))return true;
+  if(n.done||n.wait||n.blockers.length||!['todo','doing','received','review'].includes(n.state))return false;
+  if(n.owner!=='自分'&&(!s.production?.selfName||n.owner!==s.production.selfName))return false;
+  const scheduled=schedules.find(z=>z.id===n.id&&z.work);
+  return !scheduled||n.state==='doing'||scheduled.dates.some(d=>d.date<=r.today);
+ }).map(n=>({id:n.id,owner:me,label:communicationAction(n)?.title||shortLabel(n)+(['received','review'].includes(n.state)?'の確認':''),state:n.state}));
+ const waitingByOwner=new Map();
+ for(const n of nodes.filter(n=>!n.done&&n.wait&&!communicationAction(n))){
+  const owner=n.owner||n.recipient||'相手未確認';
+  if(n.id===focus?.id)continue;
+  if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[]});
+  waitingByOwner.get(owner).labels.push(shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'));
+ }
+ const parallelWaiting=[...waitingByOwner.values()];
+ return {completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:focus?.id||''};
 }
 // Detailed rows keep each real task visible in workflow order. Notes remain
 // historical context, never evidence used to infer state, ownership or dates.
@@ -605,4 +642,5 @@ function dropboxFolderURL(value){const link=dropboxLinkInfo(value);if(link.kind=
 root.ShinkouProduction={overview,stageProgress,communicationAction,releaseTask,orderedNodes,WORKFLOW_STEPS,expandWorkflow,RELEASE_TASKS,STATES,GROUPS,defs,byId,validDate,days,months,report,keysFor,resolve,task,setIncluded,validatePatch,apply,draft,invoices,dropboxURL,dropboxFolderURL,dropboxLinkInfo,keyDates,groupIds,groupSnapshot,deferGroup};
 if(typeof module!=='undefined')module.exports=root.ShinkouProduction;
 })(typeof globalThis!=='undefined'?globalThis:this);
+
 

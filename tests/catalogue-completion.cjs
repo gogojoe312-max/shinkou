@@ -9,7 +9,7 @@ const known=title=>({title,kind:'existing',additionalProduction:false});
 test('explicit existing recordings are complete without invented work stages',()=>{
  const p={id:'album',tracklist:[known('Catalogue A'),{title:'Unknown B'},{title:'New C',kind:'new',additionalProduction:false},{title:'Rework D',kind:'existing',additionalProduction:true}]},songs=[{id:'s',title:'New C',projectId:'album'}],before=JSON.stringify({p,songs}),c=ui([p],songs);
  const html=c.productionReleaseContents(songs);
- assert.match(html,/Catalogue A<\/strong><span class="viewer-status complete">/);assert.match(html,/✓ 完了 1</);assert.match(html,/Unknown B<\/strong><\/span><span class="polished-state">制作状況未登録/);assert.match(html,/Rework D<\/strong><\/span><span class="polished-state">制作状況未登録/);assert.equal(JSON.stringify({p,songs}),before);
+ assert.match(html,/Catalogue A<\/strong><span class="viewer-status complete">/);assert.doesNotMatch(html,/viewer-counts/);assert.match(html,/Unknown B<\/strong><\/span><span class="polished-state">制作状況未登録/);assert.match(html,/Rework D<\/strong><\/span><span class="polished-state">制作状況未登録/);assert.equal(JSON.stringify({p,songs}),before);
 });
 test('completed-only and search include standalone existing tracks',()=>{
  const p={id:'album',artist:'Example Artist',tracklist:[known('Catalogue A'),{title:'Unknown B'}]},c=ui([p],[],{fin:'done'});
@@ -30,7 +30,7 @@ test('an existing recording in another project does not need duplicate song reco
 test('legacy note declarations apply only to their explicit track numbers',()=>{
  const p={id:'album',note:'04・05の既存曲は追加作業なし。\n発売日未定。',tracklist:[{title:'Unknown A'},{title:'New B',kind:'new'},{title:'Unknown C'},{title:'Catalogue D'},{title:'Catalogue E'}]},c=ui([p],[]);
  assert.deepEqual(p.tracklist.map(t=>c.productionTrackComplete(t,p)),[false,false,false,true,true]);
- const html=c.productionReleaseContents([]);assert.match(html,/✓ 完了 2</);assert.match(html,/Unknown A<\/strong><\/span><span class="polished-state">制作状況未登録/);
+ const html=c.productionReleaseContents([]);assert.doesNotMatch(html,/viewer-counts/);assert.match(html,/Unknown A<\/strong><\/span><span class="polished-state">制作状況未登録/);
  p.note='04・05の既存曲は追加作業なしではない。';assert(p.tracklist.every(t=>!c.productionTrackComplete(t,p)));
  p.note='04・05の既存曲は追加作業なし。';p.tracklist[3].additionalProduction=true;p.tracklist[4].kind='version';assert(p.tracklist.every(t=>!c.productionTrackComplete(t,p)));
 });
@@ -59,3 +59,4 @@ test('registered completed tracks remain visible when only common work is pendin
  c.ShinkouProduction.RELEASE_TASKS=[{id:'credits',label:'Credits'}];c.ShinkouProduction.STATES={};c.ShinkouProduction.releaseTask=()=>({state:'unknown'});
  assert.match(c.productionReleaseContents([]),/Done track 完了/);c.ShinkouProduction.releaseTask=()=>({state:'done'});assert.doesNotMatch(c.productionReleaseContents([]),/Done track/);
 });
+

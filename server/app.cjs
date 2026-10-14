@@ -53,7 +53,15 @@ function createApp(env=process.env,dependencies={}){
  async function github(suffix,options={}){if(!env.GITHUB_TOKEN)throw err(503,'同期用のサーバー設定が未完了です');Security.repoConfig(config);return http('https://api.github.com/repos/'+config.owner+'/'+config.repo+suffix,{...options,redirect:'error',headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+env.GITHUB_TOKEN,'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},signal:AbortSignal.timeout(25000)})}
  async function privateRepo(){if(privateUntil>Date.now())return;const r=await github('');if(!r.ok||(await r.json()).private!==true)throw err(503,'同期先が非公開であることを確認できません');privateUntil=Date.now()+60000}
  const route=p=>'/contents/'+p.split('/').map(encodeURIComponent).join('/');
- async function read(p=config.path){await privateRepo();const r=await github(route(p)+'?ref='+encodeURIComponent(config.branch));if(r.status===404)return {json:null,sha:null};if(!r.ok)throw err(502,'同期データを取得できません');const j=await r.json();return {json:Security.clean(JSON.parse(Buffer.from(j.content,'base64').toString('utf8'))),sha:j.sha}}
+ async function read(p=config.path){await privateRepo();const r=await github(route(p)+'?ref='+encodeURIComponent(config.branch));if(r.status===404)return {json:null,sha:null};if(!r.ok)throw err(502,'同期データを取得できません');const j=await r.json();let content=j.content;
+  if(typeof content!=='string'||!content.trim()||j.encoding==='none'){
+   if(!/^[0-9a-f]{40}$/i.test(j.sha||''))throw err(502,'同期データの識別情報を確認できません');
+   const blob=await github('/git/blobs/'+j.sha);if(!blob.ok)throw err(502,'同期データを取得できません');const value=await blob.json();
+   if(value.sha!==j.sha||value.encoding!=='base64'||typeof value.content!=='string'||!value.content.trim())throw err(502,'同期データを確認できません');
+   content=value.content;
+  }
+  return {json:Security.validState(JSON.parse(Buffer.from(content,'base64').toString('utf8'))),sha:j.sha}}
+
  const viewerData=s=>({...dataOnly(s),songs:(s.songs||[]).map(({workflow,invoiceItems,invoiceTracking,dropboxUrl,note,...v})=>v),trash:[],log:[],assistantRules:[]});
  app.get('/api/data',limit(120),async(req,res)=>{const data=await read();res.json({json:data.json?(req.role==='viewer'?viewerData(data.json):dataOnly(data.json)):null,sha:data.sha})});
  app.put('/api/data',limit(30),editor,async(req,res)=>{
@@ -108,3 +116,4 @@ function createApp(env=process.env,dependencies={}){
  return app;
 }
 module.exports={createApp};
+

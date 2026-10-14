@@ -408,7 +408,7 @@ function projTitle(p){if(!p)return"案件未設定";
   if(isShow(p))return (p.custom&&p.custom.trim())||"公演名 未設定";
   if(p.custom&&p.custom.trim())return p.custom.trim();
   return (NUMBERED.includes(p.kind)&&p.num>0?ord(p.num):"")+p.kind}
-function relOf(s){const p=projOf(s.projectId);return s.dates.release||(p&&p.release)||""}
+function relOf(s){const p=projOf(s.projectId);if(s.production?.dateKinds?.release==="undecided")return "";if(s.dates.release)return p?.dateKinds?.release==="undecided"&&s.dates.release===p.release?"":s.dates.release;return p?.dateKinds?.release==="undecided"?"":p?.release||""}
 function anchorDate(s,a){if(a==="mastering")return masDate(s);
   if(a==="release")return relOf(s);
   if(a==="open")return s.dates.open||relOf(s);
@@ -1311,7 +1311,7 @@ function staffRows(p){
   p.staff.forEach(r=>{if(!r.id)r.id=uid()});
   return p.staff}
 function staffHead(p){
-  const rel=p.release?p.release.replace(/-0?/g,"/").replace(/^\//,"")+"発売　":"";
+  const rel=p.release&&p.dateKinds?.release!=="undecided"?p.release.replace(/-0?/g,"/").replace(/^\//,"")+"発売　":"";
   const kn=KIND_EN[p.kind]||"";
   const t=(p.custom||"").trim();
   return rel+(p.artist||"")+(kn?" "+kn:"")+(t?"「"+t+"」":"")}
@@ -1567,7 +1567,18 @@ async function ghRead(c){
   if(r.status===404)return{json:null,sha:null};
   if(!r.ok)throw new Error("読み込み "+r.status);
   const j=await r.json();
-  return{json:JSON.parse(b64dec(j.content||"")),sha:j.sha}}
+  let content=j.content;
+  // Contents omits inline data above 1 MiB. Read the exact immutable blob,
+  // within the verified private repo, rather than following download URLs.
+  if(typeof content!=="string"||!content.trim()||j.encoding==="none"){
+    if(!/^[0-9a-f]{40}$/i.test(j.sha||""))throw new Error("同期データの識別情報を確認できません");
+    const blob=await fetch("https://api.github.com/repos/"+c.owner+"/"+c.repo+"/git/blobs/"+j.sha,{headers:{Authorization:"Bearer "+c.token,Accept:"application/vnd.github+json"},cache:"no-store",redirect:"error"});
+    if(!blob.ok)throw new Error("読み込み "+blob.status);
+    const value=await blob.json();
+    if(value.sha!==j.sha||value.encoding!=="base64"||typeof value.content!=="string"||!value.content.trim())throw new Error("同期データを確認できません");
+    content=value.content;
+  }
+  return{json:ShinkouSecurity.validState(JSON.parse(b64dec(content))),sha:j.sha}}
 async function ghWrite(c,obj,sha){
   await requirePrivateRepo(c);
   const u="https://api.github.com/repos/"+c.owner+"/"+c.repo+"/contents/"+c.path;
@@ -2476,6 +2487,7 @@ if("serviceWorker" in navigator&&location.protocol==="https:")
   window.addEventListener("load",()=>{navigator.serviceWorker.register("./sw.js").catch(()=>{})});
 /* ブラウザにデータを消されにくくする */
 if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});
+
 
 
 

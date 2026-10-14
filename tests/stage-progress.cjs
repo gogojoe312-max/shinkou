@@ -157,10 +157,10 @@ test('project notes remain accessible only in their own collapsed history',()=>{
  assert.doesNotMatch(ui.productionEvidenceHTML(project,{materials:[]},'songs'),/PROJECT_HISTORY_ONLY/);
 });
 
-test('reply attention remains in the own-action live panel and keeps production revision',()=>{
+test('reply attention appears once above the live workflow and keeps production revision',()=>{
  const s={id:'live-example',use:'live',stageList:[{k:'build',n:'音源制作',gp:'制作'}],stages:{build:{st:'req',workState:'revision',asg:'制作担当'}},dates:{},workflow:{communications:[{id:'live-reply',taskId:'stage:build',state:'reply',person:'制作担当',subject:'修正案の判断'}]}};
  const ui=uiContext(s),html=ui.productionSnapshot(s);
- const own=html.slice(html.indexOf('次に自分が進めること'),html.indexOf('相手待ち・担当者の作業'));
+ const own=html.slice(html.indexOf('polished-action'),html.indexOf('stage-progress'));
  assert.match(own,/修正案の判断.*回答する/);assert.match(html,/制作記録：修正待ち/);
  assert.equal(report(s).node['stage:build'].state,'revision');
 });
@@ -188,3 +188,4 @@ test('read-only group refresh updates only a matching open sheet without reopeni
  body.querySelector=()=>marker;open=false;
  assert.equal(ui.refreshProductionReadGroup(),false);assert.equal(body.innerHTML,'unchanged');
 });
+
