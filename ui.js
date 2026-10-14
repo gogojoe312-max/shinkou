@@ -39,7 +39,7 @@ function renderWorkspace(){
   document.body.classList.toggle('progress-first',V.mode!=='desk'&&V.use!=='cal');
   document.getElementById('workspaceDate').textContent=new Date().toLocaleDateString('ja-JP',{month:'long',day:'numeric',weekday:'long'});
   document.getElementById('workspaceTitle').textContent=V.use==='cal'?'予定':V.mode==='desk'?'制作状況':'仕事の状態';
-  const label=document.getElementById('filterLabel');if(label)label.textContent='絞り込み'+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='done'?' · 完了のみ':V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
+  const label=document.getElementById('filterLabel');if(label)label.textContent='検索・絞り込み'+(V.q?' · 検索中':'')+(V.dir!=='__all'?' · '+V.dir:'')+(V.who!=='all'?' · 状態指定':'')+(V.fin==='done'?' · 完了のみ':V.fin==='show'?' · 完了含む':'')+(V.use!=='master'?' · '+({live:'ライブ',cal:'予定',all:'すべて'}[V.use]||V.use):'');
   document.getElementById('grpSel').style.display=V.use==='cal'?'none':'';
   renderSyncNotice();
   const dirs=[...new Set(S.songs.map(s=>s.director).filter(Boolean))];
@@ -144,16 +144,30 @@ document.addEventListener('keydown',e=>{if(e.key!=='Tab')return;const top=modalS
 });
 modalState();
 
+function closeHomeFilters(){
+ const filters=document.getElementById('homeFilters');if(!filters)return;
+ filters.open=false;
+ const active=document.activeElement;if(active&&filters.contains(active)&&active.matches('input,select,textarea'))active.blur();
+ document.getElementById('main').scrollTop=0;
+ filters.querySelector('summary').focus({preventScroll:true});
+}
 function setupSimpleHome(){
- const top=document.querySelector('.top'),tools=document.querySelector('.tools');if(!top||!tools)return;
- const filters=document.createElement('details');filters.id='homeFilters';filters.innerHTML='<summary><span id="filterLabel">絞り込み</span><span aria-hidden="true">⌄</span></summary><div class="filter-content"></div>';
- const box=filters.querySelector('.filter-content');
+ const top=document.querySelector('.top'),tools=document.querySelector('.tools'),main=document.getElementById('main');if(!top||!tools||!main||document.getElementById('homeFilters'))return;
+ const filters=document.createElement('details');filters.id='homeFilters';filters.open=false;filters.innerHTML='<summary><span id="filterLabel">検索・絞り込み</span><span aria-hidden="true">⌄</span></summary><div class="filter-content"></div>';
+ const box=filters.querySelector('.filter-content');box.append(tools);
  ['dirbar','whoSel','finSel'].forEach(id=>{const el=document.getElementById(id);if(el)box.append(el)});
- top.append(filters);
- // Home has one consistent deadline order; grouping controls remain for legacy views.
+ const apply=document.createElement('button');apply.type='button';apply.className='btn filter-apply';apply.textContent='閉じて一覧を見る';apply.onclick=closeHomeFilters;box.append(apply);
+ const content=document.createElement('div');content.id='homeContent';
+ while(main.firstChild)content.append(main.firstChild);
+ main.append(filters,content);
+ // Keep the existing scroll owner and controls; only rendered cards are replaced.
+ box.addEventListener('change',e=>{if(e.target.id==='whoSel'||e.target.id==='finSel')closeHomeFilters()});
+ box.addEventListener('click',e=>{if(e.target.closest('[data-d]'))closeHomeFilters()});
+ document.getElementById('q').addEventListener('keydown',e=>{if(e.isComposing||e.keyCode===229)return;if(e.key==='Enter'||e.key==='Escape'){e.preventDefault();closeHomeFilters()}});
  document.getElementById('grpSel').hidden=true;
  document.getElementById('whoSel').setAttribute('aria-label','作業状況');document.getElementById('finSel').setAttribute('aria-label','完了曲の表示');
 }
+
 setupSimpleHome();
 
 let reviewedSync=[];try{reviewedSync=JSON.parse(localStorage.getItem('shinkou_sync_reviewed')||'[]')}catch(e){}
@@ -181,4 +195,5 @@ function renderProgressHome(el,list){
 }
 
 ShinkouServer.start(boot);
+
 

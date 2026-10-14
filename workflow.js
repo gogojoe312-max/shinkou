@@ -5,8 +5,8 @@ const norm=v=>String(v||'').normalize('NFKC').toLowerCase().replace(/[\s　「�
 const text=(v,max=4000)=>String(v??'').trim().slice(0,max);
 const safeURL=value=>{if(!value)return '';try{const u=new URL(value);return u.protocol==='https:'&&!u.username&&!u.password?u.href:''}catch{return ''}};
 const validDate=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')&&Number.isFinite(Date.parse(v))&&new Date(v).toISOString().slice(0,10)===v;
-const kindNames={demo:'フルサイズの参考音源',lyrics:'歌詞',stems:'録音用ステム',split:'歌割',rough:'編集後ラフ',vocal:'編集済みの歌',chorus:'コーラス',instrument:'楽器素材',arrange:'最終アレンジ素材',mix:'最終ミックス',credits:'クレジット',invoice:'請求書',other:'その他'};
-const sets={recording:{name:'歌録り前',kinds:['demo','lyrics','stems']},teacher:{name:'先生への送付',kinds:['split','rough']},mix:{name:'ミックス前',kinds:['vocal','chorus','instrument','arrange']},master:{name:'マスタリング前',kinds:['mix','lyrics','credits']}};
+const kindNames={demo:'フルサイズの参考音源',lyrics:'歌詞',stems:'録音用ステム',split:'歌割',rough:'編集後ラフ',vocal:'編集済みの歌',chorus:'コーラス',instrument:'楽器素材',arrange:'最終アレンジ素材',mix:'最終TD',credits:'クレジット',invoice:'請求書',other:'その他'};
+const sets={recording:{name:'歌録り前',kinds:['demo','lyrics','stems']},teacher:{name:'先生への送付',kinds:['split','rough']},mix:{name:'TD前',kinds:['vocal','chorus','instrument','arrange']},master:{name:'マスタリング前',kinds:['mix','lyrics','credits']}};
 const list=(s,key)=>Array.isArray(s.workflow?.[key])?s.workflow[key]:[];
 function upsert(s,key,item){s.workflow||={};s.workflow[key]||=[];const i=s.workflow[key].findIndex(x=>x.id===item.id);if(i<0)s.workflow[key].push(item);else s.workflow[key][i]=item;return item}
 function match(songs,source){

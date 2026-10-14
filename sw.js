@@ -1,6 +1,6 @@
 /* 同じ版のHTML・ロジック・スタイルをオフライン用に保持する。 */
-const CACHE='shinkou-v5-20261014cards1';
-const ASSETS=['./security.js?v=20261014cards1','./server-config.js?v=20261014cards1','./server-client.js?v=20261014cards1','./','./index.html','./view-state.js?v=20261014cards1','./core.js?v=20261014cards1','./invoices.js?v=20261014cards1','./workflow.js?v=20261014cards1','./workflow-ui.js?v=20261014cards1','./connections.js?v=20261014cards1','./invoice-ui.js?v=20261014cards1','./production.js?v=20261014cards1','./production-ui.js?v=20261014cards1','./app.js?v=20261014cards1','./ui.js?v=20261014cards1','./ui.css?v=20261014cards1','./design.css?v=20261014cards1'];
+const CACHE='shinkou-v5-20261014compact2';
+const ASSETS=['./security.js?v=20261014compact2','./server-config.js?v=20261014compact2','./server-client.js?v=20261014compact2','./','./index.html','./view-state.js?v=20261014compact2','./core.js?v=20261014compact2','./invoices.js?v=20261014compact2','./workflow.js?v=20261014compact2','./workflow-ui.js?v=20261014compact2','./connections.js?v=20261014compact2','./invoice-ui.js?v=20261014compact2','./production.js?v=20261014compact2','./production-ui.js?v=20261014compact2','./app.js?v=20261014compact2','./ui.js?v=20261014compact2','./ui.css?v=20261014compact2','./design.css?v=20261014compact2'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('shinkou-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));
 self.addEventListener('fetch',event=>{

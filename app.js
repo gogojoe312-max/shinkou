@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-10-14-cards-1";
+const APP_VER="2026-10-14-compact-2";
 const VIEW_ONLY=true;
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
@@ -761,7 +761,7 @@ function renderUse(){
   document.getElementById("q").placeholder=V.use==="live"?"公演名・グループ・制作物":"曲名・グループ・クレジット";
   bar.innerHTML=[["master","原盤"],["live","ライブ"],["all","すべて"],["cal","予定"]].map(x=>
     '<button class="chip" data-u="'+x[0]+'" aria-pressed="'+(V.use===x[0])+'">'+x[1]+'</button>').join("");
-  bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render()});
+  bar.querySelectorAll("[data-u]").forEach(b=>b.onclick=()=>{V.use=b.dataset.u;render();document.getElementById("main").scrollTop=0});
   const fab=document.getElementById("fab");
   fab.style.display=VIEW_ONLY||V.use==="cal"?"none":"";
   fab.textContent=V.use==="live"?"＋ 制作物":"＋ 楽曲"}
@@ -827,7 +827,7 @@ function agListHTML(){
     const n=D.to(e.d),left=n<0?(-n)+"日超過":n===0?"本日":"あと"+n+"日";
     h+='<button class="ag'+(e.done?" on":"")+'" data-song="'+e.s.id+'" data-stk="'+e.x.k+'" data-kind="'+e.k+'" data-dd="'+e.d+'">'+
       '<span class="agd'+(n<=0?" hot":"")+'">'+esc(D.md(e.d))+'</span>'+
-      '<span class="agn"><span class="t">'+esc(e.x.n)+
+      '<span class="agn"><span class="t">'+esc(ShinkouProduction.displayLabel(e.x.n))+
         (e.note?' <span class="sub">'+esc(e.note)+'</span>':"")+'</span>'+
         '<span class="s">'+esc(e.s.title||"（無題）")+' · '+esc(e.s.artist||"")+'</span></span>'+
       '<span class="agl">'+esc(left)+'</span></button>'});
@@ -857,7 +857,7 @@ function agListBind(m){
 /* ===================== カレンダー（週・月） ===================== */
 let CALM=0,CALW=0,CALSEL=D.today();
 const evRef=e=>e.s.id+"|"+e.x.k+"|"+e.k+"|"+e.d;
-function evLabel(e){return e.x.n+(e.k==="rec"&&e.note?" "+e.note:"")}
+function evLabel(e){return ShinkouProduction.displayLabel(e.x.n)+(e.k==="rec"&&e.note?" "+e.note:"")}
 function evClass(e){return "ev"+(e.k==="rec"?" rec":"")+(e.done?" dn":(D.to(e.d)<0?" late":""))}
 function evByDay(){const by={};agenda().forEach(e=>{(by[e.d]=by[e.d]||[]).push(e)});return by}
 
@@ -885,7 +885,7 @@ function calHTML(mode){
     const sel=by[CALSEL]||[];
     h+='<div class="drw"><div class="drh">'+esc(D.md(CALSEL))+'（'+WD[(new Date(CALSEL+"T00:00:00").getDay()+6)%7]+'）</div>'+
       (sel.length?sel.map(e=>'<button class="dr" data-song="'+e.s.id+'">'+
-        '<span class="'+evClass(e)+'">'+esc(e.x.n)+'</span>'+
+        '<span class="'+evClass(e)+'">'+esc(ShinkouProduction.displayLabel(e.x.n))+'</span>'+
         '<span class="drt">'+esc(e.s.title||"（無題）")+(e.note?' <u>'+esc(e.note)+'</u>':"")+'</span></button>').join("")
       :'<p class="hint">この日の予定はありません。</p>')+'</div>'}
   else{
@@ -965,12 +965,12 @@ function calBind(m,mode){
       m.querySelectorAll(".hovtg").forEach(x=>x.classList.remove("hovtg"))},{passive:true})})}
 
 function renderDirs(){
-  const map=new Map();let all=0;
-  S.songs.forEach(s=>{if(isFin(s))return;all++;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
+  const map=new Map();
+  S.songs.forEach(s=>{if(isFin(s))return;const d=s.director||"";map.set(d,(map.get(d)||0)+1)});
   const bar=document.getElementById("dirbar");
-  bar.innerHTML='<button class="chip" data-d="__all" aria-pressed="'+(V.dir==="__all")+'">全員 <b>'+all+'</b></button>'+
+  bar.innerHTML='<button class="chip" data-d="__all" aria-pressed="'+(V.dir==="__all")+'">全員</button>'+
     [...map.entries()].sort((a,b)=>b[1]-a[1]).map(e=>
-      '<button class="chip" data-d="'+esc(e[0])+'" aria-pressed="'+(V.dir===e[0])+'">'+esc(e[0]||"担当未設定")+' <b>'+e[1]+'</b></button>').join("");
+      '<button class="chip" data-d="'+esc(e[0])+'" aria-pressed="'+(V.dir===e[0])+'">'+esc(e[0]||"担当未設定")+'</button>').join("");
   bar.querySelectorAll("[data-d]").forEach(b=>b.onclick=()=>{
     V.dir=(V.dir===b.dataset.d&&b.dataset.d!=="__all")?"__all":b.dataset.d;render()})}
 
@@ -979,7 +979,7 @@ function render(){
   viewSave();
   renderWorkspace();
   renderDirs();renderUse();syncLists();
-  const m=document.getElementById("main");
+  const m=document.getElementById("homeContent")||document.getElementById("main");
   if(V.use==="cal"&&S.songs.length){renderAgenda(m);return}
   const list=pool();
   if(V.mode==="desk")renderDesk(m,list);
@@ -2454,12 +2454,12 @@ function migrate(d){
 async function boot(){
   const src=new URLSearchParams(location.search).get("data");
   if(src){RO=true;
-    const u=new URL(src,location.href);if(u.protocol!=='https:'||u.hostname!=='raw.githubusercontent.com'||u.username||u.password){document.getElementById('main').textContent='共有データの接続先を確認してください。';return}
+    const u=new URL(src,location.href);if(u.protocol!=='https:'||u.hostname!=='raw.githubusercontent.com'||u.username||u.password){(document.getElementById('homeContent')||document.getElementById('main')).textContent='共有データの接続先を確認してください。';return}
     document.body.insertAdjacentHTML("afterbegin",'<div class="ro">閲覧専用 — 共有版</div>');
     document.getElementById("fab").style.display="none";
     document.getElementById("saveDot").style.display="none";
     try{const r=await fetch(src,{cache:"no-store"});if(!r.ok)throw 0;S=migrate(await r.json())}
-    catch(e){document.getElementById("main").innerHTML=
+    catch(e){(document.getElementById("homeContent")||document.getElementById("main")).innerHTML=
       '<div class="empty"><h3>共有データを読めません</h3><p>リンクと公開範囲を確認してください。</p></div>';return}
     render();return}
   let rec=null;
