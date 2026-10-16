@@ -7,6 +7,7 @@ const path=require('node:path');
 const Security=require('../security.js');
 const {downloadRegisteredMaterial}=require('./dropbox-material.cjs');
 const {createPreparationService,PATH:PREPARATION_PATH,MAX_MANIFEST_BYTES}=require('./preparation-service.cjs');
+const {createPreparationDelivery}=require('./preparation-delivery.cjs');
 const ROOT=path.resolve(__dirname,'..'),COOKIE='__Host-shinkou',DAYS=30*86400;
 const random=()=>randomBytes(32).toString('base64url');
 const safeEqual=(a,b)=>{if(typeof a!=='string'||typeof b!=='string')return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
@@ -26,6 +27,11 @@ function createApp(env=process.env,dependencies={}){
  app.disable('x-powered-by');app.set('trust proxy',1);
  app.use(helmet({crossOriginOpenerPolicy:{policy:'same-origin-allow-popups'},crossOriginEmbedderPolicy:false,contentSecurityPolicy:{directives:{defaultSrc:["'self'"],scriptSrc:["'self'",'https://accounts.google.com/gsi/'],styleSrc:["'self'","'unsafe-inline'"],imgSrc:["'self'",'data:','https://*.googleusercontent.com'],connectSrc:["'self'",'https://accounts.google.com','https://www.googleapis.com','https://script.google.com','https://script.googleusercontent.com'],frameSrc:['https://accounts.google.com'],frameAncestors:["'self'"],objectSrc:["'none'"],baseUri:["'none'"],formAction:["'self'"]}},referrerPolicy:{policy:'no-referrer'}}));
  app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','Permissions-Policy':'camera=(), microphone=(), geolocation=()'});next()});
+ // This fixed read-only delivery authenticates the GitHub owner independently
+ // of Google sessions. Keep it before body parsing; it accepts no request body.
+ const delivery=createPreparationDelivery({env,fetch:http});
+ app.all('/utacheck/prepared',delivery.cors,rateLimit({windowMs:60000,limit:12,standardHeaders:'draft-8',legacyHeaders:false,
+  message:{status:'unavailable',code:'RATE_LIMITED',stage:'relay'}}),delivery.handle);
  app.use(cookieParser());app.use(express.json({limit:'20mb',strict:true}));
  const limit=(max,windowMs=60000)=>rateLimit({windowMs,limit:max,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'操作が集中しています。少し待ってからお試しください。'}});
  app.get('/healthz',(req,res)=>res.json({ok:true}));
