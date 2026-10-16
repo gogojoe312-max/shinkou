@@ -5,6 +5,8 @@ const {OAuth2Client}=require('google-auth-library');
 const {randomBytes,createHmac,timingSafeEqual,createHash}=require('node:crypto');
 const path=require('node:path');
 const Security=require('../security.js');
+const {downloadRegisteredMaterial}=require('./dropbox-material.cjs');
+const {createPreparationService,PATH:PREPARATION_PATH,MAX_MANIFEST_BYTES}=require('./preparation-service.cjs');
 const ROOT=path.resolve(__dirname,'..'),COOKIE='__Host-shinkou',DAYS=30*86400;
 const random=()=>randomBytes(32).toString('base64url');
 const safeEqual=(a,b)=>{if(typeof a!=='string'||typeof b!=='string')return false;const x=Buffer.from(a),y=Buffer.from(b);return x.length===y.length&&timingSafeEqual(x,y)};
@@ -53,14 +55,29 @@ function createApp(env=process.env,dependencies={}){
  async function github(suffix,options={}){if(!env.GITHUB_TOKEN)throw err(503,'同期用のサーバー設定が未完了です');Security.repoConfig(config);return http('https://api.github.com/repos/'+config.owner+'/'+config.repo+suffix,{...options,redirect:'error',headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+env.GITHUB_TOKEN,'Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},signal:AbortSignal.timeout(25000)})}
  async function privateRepo(){if(privateUntil>Date.now())return;const r=await github('');if(!r.ok||(await r.json()).private!==true)throw err(503,'同期先が非公開であることを確認できません');privateUntil=Date.now()+60000}
  const route=p=>'/contents/'+p.split('/').map(encodeURIComponent).join('/');
- async function read(p=config.path){await privateRepo();const r=await github(route(p)+'?ref='+encodeURIComponent(config.branch));if(r.status===404)return {json:null,sha:null};if(!r.ok)throw err(502,'同期データを取得できません');const j=await r.json();let content=j.content;
+ async function read(p=config.path,validate=Security.validState,maxBytes=Infinity){await privateRepo();const r=await github(route(p)+'?ref='+encodeURIComponent(config.branch));if(r.status===404)return {json:null,sha:null};if(!r.ok)throw err(502,'同期データを取得できません');const j=await r.json();let content=j.content;
   if(typeof content!=='string'||!content.trim()||j.encoding==='none'){
    if(!/^[0-9a-f]{40}$/i.test(j.sha||''))throw err(502,'同期データの識別情報を確認できません');
    const blob=await github('/git/blobs/'+j.sha);if(!blob.ok)throw err(502,'同期データを取得できません');const value=await blob.json();
    if(value.sha!==j.sha||value.encoding!=='base64'||typeof value.content!=='string'||!value.content.trim())throw err(502,'同期データを確認できません');
    content=value.content;
   }
-  return {json:Security.validState(JSON.parse(Buffer.from(content,'base64').toString('utf8'))),sha:j.sha}}
+  const bytes=Buffer.from(content,'base64');if(bytes.length>maxBytes)throw err(413,'準備一覧の容量が上限に達しています。');
+  return {json:validate(JSON.parse(bytes.toString('utf8'))),sha:j.sha}}
+
+ const preparation=createPreparationService({config,fetch:http,readState:()=>read(),
+  readManifest:()=>read(PREPARATION_PATH,value=>value,MAX_MANIFEST_BYTES),
+  writeManifest:async(manifest,sha)=>{
+   const r=await github(route(PREPARATION_PATH),{method:'PUT',body:JSON.stringify({message:'歌チェック準備資料を追加',branch:config.branch,content:Buffer.from(JSON.stringify(manifest)).toString('base64'),...(sha?{sha}:{})})});
+   if(r.status===409||r.status===422)throw err(409,'準備一覧が別の処理で更新されました。既存の操作は変更していません。');
+   if(!r.ok)throw err(502,'準備一覧を保存できませんでした。');
+  },...dependencies.preparation});
+ app.get('/api/preparation/status',editor,(req,res)=>res.json(preparation.status()));
+ app.post('/api/preparation/run',limit(12),editor,async(req,res)=>{
+  if(req.body!==undefined&&(!req.body||Array.isArray(req.body)||typeof req.body!=='object'||Object.keys(req.body).length))throw err(400,'準備対象は保存済みの進行データから確認します。');
+  const connected=dropboxTokens.get(req.session.id);
+  res.json(await preparation.run({token:connected&&connected.exp>Date.now()?connected.token:null}));
+ });
 
  const viewerData=s=>({...dataOnly(s),songs:(s.songs||[]).map(({workflow,invoiceItems,invoiceTracking,dropboxUrl,note,...v})=>v),trash:[],log:[],assistantRules:[]});
  app.get('/api/data',limit(120),async(req,res)=>{const data=await read();res.json({json:data.json?(req.role==='viewer'?viewerData(data.json):dataOnly(data.json)):null,sha:data.sha})});
@@ -88,12 +105,12 @@ function createApp(env=process.env,dependencies={}){
  });
  app.get('/api/dropbox/status',(req,res)=>res.json({connected:(dropboxTokens.get(req.session.id)?.exp||0)>Date.now()}));
  app.post('/api/dropbox/start',editor,limit(10),(req,res)=>{if(!/^[\w-]{6,100}$/.test(env.DROPBOX_APP_KEY||''))throw err(503,'Dropboxの接続設定が未完了です');const state=random(),verifier=random();oauthStates.set(state,{sid:req.session.id,verifier,exp:Date.now()+300000});
-  const p=new URLSearchParams({client_id:env.DROPBOX_APP_KEY,response_type:'code',redirect_uri:origin+'/oauth/dropbox/callback',state,code_challenge_method:'S256',code_challenge:createHash('sha256').update(verifier).digest('base64url'),scope:'files.metadata.read',token_access_type:'online'});res.json({url:'https://www.dropbox.com/oauth2/authorize?'+p});
+  const p=new URLSearchParams({client_id:env.DROPBOX_APP_KEY,response_type:'code',redirect_uri:origin+'/oauth/dropbox/callback',state,code_challenge_method:'S256',code_challenge:createHash('sha256').update(verifier).digest('base64url'),scope:'files.metadata.read files.content.read',token_access_type:'online'});res.json({url:'https://www.dropbox.com/oauth2/authorize?'+p});
  });
  app.get('/oauth/dropbox/callback',authenticate,async(req,res)=>{const pending=oauthStates.get(req.query.state);oauthStates.delete(req.query.state);
   if(!pending||pending.exp<Date.now()||pending.sid!==req.session.id||typeof req.query.code!=='string')throw err(400,'Dropboxの接続をやり直してください');
   const r=await http('https://api.dropboxapi.com/oauth2/token',{method:'POST',redirect:'error',body:new URLSearchParams({code:req.query.code,grant_type:'authorization_code',client_id:env.DROPBOX_APP_KEY,code_verifier:pending.verifier,redirect_uri:origin+'/oauth/dropbox/callback'}),signal:AbortSignal.timeout(25000)});
-  if(!r.ok)throw err(502,'Dropboxの接続を完了できません');const j=await r.json();if(!j.access_token||j.scope?.trim()!=='files.metadata.read')throw err(403,'Dropboxのアクセス権を確認してください');
+  if(!r.ok)throw err(502,'Dropboxの接続を完了できません');const j=await r.json(),scopes=typeof j.scope==='string'?j.scope.trim().split(/\s+/).sort():[];if(typeof j.access_token!=='string'||!j.access_token||scopes.join(' ')!=='files.content.read files.metadata.read')throw err(403,'Dropboxのアクセス権を確認してください');
   dropboxTokens.set(req.session.id,{token:j.access_token,exp:Date.now()+Math.min(14400,Number(j.expires_in)||14400)*1000-30000});res.redirect('/dropbox-complete.html');
  });
  app.post('/api/dropbox/list',limit(20),editor,async(req,res)=>{const token=dropboxTokens.get(req.session.id);if(!token||token.exp<Date.now())throw err(401,'Dropboxに再接続してください');const url=req.body.url,p=req.body.path||'';
@@ -105,8 +122,13 @@ function createApp(env=process.env,dependencies={}){
   res.json({items});
  });
  app.post('/api/dropbox/disconnect',(req,res)=>{dropboxTokens.delete(req.session.id);res.json({ok:true})});
+ app.post('/api/dropbox/download',limit(20),editor,async(req,res)=>{
+  const token=dropboxTokens.get(req.session.id);if(!token||token.exp<Date.now())throw err(401,'Dropboxに再接続してください');
+  const state=(await read()).json;
+  res.json(await downloadRegisteredMaterial({state,request:req.body,token:token.token,fetch:http}));
+ });
  // Serve only explicitly listed application assets; never the source tree, server files or env files.
- const assets=new Set(['index.html','ui.css','design.css','security.js','server-client.js','core.js','invoices.js','production.js','workflow.js','connections.js','app.js','production-ui.js','invoice-ui.js','workflow-ui.js','ui.js','oauth-callback.html','oauth-callback.js','login.js','login.css','dropbox-complete.html','dropbox-complete.js']);
+ const assets=new Set(['index.html','ui.css','design.css','security.js','server-client.js','core.js','invoices.js','production.js','workflow.js','connections.js','app.js','production-ui.js','invoice-ui.js','workflow-ui.js','ui.js','preparation-ui.js','preparation-targets.js','view-state.js','oauth-callback.html','oauth-callback.js','login.js','login.css','dropbox-complete.html','dropbox-complete.js']);
  app.get('/sw.js',(req,res)=>res.type('js').send("self.addEventListener('install',()=>self.skipWaiting());self.addEventListener('activate',e=>e.waitUntil(self.clients.claim()));"));
  app.get('/login',(req,res)=>res.sendFile(path.join(__dirname,'login.html')));
  app.get('/dropbox-complete.html',authenticate,(req,res)=>res.sendFile(path.join(__dirname,'dropbox-complete.html')));

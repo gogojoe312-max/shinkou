@@ -31,7 +31,9 @@ Node.js 22〜24。ビルド `npm ci --omit=dev --ignore-scripts`、起動 `npm s
 
 Google ログインは確認済み Gmail アドレスまたは Workspace アカウントに限定しています。Gmail / Calendar 機能を使う場合は該当 API と同意画面も設定します。
 
-Dropbox は `files.metadata.read` だけを許可し、Redirect URI に `https://<Renderのホスト>/oauth/dropbox/callback` を登録します。アプリ作成時の開発者規約とアクセス許可は利用者が確認します。共有フォルダを列挙するため Dropbox 側のアプリ種別は Full Dropbox が必要ですが、API 権限はメタデータの読み取りだけです。サーバーではさらに、保存済みの曲に登録された共有フォルダ URL だけを受け付けます。短期トークンはメモリにのみ保持し、サーバー再起動時には再接続が必要です。
+Dropbox のサーバー接続は `files.metadata.read` と `files.content.read` を使用し、Redirect URI に `https://<Renderのホスト>/oauth/dropbox/callback` を登録します。既存のメタデータ専用接続は、資料の内容を読む前に再接続が必要です。GitHub Pages 互換版の接続は引き続きメタデータのみを読み取ります。
+
+共有フォルダを列挙するため Dropbox 側のアプリ種別は Full Dropbox が必要です。サーバーは保存済みの曲に登録されたフォルダ URL だけを列挙します。資料のダウンロードは曲 ID・登録資料 ID を受け取り、保存済みの Dropbox ファイル ID へ解決します。任意の URL やパスをクライアントから指定することはできません。登録された版、実際に返されたファイル ID・版、5 MiB の容量制限を確認し、内容の SHA-256 を返します。Dropbox への書き込みは行いません。短期トークンはメモリにのみ保持し、サーバー再起動時には再接続が必要です。
 
 ## 保存と復元
 

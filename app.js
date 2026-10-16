@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-10-14-compact-2";
+const APP_VER="2026-10-16-preparation-1";
 const VIEW_ONLY=true;
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
@@ -1654,6 +1654,7 @@ async function syncNow(reason){
         if(!ex.json)await ghWrite(c2,payload,null);
         S.settings.lastSnap=D.today();mark()}catch(e){}}
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 同期");
+    window.ShinkouPreparationUI?.run();
   }catch(e){syDot("err",String(e.message||e))}
   finally{SY.busy=false}}
 function refreshSyncedView(){
@@ -1693,6 +1694,7 @@ async function syncReadOnly(reason){
     if(SY.readDay&&SY.readDay!==D.today()&&!refreshed)refreshSyncedView();
     SY.readDay=D.today();
     SY.last=Date.now();syDot("ok",new Date().toLocaleTimeString("ja-JP")+" 読み込み");
+    window.ShinkouPreparationUI?.run();
   }catch(e){syDot("err",String(e.message||e))}
   finally{SY.busy=false}
 }
@@ -1776,6 +1778,7 @@ function openSettings(){
           ||'<p class="hint">まだ案件がありません。</p>')+
         '<div class="fg" style="margin-top:12px"><button class="btn w" id="crAll">すべての曲をWordで書き出す</button></div>'}},
     {id:"workflow",t:"仕事の連携",h:()=>'<button class="btn w" id="mWorkflow">連絡・資料・実績をまとめる</button><button class="btn w" id="mConnections">外部サービスの接続設定</button>'},
+    {id:"preparation",t:"歌チェックの自動準備",h:()=>'<div id="preparationStatus">'+(window.ShinkouPreparationUI?.html()||'')+'</div>'},
     {id:"inv",t:"請求書",h:()=>'<div class="fg"><button class="btn w" id="mInv">請求書の受領・送付状況</button></div>'},
     {id:"sync",t:"同期・更新",h:()=>ShinkouServer.enabled?'<p class="hint">最新の制作データを読み取ります。接続キーはサーバーで管理しています。</p><button class="btn w" id="syNow">最新の内容を読み込む</button>':
       ''+
@@ -1817,7 +1820,7 @@ function openSettings(){
     {id:"ver",t:"版",h:()=>'<p class="hint" style="margin:0">いま動いている版：<b>'+APP_VER+'</b>'+
       '<br>古いままなら、アプリを閉じて開き直すか、下のボタンで読み込み直してください。</p>'+
       '<div class="fg"><button class="btn w" id="reld">最新を読み込み直す</button></div>'}];
-  const viewSections=VIEW_ONLY?secs.filter(x=>["sync","save","sec","ver"].includes(x.id)):secs;
+  const viewSections=VIEW_ONLY?secs.filter(x=>["sync","preparation","save","sec","ver"].includes(x.id)):secs;
   if(VIEW_ONLY&&!viewSections.some(x=>x.id===setOpen))setOpen="sync";
   const draw=()=>{
     const w=mem?'<div class="warnbox">保存先が使えない環境です。この画面ではデータが残りません。</div>':"";
@@ -1834,6 +1837,7 @@ function openSettings(){
   draw()}
 
 function wireSettings(B){
+  window.ShinkouPreparationUI?.wire();
   const q=id=>B.querySelector(id);
   const on=(id,f)=>{const e=q(id);if(e)e.onclick=f};
   on("#secureSignOut",()=>ShinkouServer.signOut().catch(e=>toast(e.message)));

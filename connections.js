@@ -65,6 +65,12 @@ async function dropboxList(url,path=''){
  const items=[];let j=await json('dropbox','files/list_folder',{method:'POST',body:JSON.stringify({path,shared_link:{url},recursive:false,include_deleted:false,limit:200})});items.push(...j.entries);
  while(j.has_more){if(items.length>4000)throw Error('ファイルが多いためフォルダを分けて確認してください');j=await json('dropbox','files/list_folder/continue',{method:'POST',body:JSON.stringify({cursor:j.cursor})});items.push(...j.entries)}return items;
 }
-root.ShinkouConnections={SCOPES,setup,status,disconnect,prepareGoogle,connectGoogle,connectDropbox,mailSearch,head,mailThread,mailText,attachments,mimeDraft,createDraft,calendars,busy,createEvent,dropboxList};if(typeof module!=='undefined')module.exports=root.ShinkouConnections;
+async function dropboxRegisteredFile(songId,materialId){
+ if(blocked())throw Error('デモ・閲覧画面では資料を読み込みません');
+ if(!root.ShinkouServer?.enabled)throw Error('登録資料の読み込みは認証付きの進行アプリで利用できます');
+ if(typeof songId!=='string'||!songId||typeof materialId!=='string'||!materialId)throw Error('曲に登録した資料を選んでください');
+ return root.ShinkouServer.api('/api/dropbox/download',{method:'POST',body:JSON.stringify({songId,materialId})});
+}
+root.ShinkouConnections={SCOPES,setup,status,disconnect,prepareGoogle,connectGoogle,connectDropbox,mailSearch,head,mailThread,mailText,attachments,mimeDraft,createDraft,calendars,busy,createEvent,dropboxList,dropboxRegisteredFile};if(typeof module!=='undefined')module.exports=root.ShinkouConnections;
 })(typeof globalThis!=='undefined'?globalThis:this);
 
