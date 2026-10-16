@@ -29,7 +29,7 @@ function createApp(env=process.env,dependencies={}){
  app.use((req,res,next)=>{res.set({'Cache-Control':'no-store','Permissions-Policy':'camera=(), microphone=(), geolocation=()'});next()});
  // This fixed read-only delivery authenticates the GitHub owner independently
  // of Google sessions. Keep it before body parsing; it accepts no request body.
- const delivery=createPreparationDelivery({env,fetch:http});
+ const delivery=createPreparationDelivery({env,fetch:http,...dependencies.preparationDelivery});
  app.all('/utacheck/prepared',delivery.cors,rateLimit({windowMs:60000,limit:12,standardHeaders:'draft-8',legacyHeaders:false,
   message:{status:'unavailable',code:'RATE_LIMITED',stage:'relay'}}),delivery.handle);
  app.use(cookieParser());app.use(express.json({limit:'20mb',strict:true}));

@@ -1,5 +1,7 @@
 'use strict';
 const {validateManifest,OWNER,REPO,PATH,MAX_MANIFEST_BYTES}=require('./preparation-service.cjs');
+const {createDecipheriv,createHash}=require('node:crypto');
+const {open}=require('node:fs/promises'),{constants}=require('node:fs'),path=require('node:path');
 const ORIGIN='https://gogojoe312-max.github.io',API='https://api.github.com';
 const META_BYTES=64*1024,ENCODED_BYTES=21*1024*1024,TIMEOUT_MS=20000,MAX_ACTIVE=2;
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
@@ -7,6 +9,44 @@ const own=(value,key)=>Object.prototype.hasOwnProperty.call(value,key);
 const validToken=value=>typeof value==='string'&&value.length>0&&value.length<=8192&&!/[\x00-\x20\x7f]/.test(value);
 const failure=(code,status=502)=>Object.assign(Error(code),{deliveryCode:code,status});
 const unavailable=(code,status=502)=>({status,body:{status:'unavailable',code,stage:'relay'}});
+const BUNDLE_AAD=Buffer.from('utacheck-private-preparation:v1');
+function canonicalBase64(value,size){
+ if(typeof value!=='string'||!value||value.length>ENCODED_BYTES||value.length%4||!/^[A-Za-z0-9+/]+={0,2}$/.test(value))throw failure('INVALID_BUNDLE');
+ const bytes=Buffer.from(value,'base64');
+ if(bytes.toString('base64')!==value||size!==undefined&&bytes.length!==size)throw failure('INVALID_BUNDLE');
+ return bytes;
+}
+async function readBundledFile(signal){
+ const file=await open(path.join(__dirname,'prepared-bundle.json'),constants.O_RDONLY|(constants.O_NOFOLLOW||0));
+ try{
+  const stat=await file.stat();if(!stat.isFile()||stat.size<1||stat.size>ENCODED_BYTES)throw failure('INVALID_BUNDLE');
+  const chunks=[];let size=0;
+  while(true){
+   signal.throwIfAborted();const chunk=Buffer.alloc(Math.min(64*1024,ENCODED_BYTES-size+1));
+   const {bytesRead}=await file.read(chunk,0,chunk.length,null);if(!bytesRead)break;
+   size+=bytesRead;if(size>ENCODED_BYTES)throw failure('INVALID_BUNDLE');chunks.push(chunk.subarray(0,bytesRead));
+  }
+  return Buffer.concat(chunks,size);
+ }finally{await file.close();}
+}
+function decryptBundle(raw,keyText){
+ let key;
+ try{
+  if(!(raw instanceof Uint8Array)||raw.byteLength<1||raw.byteLength>ENCODED_BYTES)throw Error();
+  const bundle=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(raw));
+  if(!object(bundle)||Object.keys(bundle).some(key=>!['app','version','nonce','tag','ciphertext','sourceSha'].includes(key))
+   ||bundle.app!=='utacheck-encrypted-preparation'||bundle.version!==1||typeof bundle.sourceSha!=='string'||!/^[a-f0-9]{40}$/.test(bundle.sourceSha))throw Error();
+  key=canonicalBase64(keyText,32);
+  const nonce=canonicalBase64(bundle.nonce,12),tag=canonicalBase64(bundle.tag,16),ciphertext=canonicalBase64(bundle.ciphertext);
+  if(ciphertext.length>MAX_MANIFEST_BYTES)throw Error();
+  const decipher=createDecipheriv('aes-256-gcm',key,nonce);decipher.setAAD(BUNDLE_AAD);decipher.setAuthTag(tag);
+  const bytes=Buffer.concat([decipher.update(ciphertext),decipher.final()]);
+  const sha=createHash('sha1').update('blob '+bytes.length+'\0').update(bytes).digest('hex');
+  if(sha!==bundle.sourceSha)throw Error();
+  const manifest=validateManifest(JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes)));if(!manifest)throw Error();
+  return {status:200,body:{status:'ready',manifest,sourceSha:sha,sourcePath:PATH}};
+ }catch{throw failure('INVALID_BUNDLE');}finally{key?.fill(0);}
+}
 
 async function boundedJSON(response,maximum,signal){
  const length=response.headers?.get?.('content-length');
@@ -24,11 +64,12 @@ async function boundedJSON(response,maximum,signal){
  if(!object(value))throw failure('INVALID_RESPONSE');return value;
 }
 
-function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=TIMEOUT_MS}={}){
+function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=TIMEOUT_MS,readBundle=readBundledFile}={}){
  let active=0;
  async function read(callerToken){
   if(!validToken(callerToken))return unavailable('HTTP_401',401);
-  if(!validToken(env.GITHUB_TOKEN)||(env.DATA_OWNER||OWNER)!==OWNER||(env.DATA_REPO||REPO)!==REPO||(env.DATA_BRANCH||'main')!=='main')return unavailable('RELAY_NOT_CONFIGURED',503);
+  const direct=validToken(env.GITHUB_TOKEN)&&(env.DATA_OWNER||OWNER)===OWNER&&(env.DATA_REPO||REPO)===REPO&&(env.DATA_BRANCH||'main')==='main';
+  if(!direct){try{canonicalBase64(env.PREPARATION_BUNDLE_KEY,32).fill(0);}catch{return unavailable('RELAY_NOT_CONFIGURED',503);}}
   if(active>=MAX_ACTIVE)return unavailable('RATE_LIMITED',429);
   active++;
   const controller=new AbortController();let timer;
@@ -49,6 +90,12 @@ function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=T
     // repository contents and is not retained in a session, cache or log.
     const identity=await request('/user',callerToken,META_BYTES,true);
     if(identity.login!==OWNER)throw failure('OWNER_MISMATCH',403);
+    if(!direct){
+     // The deployment contains ciphertext only. Its scoped encryption key has
+     // no GitHub permissions, and only a verified owner can receive plaintext.
+     const raw=await readBundle(controller.signal);controller.signal.throwIfAborted();
+     return decryptBundle(raw,env.PREPARATION_BUNDLE_KEY);
+    }
     const prefix='/repos/'+OWNER+'/'+REPO,repository=await request(prefix,env.GITHUB_TOKEN,META_BYTES);
     if(repository.private!==true)throw failure('REPOSITORY_NOT_PRIVATE');
     if(repository.full_name!==OWNER+'/'+REPO||repository.owner?.login!==OWNER)throw failure('REPOSITORY_MISMATCH');

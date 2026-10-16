@@ -1,6 +1,7 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const http=require('node:http');
+const {createCipheriv,createHash}=require('node:crypto');
 const {createApp}=require('../server/app.cjs');
 const {createPreparationDelivery,ORIGIN}=require('../server/preparation-delivery.cjs');
 const {OWNER,REPO,PATH,digest}=require('../server/preparation-service.cjs');
@@ -28,8 +29,8 @@ function network(change={}){
  };
  return {fetch,calls,file};
 }
-async function fixture(t,{env={},...change}={}){
- const net=network(change),app=createApp({GITHUB_TOKEN:SERVER,...env},{fetch:net.fetch});
+async function fixture(t,{env={},readBundle,...change}={}){
+ const net=network(change),app=createApp({GITHUB_TOKEN:SERVER,...env},{fetch:net.fetch,...(readBundle?{preparationDelivery:{readBundle}}:{})});
  const server=app.listen(0,'127.0.0.1');await new Promise((resolve,reject)=>{server.once('listening',resolve);server.once('error',reject);});
  t.after(()=>new Promise(resolve=>server.close(resolve)));
  const base='http://127.0.0.1:'+server.address().port;
@@ -151,4 +152,61 @@ test('concurrent preparation downloads are bounded without retaining caller sess
  releases.forEach(resolve=>resolve());
  const results=await Promise.all([first,second]);assert(results.every(result=>result.status===200));
  assert.equal(net.calls.length,6);assert.equal(net.calls.filter(call=>call.url.endsWith('/user')).length,2);
+});
+
+const BUNDLE_KEY=Buffer.alloc(32,7).toString('base64');
+function encryptedBundle(value=manifest()){
+ const raw=Buffer.from(JSON.stringify(value,null,2)+'\n'),nonce=Buffer.alloc(12,9);
+ const cipher=createCipheriv('aes-256-gcm',Buffer.from(BUNDLE_KEY,'base64'),nonce);
+ cipher.setAAD(Buffer.from('utacheck-private-preparation:v1'));
+ const ciphertext=Buffer.concat([cipher.update(raw),cipher.final()]);
+ return {app:'utacheck-encrypted-preparation',version:1,nonce:nonce.toString('base64'),tag:cipher.getAuthTag().toString('base64'),ciphertext:ciphertext.toString('base64'),
+  sourceSha:createHash('sha1').update('blob '+raw.length+'\0').update(raw).digest('hex')};
+}
+const bundledEnv={GITHUB_TOKEN:'',PREPARATION_BUNDLE_KEY:BUNDLE_KEY};
+const bundleBytes=value=>Buffer.from(JSON.stringify(value));
+test('a verified owner receives an authenticated encrypted bundle without any server GitHub credential',async t=>{
+ const bundle=encryptedBundle();let loads=0;
+ const f=await fixture(t,{env:bundledEnv,readBundle:async signal=>{loads++;assert.equal(signal.aborted,false);return bundleBytes(bundle);}});
+ const response=await f.request();assert.equal(response.status,200);
+ const result=await response.json();assert.deepEqual(result,{status:'ready',manifest:manifest(),sourceSha:bundle.sourceSha,sourcePath:PATH});
+ assert.equal(loads,1);assert.deepEqual(f.calls.map(call=>call.url),['https://api.github.com/user']);
+ const exposed=JSON.stringify(result);for(const secret of [BUNDLE_KEY,bundle.ciphertext,bundle.tag,CALLER,SERVER])assert.equal(exposed.includes(secret),false);
+ for(const file of ['/prepared-bundle.json','/server/prepared-bundle.json'])assert.equal((await f.request({},file)).status,404);
+});
+test('wrong owners and unauthenticated callers cannot load or decrypt the bundle',async t=>{
+ let loads=0;const f=await fixture(t,{env:bundledEnv,login:'another-owner',readBundle:async()=>{loads++;return bundleBytes(encryptedBundle());}});
+ await failureResponse(await f.request(),'OWNER_MISMATCH',403);
+ await failureResponse(await f.request({headers:{Authorization:''}}),'HTTP_401',401);assert.equal(loads,0);assert.equal(f.calls.length,1);
+});
+test('a missing bundle and invalid encryption configuration return sanitized unavailable results',async t=>{
+ const f=await fixture(t,{env:bundledEnv,readBundle:async()=>{throw Object.assign(Error(BUNDLE_KEY),{code:'ENOENT'});}});
+ const missing=await failureResponse(await f.request(),'SOURCE_UNAVAILABLE',502);assert.equal(JSON.stringify(missing).includes(BUNDLE_KEY),false);assert.equal(f.calls.length,1);
+ for(const key of ['',Buffer.alloc(31,7).toString('base64'),BUNDLE_KEY.slice(0,-1),BUNDLE_KEY+'\n']){
+  let loads=0;const g=await fixture(t,{env:{...bundledEnv,PREPARATION_BUNDLE_KEY:key},readBundle:async()=>{loads++;return bundleBytes(encryptedBundle());}});
+  await failureResponse(await g.request(),'RELAY_NOT_CONFIGURED',503);assert.equal(loads,0);assert.equal(g.calls.length,0);
+ }
+});
+test('wrong keys, tampered authenticated bytes, and a changed Git blob SHA never disclose plaintext',async t=>{
+ const original=encryptedBundle(),patches=[{sourceSha:'b'.repeat(40)},{app:'other-bundle'},{nonce:'bad'}, {extra:'unexpected'}];
+ for(const field of ['nonce','tag','ciphertext']){
+  const bytes=Buffer.from(original[field],'base64');bytes[0]^=1;patches.push({[field]:bytes.toString('base64')});
+ }
+ for(const patch of patches){
+  const f=await fixture(t,{env:bundledEnv,readBundle:async()=>bundleBytes({...original,...patch})});
+  const result=await failureResponse(await f.request(),'INVALID_BUNDLE',502);assert.equal(JSON.stringify(result).includes(BUNDLE_KEY),false);assert.equal(f.calls.length,1);
+ }
+ const wrong=await fixture(t,{env:{...bundledEnv,PREPARATION_BUNDLE_KEY:Buffer.alloc(32,8).toString('base64')},readBundle:async()=>bundleBytes(original)});
+ await failureResponse(await wrong.request(),'INVALID_BUNDLE',502);assert.equal(wrong.calls.length,1);
+});
+test('decrypted data still requires the preparation schema and valid operation hashes',async t=>{
+ const changed=manifest();changed.operations[0].sha256='b'.repeat(64);
+ for(const value of [null,{},changed]){
+  const f=await fixture(t,{env:bundledEnv,readBundle:async()=>bundleBytes(encryptedBundle(value))});
+  await failureResponse(await f.request(),'INVALID_BUNDLE',502);assert.equal(f.calls.length,1);
+ }
+});
+test('configured private repository delivery stays preferred over the bundled snapshot',async t=>{
+ let loads=0;const f=await fixture(t,{env:{PREPARATION_BUNDLE_KEY:BUNDLE_KEY},readBundle:async()=>{loads++;return bundleBytes(encryptedBundle());}});
+ assert.equal((await f.request()).status,200);assert.equal(loads,0);assert.equal(f.calls.length,3);
 });
