@@ -34,7 +34,7 @@ function createApp(env=process.env,dependencies={}){
   message:{status:'unavailable',code:'RATE_LIMITED',stage:'relay'}}),delivery.handle);
  app.use(cookieParser());app.use(express.json({limit:'20mb',strict:true}));
  const limit=(max,windowMs=60000)=>rateLimit({windowMs,limit:max,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'操作が集中しています。少し待ってからお試しください。'}});
- app.get('/healthz',(req,res)=>res.json({ok:true}));
+ app.get('/healthz',async(req,res)=>res.json({ok:true,preparationBundleReady:await delivery.bundleReady()}));
  app.get('/server-config.js',(req,res)=>res.type('js').send('window.ShinkouServerConfig=Object.freeze('+JSON.stringify({enabled:true,ready,clientId:ready?env.GOOGLE_CLIENT_ID:''})+');'));
  function csrf(req,res,next){if(req.get('origin')!==origin||req.get('sec-fetch-site')==='cross-site')return next(err(403,'別サイトからの操作は受け付けません'));next()}
  function authenticate(req,res,next){if(!ready)return next(err(503,'認証設定が完了していません。制作データは公開されていません。'));prune();const session=unpack(req.cookies[COOKIE]);

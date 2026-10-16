@@ -65,7 +65,23 @@ async function boundedJSON(response,maximum,signal){
 }
 
 function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=TIMEOUT_MS,readBundle=readBundledFile}={}){
- let active=0;
+ let active=0,bundleCheck;
+ function bundleReady(){
+  // Deployment health exposes only integrity readiness. Cache the boolean, not
+  // decrypted content, and perform no GitHub request or caller authentication.
+  if(!bundleCheck)bundleCheck=(async()=>{
+   const controller=new AbortController();let timer;
+   try{
+    canonicalBase64(env.PREPARATION_BUNDLE_KEY,32).fill(0);
+    const verify=async()=>{
+     const raw=await readBundle(controller.signal);controller.signal.throwIfAborted();
+     decryptBundle(raw,env.PREPARATION_BUNDLE_KEY);return true;
+    };
+    return await Promise.race([verify(),new Promise(resolve=>{timer=setTimeout(()=>{controller.abort();resolve(false);},Math.min(timeoutMs,3000));})]);
+   }catch{return false;}finally{clearTimeout(timer);controller.abort();}
+  })();
+  return bundleCheck;
+ }
  async function read(callerToken){
   if(!validToken(callerToken))return unavailable('HTTP_401',401);
   const direct=validToken(env.GITHUB_TOKEN)&&(env.DATA_OWNER||OWNER)===OWNER&&(env.DATA_REPO||REPO)===REPO&&(env.DATA_BRANCH||'main')==='main';
@@ -142,6 +158,6 @@ function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=T
   const authorization=req.get('authorization')||'',match=/^Bearer ([^\s]+)$/.exec(authorization);
   const result=await read(match?.[1]);res.status(result.status).json(result.body);
  }
- return {cors,handle,read};
+ return {cors,handle,read,bundleReady};
 }
 module.exports={createPreparationDelivery,ORIGIN};

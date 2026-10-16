@@ -210,3 +210,22 @@ test('configured private repository delivery stays preferred over the bundled sn
  let loads=0;const f=await fixture(t,{env:{PREPARATION_BUNDLE_KEY:BUNDLE_KEY},readBundle:async()=>{loads++;return bundleBytes(encryptedBundle());}});
  assert.equal((await f.request()).status,200);assert.equal(loads,0);assert.equal(f.calls.length,3);
 });
+test('deployment health checks the configured bundle once and exposes only readiness without private data',async t=>{
+ const valid=encryptedBundle();
+ for(const [env,bundle,expected]of [[bundledEnv,valid,true],[bundledEnv,{...valid,sourceSha:'b'.repeat(40)},false],[{GITHUB_TOKEN:''},valid,false],
+  [{...bundledEnv,PREPARATION_BUNDLE_KEY:Buffer.alloc(32,8).toString('base64')},valid,false]]){
+  let loads=0;const f=await fixture(t,{env,readBundle:async()=>{loads++;return bundleBytes(bundle);}});
+  for(let i=0;i<2;i++){
+   const response=await f.request({headers:{Authorization:''}},'/healthz');assert.equal(response.status,200);
+   const body=await response.json();assert.deepEqual(body,{ok:true,preparationBundleReady:expected});
+   for(const secret of [BUNDLE_KEY,valid.ciphertext,valid.sourceSha,'operations',CALLER,SERVER])assert.equal(JSON.stringify(body).includes(secret),false);
+  }
+  assert.equal(loads,env.PREPARATION_BUNDLE_KEY?1:0);assert.equal(f.calls.length,0);
+ }
+});
+test('deployment health reports false for a missing or stalled bundle without propagating errors',async()=>{
+ for(const readBundle of [async()=>{throw Error(BUNDLE_KEY);},async()=>new Promise(()=>{})]){
+  const delivery=createPreparationDelivery({env:bundledEnv,readBundle,timeoutMs:15,fetch:async()=>{throw Error('No network allowed');}});
+  assert.equal(await delivery.bundleReady(),false);assert.equal(await delivery.bundleReady(),false);
+ }
+});
