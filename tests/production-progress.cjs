@@ -24,7 +24,7 @@ test('deferred unrecorded chorus stays visible after vocal editing and an old ma
  assert(r.progress.remaining.some(n=>n.id==='chorus'&&n.state==='undecided'));
  assert(r.node.mix.blockers.includes('chorus'));assert(r.node['stage:mixBrief'].blockers.includes('chorus'));
  assert(!r.actions.some(a=>['mix','stage:mixBrief'].includes(a.id)));
- assert.match(c.productionReleaseContents([s]),/コーラス未収録/);assert.match(c.productionSnapshot(s),/コーラス未収録/);
+ assert.match(c.productionReleaseContents([s]),/コーラス録音日程を組む/);assert.match(c.productionSnapshot(s),/コーラス録音日程を組む/);
  // The main state must reflect the pending chorus; collapsed details retain completed vocal editing.
  assert.doesNotMatch(c.productionReleaseContents([s]).split('<details class="state-detail"')[0],/編集済み|全素材と要望を共有/);
  assert.equal(JSON.stringify(s),before);
@@ -99,13 +99,13 @@ function remake(){
 test('custom remake headline and next task both stay on recording before mix booking',()=>{
  const s=remake(),before=JSON.stringify(s),r=report(s),o=P.overview(s,r),c=ui(s);
  assert.equal(r.progress.taskId,'stage:version_recording');assert.equal(o.focusId,'stage:version_recording');assert.equal(o.next.id,o.focusId);
- assert.equal(o.headline,'収録前');assert.equal(o.detail,'日程未登録');assert.match(o.next.title,/収録の日程/);
- const html=c.productionCompactItem(s);assert.doesNotMatch(html,/ミックス|polished-completed-stages/);assert.match(html,/<strong>収録前<\/strong>/);
+ assert.equal(o.headline,'レコーディング日程を組む');assert.equal(o.detail,'日程未登録');assert.equal(o.next.title,'レコーディング日程を組む');
+ const html=c.productionCompactItem(s);assert.doesNotMatch(html,/ミックス|polished-completed-stages/);assert.match(html,/<strong>レコーディング日程を組む<\/strong>/);
  assert.equal(JSON.stringify(s),before);
 });
 test('booking a recording is not recording completion and uses its known date',()=>{
  const s=remake();s.stages.version_recording_plan.slots=[{date:'2026-10-12'}];let o=P.overview(s,report(s));
- assert.equal(o.headline,'収録待ち');assert.equal(o.detail,'収録予定あり');assert.match(o.next.title,/収録の準備/);
+ assert.equal(o.headline,'収録予定日待ち');assert.equal(o.detail,'収録予定あり');assert(o.next.scheduled);assert.equal(o.handoffOwner,'');
  s.stages.version_recording={done:true};o=P.overview(s,report(s));assert.equal(o.focusId,'stage:version_edit');assert.equal(o.next.id,'stage:version_edit');
  s.stages.version_edit={done:true};o=P.overview(s,report(s));assert.equal(o.focusId,'mixBooking');
 });

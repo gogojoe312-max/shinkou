@@ -388,6 +388,32 @@ function progressSummary(s,r){
 // A compact, read-only view of explicit engineering states. Never parse notes as progress.
 const shortLabels={theme:'曲のテーマ',order:'作曲',lyricOrder:'作詞依頼',lyrics:'歌詞',guide:'仮歌',demo:'デモ',selection:'選曲',full:'フルサイズ',recordable:'歌録り用アレンジ',stems:'ステム',arrange:'最終アレンジ',vocalBooking:'歌録り日程',vocal:'歌録り',split:'歌割',edit:'歌の編集',chorusRequest:'コーラス依頼',chorus:'コーラス',instrument:'楽器録音',materials:'素材確認',mixBooking:'TD日程',mix:'TD',master:'マスタリング','stage:version_recording_plan':'収録日程','stage:version_recording':'収録','stage:version_edit':'収録音源の編集','stage:version_materials':'既存素材の確認','stage:version_arrange':'アレンジ修正','stage:version_share':'収録資料の共有','stage:version_scope':'変更内容の確認'};
 function shortLabel(n){const label=displayLabel(shortLabels[n.id]||n.label);if(label.includes('TD'))return label;return label.replace(/（[^）]*）/g,'').split('／')[0].replace(/の受領・内容確認|の受領・確認/,'確認').replace(/^細かいテーマ・構成を詰める$/,'テーマ・構成').replace(/^OPの方向性・構成・尺・次曲との接続を決める$/,'OPの構成').replace(/の検討・決定$/,'');}
+// Scheduling belongs to the director. A booked date is not performed recording,
+// and recording/editing aggregates must not schedule an already recorded part.
+function recordingSchedules(s,r,nodes){
+ const list=active(s),kinds=['vocal','revocal','chorus','instrument'];
+ const booking=x=>['vo','cho','instrec','revo'].includes(x.k)||/日程|スケジュール|スタジオ.*(?:調整|確保)/.test(x.n);
+ const recordings=list.filter(x=>(kinds.includes(core.scheduleKind(x))&&!booking(x)&&!/編集|共有|確認|準備/.test(x.n))||x.k==='version_recording');
+ const out=[];
+ for(const x of recordings){
+  const keys=keysFor(s,{keys:[x.k]}),n=nodes.find(n=>n.keys.some(k=>keys.includes(k)));
+  if(!n||n.done||n.applicability==='unknown'||keys.every(k=>['done','na'].includes(stageState(s.stages?.[k]||{}))))continue;
+  const kind=core.scheduleKind(x)||'recording';
+  const related=kind==='recording'?list.filter(z=>z.k===x.k||n.deps.some(id=>r.node[id]?.keys.includes(z.k)&&booking(z))):list.filter(z=>core.scheduleKind(z)===kind&&(booking(z)||z.k===x.k));
+  const relatedKeys=[...new Set(related.flatMap(z=>keysFor(s,{keys:[z.k]})))];
+  const bookings=nodes.filter(z=>z.id!==n.id&&z.keys.some(k=>relatedKeys.includes(k))&&/日程|スケジュール|スタジオ.*(?:調整|確保)/.test(z.label));
+  // Explicit work/communications take precedence over inferred scheduling work.
+  if([n,...bookings].some(z=>communicationAction(z)||z.communication?.state==='waiting'||z.wait||!z.done&&(['doing','received'].includes(z.state)||z.state==='review'&&!z.keys.every(k=>{const g=s.stages?.[k]||{};return g.prov&&!g.st&&!g.workState}))))continue;
+  const slots=relatedKeys.flatMap(k=>{const g=s.stages?.[k]||{};return (g.slots||[]).filter(v=>!v.done&&validDate(v.date)).map(v=>({...v,tentative:v.kind==='tentative'||v.swait||v.tentative||v.prov||g.prov||g.st==='studio'||s.production?.dateKinds?.[k]==='tentative'||s.production?.tasks?.[nodes.find(z=>z.keys.includes(k))?.id]?.dueKind==='tentative'}));});
+  const future=slots.filter(v=>v.date>=r.today),tentative=future.some(v=>v.tentative);
+  const label={vocal:'歌録り',revocal:'追加歌録り',chorus:'コーラス録音',instrument:'楽器録音',recording:'収録'}[kind];
+  const phase=future.length?tentative?'tentative':'booked':slots.length?'past':'unset';
+  const title=phase==='unset'?(kind==='vocal'||kind==='recording'?'レコーディング':label)+'日程を組む':phase==='tentative'?label+'の日程確定を進める':phase==='past'?label+'の実施状況を確認する':label+'予定日待ち';
+  const parallel=['vocal','recording'].includes(kind)||phase==='tentative'||[n,...bookings].some(z=>z.state==='todo'||z.owner==='自分'||s.production?.selfName&&z.owner===s.production.selfName);
+  out.push({id:n.id,bookingIds:bookings.map(z=>z.id),phase,title,label,parallel,dates:future.map(v=>v.date),detail:phase==='unset'?'日程未登録':phase==='tentative'?'仮日程あり':phase==='past'?'予定日を過ぎています。収録の実施は未確認':'収録予定あり'});
+ }
+ return out;
+}
 function overview(s,r){
  const nodes=orderedNodes(r.nodes.filter(n=>!n.excluded&&!n.shared&&n.state!=='na'&&(!n.actionCoveredBy||communicationAction(n))));
  const completed=nodes.filter(n=>n.done&&!n.bookingDerived),pending=nodes.filter(n=>!n.done);
@@ -398,6 +424,8 @@ function overview(s,r){
  const earlierWork=pending.some(n=>rank(n)<groupOrder.indexOf('finish')&&n.group!=='delivery');
  const eligible=active.filter(n=>!(n.id==='mixBooking'&&earlierWork));
  const focus=nodes.find(n=>communicationAction(n))||eligible.find(n=>['received','review'].includes(n.state))||eligible.find(n=>n.wait)||eligible.find(n=>n.state==='doing')||eligible[0]||flowFocus;
+ const me=s.production?.selfName||'自分',recordings=recordingSchedules(s,r,nodes);
+ const recording=recordings.find(x=>x.id===focus?.id||x.bookingIds.includes(focus?.id));
  const status=n=>communicationAction(n)?.status||({received:'受領済み・本人確認待ち',review:'本人確認中',doing:'作業中',revision:'修正待ち',requested:'依頼済み・相手待ち',waiting:'日程待ち',undecided:'未定',unknown:'状況未確認',todo:'これから',partial:'一部完了'}[n.state]||STATES[n.state]||'未確認');
  const current=focus?[{id:focus.id,label:shortLabel(focus),state:focus.state,text:shortLabel(focus)+' · '+status(focus),owner:communicationAction(focus)||['received','review'].includes(focus.state)?'自分':focus.owner||focus.recipient||''}]:[];
  let headline=r.archive?'完了':r.audioComplete?'音源制作完了':focus?shortLabel(focus):r.custom&&!nodes.length?'制作工程未登録':'制作状況を確認',detail=focus?status(focus):'',next=null;
@@ -408,14 +436,10 @@ function overview(s,r){
   else if(focus.wait){const revision=focus.state==='revision';headline=label+'の'+(revision?'改稿待ち':'返答・納品待ち');detail=who+(revision?'へ修正依頼済み':'へ依頼済み');next={id:focus.id,title:revision?'改稿が届いたら変更点を確認する':'返答・納品が届いたら内容を確認する',owner:'自分',after:true};}
   else if(focus.state==='doing'){headline=label+'を作業中';detail=focus.owner&&focus.owner!=='自分'?focus.owner+'が担当':'';const following=pending.find(n=>n.id!==focus.id&&n.deps.includes(focus.id));next=following?{id:following.id,title:label+'の完了後、'+shortLabel(following),owner:following.owner||'',after:true}:null;}
   else {headline=!s.customWorkflow&&focus.id===r.progress?.taskId?r.progress.state:label;next={id:focus.id,title:label+(focus.state==='unknown'?'の状況を確認する':'を進める'),owner:focus.owner||'自分'};}
-  const rec=focus.id==='vocal'||focus.id==='stage:version_recording'||focus.keys.some(k=>{const st=(s.stageList||[]).find(x=>x.k===k);return st&&['vocal','revocal','chorus','instrument'].includes(core.scheduleKind(st))&&!/日程|スケジュール|編集|共有|確認/.test(st.n)});
-  if(rec&&!communicationAction(focus)&&!['doing','received','review'].includes(focus.state)){
-   const kind=focus.id==='vocal'?'vocal':focus.keys.map(k=>core.scheduleKind((s.stageList||[]).find(x=>x.k===k)||{})).find(Boolean);
-   const schedule=(r.progress?.schedules||[]).find(x=>x.kind===kind);
-   const relatedKeys=[...new Set([...focus.keys,...(focus.deps||[]).map(id=>r.node[id]).filter(n=>n&&/日程|スケジュール/.test(n.label)).flatMap(n=>n.keys)])];
-   const dates=relatedKeys.flatMap(k=>s.stages?.[k]?.slots||[]).filter(x=>!x.done&&validDate(x.date)&&x.date>=r.today);
-   if(!schedule&&!dates.length){headline=focus.id==='chorus'?'コーラス未収録':label+'前';detail=focus.state==='undecided'?'日程未定':'日程未登録';next={id:focus.id,title:label+'の日程を確認する',owner:'自分'};}
-   else {headline=label+'待ち';detail='収録予定あり';next={id:focus.id,title:label+'の準備を進める',owner:'自分'};}
+  if(recording){
+   headline=recording.title;detail=recording.detail;
+   next={id:focus.id,title:recording.title,owner:recording.phase==='booked'?'':me,...(recording.phase==='booked'?{scheduled:true}:{})};
+   current[0]={...current[0],text:recording.title,owner:recording.phase==='booked'?'':me};
   }
  }
  // Main-screen facts come from explicit stage records, never freeform notes.
@@ -436,10 +460,10 @@ function overview(s,r){
  }
  for(const z of r.progress?.schedules||[]){if(!schedules.some(x=>x.dates.some(v=>z.dates.includes(v.date))&&x.label===z.label))schedules.push({id:'schedule:'+z.kind,label:z.label,dates:z.dates.map(date=>({date,kind:z.tentative?'tentative':'registered'})),owner:'',work:true});}
  const schedule=schedules.find(x=>x.id===focus?.id);
- if(schedule&&schedule.work&&focus&&!communicationAction(focus)&&!['revision','requested','received','review','doing'].includes(focus.state)){
+ if(!recording&&schedule&&schedule.work&&focus&&!communicationAction(focus)&&!['revision','requested','received','review','doing'].includes(focus.state)){
   headline=shortLabel(focus)+'予定';detail=schedule.owner?schedule.owner+'が担当':'担当未登録';
   next={id:focus.id,title:shortLabel(focus)+'を実施する',owner:focus.owner||'',scheduled:true};
- }else if(focus&&!communicationAction(focus)&&['todo','partial'].includes(focus.state)&&!focus.wait&&!schedule){
+ }else if(!recording&&focus&&!communicationAction(focus)&&['todo','partial'].includes(focus.state)&&!focus.wait&&!schedule){
   headline=shortLabel(focus)+'・未完了';
   if(detail==='これから')detail=focus.owner?focus.owner+'が担当':'担当・実施日未登録';
  }
@@ -468,7 +492,7 @@ function overview(s,r){
  const groups=r.groups.map(g=>{const items=nodes.filter(n=>n.group===g.id),done=items.filter(n=>n.done).length;return {...g,total:items.length,completed:done}}).filter(g=>g.total);
  // Name the person who must act from explicit work/communication records only.
  // Credits and unrecorded prerequisites never establish current ownership.
- const me=s.production?.selfName||'自分',attention=focus&&communicationAction(focus);
+ const attention=focus&&communicationAction(focus);
  let handoff='',handoffOwner='',handoffStatus='',handoffSide='unknown';
  if(focus&&!r.archive){
   const mine=attention||['received','review'].includes(focus.state);
@@ -476,10 +500,11 @@ function overview(s,r){
   const label=shortLabel(focus);
   const work=attention?(focus.communication.summary||label+(attention.state==='reply'?'の回答待ち':'の確認待ち')):
    ['received','review'].includes(focus.state)?label+'の確認待ち':
-   focus.wait?label+(focus.state==='revision'?'の修正待ち':'待ち'):headline;
+   focus.wait?(focus.communication?.summary||label+(focus.state==='revision'?'の修正待ち':'待ち')):headline;
   handoffOwner=owner||'担当未確認';handoffStatus=work;handoffSide=mine?'me':focus.wait?'other':owner===me?'me':owner?'other':'unknown';
   handoff=handoffOwner+'：'+work;
   if(next)next={...next,owner:next.owner==='自分'?me:next.owner||''};
+  if(recording){handoffOwner=recording.phase==='booked'?'':me;handoffStatus=recording.title;handoffSide=recording.phase==='booked'?'date':'me';handoff=handoffOwner?handoffOwner+'：'+handoffStatus:handoffStatus;}
  }
  // Show genuinely actionable work in parallel with the main handoff.
  // Unknown steps, blocked prerequisites and future booked work are not ready now.
@@ -490,18 +515,39 @@ function overview(s,r){
   const scheduled=schedules.find(z=>z.id===n.id&&z.work);
   return !scheduled||n.state==='doing'||scheduled.dates.some(d=>d.date<=r.today);
  }).map(n=>({id:n.id,owner:me,label:communicationAction(n)?.title||shortLabel(n)+(['received','review'].includes(n.state)?'の確認':''),state:n.state}));
+ // Scheduling can run alongside production; it does not wait for audio delivery.
+ for(const x of recordings.filter(x=>x!==recording&&x.parallel&&['unset','tentative'].includes(x.phase))){
+  const ids=[x.id,...x.bookingIds];
+  for(let i=ownReady.length-1;i>=0;i--)if(ids.includes(ownReady[i].id))ownReady.splice(i,1);
+  ownReady.push({id:x.bookingIds.find(id=>!r.node[id].done)||x.id,owner:me,label:x.title,state:'todo'});
+ }
+ // A newer receipt does not resolve older questions on the same task. Also keep
+ // standalone communications visible without creating artificial workflow tasks.
+ const contacts=s.viewerRestricted?[]:(s.workflow?.communications||[]).filter(c=>['waiting','reply','review'].includes(c.state));
+ const represented=new Set(nodes.map(n=>n.communication?.id).filter(Boolean));
+ const unrepresented=contacts.filter(c=>!represented.has(c.id)&&(!c.taskId||nodes.some(n=>n.id===c.taskId||n.keys.some(k=>c.taskId==='stage:'+k))));
+ for(const c of unrepresented.filter(c=>['reply','review'].includes(c.state))){
+  const n=nodes.find(n=>n.id===c.taskId||n.keys.some(k=>c.taskId==='stage:'+k)),action=communicationAction({...n,communication:c});
+  if(action)ownReady.push({id:n?.id||'communication:'+c.id,communicationId:c.id,owner:me,label:action.title,state:c.state});
+ }
  const waitingByOwner=new Map();
  for(const n of nodes.filter(n=>!n.done&&n.wait&&!communicationAction(n))){
   const owner=n.owner||n.recipient||'相手未確認';
   if(n.id===focus?.id)continue;
   if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[]});
-  waitingByOwner.get(owner).labels.push(shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'));
+  waitingByOwner.get(owner).labels.push(n.communication?.summary||shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'));
+ }
+ for(const c of unrepresented.filter(c=>c.state==='waiting')){
+  const owner=typeof c.person==='string'&&c.person||'相手未確認',label=typeof c.summary==='string'&&c.summary.trim()||typeof c.subject==='string'&&c.subject.trim()||'返答・納品待ち';
+  if(focus?.communication?.state==='waiting'&&owner===handoffOwner&&label===handoffStatus)continue;
+  if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[]});
+  const labels=waitingByOwner.get(owner).labels;if(!labels.includes(label))labels.push(label);
  }
  const parallelWaiting=[...waitingByOwner.values()];
  // Source material facts explain what is known, without inventing an active task.
  const summary=!s.viewerRestricted&&s.production?.statusSummary;
  const sourceFacts=summary&&Array.isArray(summary.sourceFactIds)&&Array.isArray(s.production?.sourceFacts)?s.production.sourceFacts.filter(f=>f&&summary.sourceFactIds.includes(f.id)&&typeof f.label==='string'&&f.label.trim()):[];
- const unconfirmed=!!(!r.archive&&summary&&typeof summary.label==='string'&&summary.label.trim()&&!nodes.some(n=>communicationAction(n)||!n.done&&['doing','requested','revision','waiting','received','review','todo','partial'].includes(n.state)));
+ const unconfirmed=!!(!r.archive&&!recording&&!ownReady.length&&!parallelWaiting.length&&summary&&typeof summary.label==='string'&&summary.label.trim()&&!nodes.some(n=>communicationAction(n)||!n.done&&['doing','requested','revision','waiting','received','review','todo','partial'].includes(n.state)));
  if(unconfirmed){headline=summary.label;handoffStatus=summary.label;handoffOwner='担当未確認';handoffSide='unknown';handoff=handoffOwner+'：'+handoffStatus;detail=typeof summary.detail==='string'?summary.detail:'';next=null;}
  return {sourceFacts,unconfirmed,completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:unconfirmed?'':focus?.id||''};
 }
