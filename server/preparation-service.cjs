@@ -4,7 +4,7 @@ const Targets=require('../preparation-targets.js');
 const {MAX_BYTES,resolveRegisteredMaterial,downloadRegisteredMaterial}=require('./dropbox-material.cjs');
 const OWNER='gogojoe312-max',REPO='shinkou-data',PATH='utacheck/prepared.json';
 const POLL_MS=5*60*1000,MAX_TARGETS=20,MAX_FILES_PER_TARGET=10,MAX_FILES_PER_RUN=40,MAX_MANIFEST_BYTES=15*1024*1024;
-const TYPES=new Set(['recording-song','recording-schedule','recording-addition','live-addition','live-update','material-update']);
+const TYPES=new Set(['recording-song','recording-schedule','recording-addition','live-addition','live-update','material-update','original-excel']);
 const SECRET_KEYS=new Set(['__proto__','constructor','prototype','ghToken','bkKey','bkGistId','editPass','token','password','secret','credentials','gistId','src','key','deliveryGroupId','deliveryMode']);
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const id=value=>typeof value==='string'&&/^[A-Za-z0-9][A-Za-z0-9_.-]{0,199}$/.test(value)&&!SECRET_KEYS.has(value);

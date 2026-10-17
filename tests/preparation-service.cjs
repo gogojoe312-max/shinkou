@@ -6,6 +6,11 @@ const source={kind:'file',songId:'song',materialId:'fact',fileId:'id:file',name:
 const target={id:'rec:song',kind:'rec',title:'歌',dates:['2026-10-16'],songIds:['song'],sources:[source],slots:[],needs:[]};
 const op=(name='old')=>{const packet={app:'fixture',name};return {id:'operation-'+name,type:'recording-song',sha256:digest(packet),packet};};
 const manifest=operations=>({app:'utacheck-private-preparation',version:1,owner:OWNER,revision:'existing',createdAt:'2026-10-15T00:00:00Z',operations});
+test('private manifest retains original Excel binary packets and optional legacy exports under the existing size bound',()=>{
+ const file={name:'original.xls',size:4,sha256:'a'.repeat(64),base64:'UEsDBA=='},packet={app:'utacheck-original-excel',version:1,...file,exportFile:{...file,name:'export.xlsx'}};
+ const value=manifest([{id:'original-fixture',type:'original-excel',sha256:digest(packet),packet}]);assert.deepEqual(validateManifest(value),value);
+ const changed=clone(value);changed.operations[0].packet.base64='UEsDBQ==';assert.throws(()=>validateManifest(changed),error=>error.status===409);
+});
 function fixture(overrides={}){
  const state={songs:[{id:'song',production:{sourceFacts:[{id:'fact',scope:'source-material',sourceId:'id:file'}]}}],projects:[]};
  const settings={sha:'data-1',manifest:null,manifestSha:null,rev:'rev1',targets:[clone(target)],pending:[],downloadHook:null,writeConflict:false,compileHook:null};
