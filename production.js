@@ -414,6 +414,15 @@ function recordingSchedules(s,r,nodes){
  }
  return out;
 }
+// Work labels come from the recorded task, never from a person's credits.
+function handoffWork(n){
+ if(!n)return '連絡';
+ if(/^(lyricOrder|lyrics|stage:fullLyrics)/.test(n.id))return '作詞';
+ if(/^stage:fullMusic/.test(n.id))return '楽曲フルサイズ化';
+ if(/stem/i.test(n.id))return 'ステム';
+ if(/^(arrange|recordable|stage:arrange)/.test(n.id))return 'アレンジ';
+ return shortLabel(n);
+}
 function overview(s,r){
  const nodes=orderedNodes(r.nodes.filter(n=>!n.excluded&&!n.shared&&n.state!=='na'&&(!n.actionCoveredBy||communicationAction(n))));
  const completed=nodes.filter(n=>n.done&&!n.bookingDerived),pending=nodes.filter(n=>!n.done);
@@ -525,23 +534,29 @@ function overview(s,r){
  // standalone communications visible without creating artificial workflow tasks.
  const contacts=s.viewerRestricted?[]:(s.workflow?.communications||[]).filter(c=>['waiting','reply','review'].includes(c.state));
  const represented=new Set(nodes.map(n=>n.communication?.id).filter(Boolean));
- const unrepresented=contacts.filter(c=>!represented.has(c.id)&&(!c.taskId||nodes.some(n=>n.id===c.taskId||n.keys.some(k=>c.taskId==='stage:'+k))));
+ const unrepresented=contacts.filter(c=>!represented.has(c.id));
  for(const c of unrepresented.filter(c=>['reply','review'].includes(c.state))){
   const n=nodes.find(n=>n.id===c.taskId||n.keys.some(k=>c.taskId==='stage:'+k)),action=communicationAction({...n,communication:c});
   if(action)ownReady.push({id:n?.id||'communication:'+c.id,communicationId:c.id,owner:me,label:action.title,state:c.state});
  }
  const waitingByOwner=new Map();
+ const addWait=(owner,label,n)=>{
+  if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[],items:[]});
+  const w=waitingByOwner.get(owner),work=handoffWork(n);
+  if(!w.labels.includes(label))w.labels.push(label);
+  if(!w.items.some(x=>x.label===label&&x.work===work))w.items.push({taskId:n?.id||'',work,label});
+ };
  for(const n of nodes.filter(n=>!n.done&&n.wait&&!communicationAction(n))){
   const owner=n.owner||n.recipient||'相手未確認';
   if(n.id===focus?.id)continue;
-  if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[]});
-  waitingByOwner.get(owner).labels.push(n.communication?.summary||shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'));
+  addWait(owner,n.communication?.summary||shortLabel(n)+(n.state==='revision'?'の修正待ち':'待ち'),n);
  }
- for(const c of unrepresented.filter(c=>c.state==='waiting')){
+ // An open communication remains visible even if a legacy task state says
+ // schedule-wait or done. Reading a later receipt cannot close another request.
+ for(const c of contacts.filter(c=>c.state==='waiting'&&(!represented.has(c.id)||!nodes.some(n=>n.communicationId===c.id&&!n.done&&n.wait&&!communicationAction(n))))){
   const owner=typeof c.person==='string'&&c.person||'相手未確認',label=typeof c.summary==='string'&&c.summary.trim()||typeof c.subject==='string'&&c.subject.trim()||'返答・納品待ち';
   if(focus?.communication?.state==='waiting'&&owner===handoffOwner&&label===handoffStatus)continue;
-  if(!waitingByOwner.has(owner))waitingByOwner.set(owner,{owner,labels:[]});
-  const labels=waitingByOwner.get(owner).labels;if(!labels.includes(label))labels.push(label);
+  const n=nodes.find(n=>n.id===c.taskId||n.keys.some(k=>c.taskId==='stage:'+k));addWait(owner,label,n);
  }
  const parallelWaiting=[...waitingByOwner.values()];
  // Source material facts explain what is known, without inventing an active task.
@@ -549,7 +564,7 @@ function overview(s,r){
  const sourceFacts=summary&&Array.isArray(summary.sourceFactIds)&&Array.isArray(s.production?.sourceFacts)?s.production.sourceFacts.filter(f=>f&&summary.sourceFactIds.includes(f.id)&&typeof f.label==='string'&&f.label.trim()):[];
  const unconfirmed=!!(!r.archive&&!recording&&!ownReady.length&&!parallelWaiting.length&&summary&&typeof summary.label==='string'&&summary.label.trim()&&!nodes.some(n=>communicationAction(n)||!n.done&&['doing','requested','revision','waiting','received','review','todo','partial'].includes(n.state)));
  if(unconfirmed){headline=summary.label;handoffStatus=summary.label;handoffOwner='担当未確認';handoffSide='unknown';handoff=handoffOwner+'：'+handoffStatus;detail=typeof summary.detail==='string'?summary.detail:'';next=null;}
- return {sourceFacts,unconfirmed,completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:unconfirmed?'':focus?.id||''};
+ return {handoffWork:recording?recording.title:focus?handoffWork(focus):'',sourceFacts,unconfirmed,completed:completed.map(n=>({id:n.id,label:n.label})),latest,schedules,current,headline,handoff,handoffOwner,handoffStatus,handoffSide,ownReady,parallelWaiting,detail,next,groups,focusId:unconfirmed?'':focus?.id||''};
 }
 // Detailed rows keep each real task visible in workflow order. Notes remain
 // historical context, never evidence used to infer state, ownership or dates.

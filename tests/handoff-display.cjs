@@ -37,3 +37,27 @@ test('source fact disclosure participates in fold preservation',()=>{const s=fix
 test('TD is a display alias, preserving live, rough and version qualifiers and raw records',()=>{assert.equal(P.displayLabel('ライブ用ミックス'),'ライブ用TD');assert.equal(P.displayLabel('編集後ラフミックス'),'編集後ラフTD');assert.equal(P.displayLabel('ミックス（別版）'),'TD（別版）');assert.equal(P.displayLabel('MIX'),'TD');assert.equal(P.displayLabel('TD／ミックス'),'TD');assert.equal(P.displayLabel('リミックス'),'リミックス');const s=fixture();s.stageList.push({k:'liveMix',n:'ライブ用ミックス',productionGroup:'finish'},{k:'mainMix',n:'ミックス',productionGroup:'finish'});s.stages.liveMix={workState:'todo',dl:'2030-06-20'};s.stages.mainMix={workState:'todo',dl:'2030-06-25'};const before=JSON.stringify(s),o=overview(s),c=ui(s);assert(o.schedules.some(x=>x.label==='ライブ用TD'&&x.dates[0].date==='2030-06-20'));assert(o.schedules.some(x=>x.label==='TD'&&x.dates[0].date==='2030-06-25'));assert.doesNotMatch(c.productionSnapshot(s),/>ミックス<|>ライブ用ミックス</);assert.equal(JSON.stringify(s),before);});
 test('same-task duplicate dates collapse but separate TD versions stay distinct even on the same day',()=>{const s=fixture();s.stageList.push({k:'oneMix',n:'ミックス',productionGroup:'finish'},{k:'twoMix',n:'TD',productionGroup:'finish'});for(const k of ['oneMix','twoMix'])s.stages[k]={workState:'todo',dl:'2030-06-22',slots:[{date:'2030-06-22'},{date:'2030-06-22'}]};const a=overview(s).schedules.filter(x=>x.id==='stage:oneMix'||x.id==='stage:twoMix');assert.equal(a.length,2);assert(a.every(x=>x.label==='TD'&&x.dates.length===1));assert.notEqual(a[0].id,a[1].id);});
 test('TD version qualifiers remain visible in compact schedules, including parentheses',()=>{const s=fixture();for(const [k,n]of [['liveTD','ミックス（ライブ版）'],['masterTD','ミックス（原盤版）']]){s.stageList.push({k,n,productionGroup:'finish'});s.stages[k]={workState:'todo',dl:'2030-06-22'};}const o=overview(s);assert(o.schedules.some(x=>x.label==='TD（ライブ版）'));assert(o.schedules.some(x=>x.label==='TD（原盤版）'));});
+
+test('arrangement and lyrics waits remain separate in both main and parallel displays',()=>{
+ const s=fixture();s.stageList.push({k:'fullLyricsWork',n:'フルサイズ歌詞制作',productionGroup:'plan'});s.stages.fullLyricsWork={st:'req',workState:'requested',asg:'作詞担当'};
+ s.workflow.communications=[{id:'arr',taskId:'stage:arrangeWork',state:'waiting',person:'制作担当',summary:'アレンジ待ち'},{id:'lyr',taskId:'stage:fullLyricsWork',state:'waiting',person:'作詞担当',summary:'フルサイズ歌詞待ち'}];
+ s.production.tasks['stage:fullLyricsWork']={memo:'3番の方針は合意済み。歌詞の受領は未確認。'};
+ const before=JSON.stringify(s),r=P.report(s,{today}),o=P.overview(s,r);
+ assert.equal(o.handoffWork,'アレンジ');assert(!r.node['stage:fullLyricsWork'].done);
+ assert(o.parallelWaiting.some(w=>w.owner==='作詞担当'&&w.items.some(x=>x.work==='作詞'&&x.label==='フルサイズ歌詞待ち')));
+ for(const html of [ui(s).productionCompactItem(s),ui(s).productionSnapshot(s)]){assert.match(html,/制作担当 · アレンジ/);assert.match(html,/作詞担当 · 作詞/);assert.match(html,/フルサイズ歌詞待ち/);}
+ assert.equal(JSON.stringify(s),before);
+});
+test('compact view does not truncate a third outstanding counterpart or mix one person’s roles',()=>{
+ const s=fixture();s.stages.newStems={};
+ for(const [k,n,owner] of [['fullLyricsWork','歌詞制作','作詞担当'],['other','別版ステム','別担当'],['another','追加素材','第三担当']]){s.stageList.push({k,n,productionGroup:'plan'});s.stages[k]={st:'req',workState:'requested',asg:owner};}
+ let html=ui(s).productionCompactItem(s);for(const name of ['作詞担当','別担当','第三担当'])assert(html.includes('相手待ち · '+name));assert.doesNotMatch(html,/ほかの相手待ち/);
+ s.stages.fullLyricsWork.asg='制作担当';const o=overview(s),w=o.parallelWaiting.find(w=>w.owner==='制作担当');assert(w.items.some(x=>x.work==='作詞'));
+ assert.match(ui(s).productionCompactItem(s),/制作担当 · 作詞/);
+});
+test('open communication cannot vanish behind schedule-wait or a completed task',()=>{
+ for(const stage of [{st:'wait',workState:'waiting'},{done:true}]){const s=fixture();s.stages.arrangeWork=stage;s.stages.newStems={};s.workflow.communications=[{id:'delivery',taskId:'stage:arrangeWork',state:'waiting',person:'制作担当',summary:'修正版の返答待ち'}];const before=JSON.stringify(s),o=overview(s);assert(o.parallelWaiting.some(w=>w.owner==='制作担当'&&w.labels.includes('修正版の返答待ち')));assert.match(ui(s).productionCompactItem(s),/修正版の返答待ち/);assert.equal(JSON.stringify(s),before);}
+});
+test('an unresolved communication with an old task id remains visible without inventing a role',()=>{
+ const s=fixture();s.workflow.communications=[{id:'orphan',taskId:'stage:old-removed-task',state:'waiting',person:'追加素材担当',summary:'追加資料の送付待ち'}];const o=overview(s);assert(o.parallelWaiting.some(w=>w.owner==='追加素材担当'&&w.items.some(i=>i.work==='連絡')));assert.match(ui(s).productionCompactItem(s),/追加資料の送付待ち/);
+});

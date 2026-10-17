@@ -74,7 +74,7 @@ function productionScheduleHTML(x,compact=false){
 }
 function productionHandoffHTML(o){
  if(!o.handoffOwner)return '';
- return '<span class="handoff-owner '+esc(o.handoffSide)+'">'+(o.handoffSide==='other'?'相手待ち · ':'')+esc(o.handoffOwner)+'</span>';
+ return '<span class="handoff-owner '+esc(o.handoffSide)+'">'+(o.handoffSide==='other'?'相手待ち · ':'')+esc(o.handoffOwner)+(o.handoffWork?' · '+esc(o.handoffWork):'')+'</span>';
 }
 function productionOwnReadyHTML(x,compact=false){
  const ready=x.overview.ownReady||[];if(!ready.length)return '';
@@ -82,9 +82,10 @@ function productionOwnReadyHTML(x,compact=false){
  return '<span class="production-own-ready"><span class="handoff-owner me">'+esc(shown[0].owner)+'の作業</span><span>'+esc(shown.map(n=>n.label).join('・'))+(compact&&ready.length>shown.length?' · ほかの作業':'')+'</span></span>';
 }
 function productionParallelWaitHTML(x,compact=false){
- const waiting=x.overview.parallelWaiting||[],shown=compact?waiting.slice(0,2):waiting;
- return shown.map(w=>'<span class="production-own-ready external"><span class="handoff-owner other">相手待ち · '+esc(w.owner)+'</span><span>'+esc(w.labels.join('・'))+'</span></span>').join('')+(compact&&waiting.length>shown.length?'<span class="production-schedule-more">ほかの相手待ち</span>':'');
+ const waiting=x.overview.parallelWaiting||[];
+ return waiting.flatMap(w=>(w.items?.length?w.items:[{work:'',label:w.labels.join('・')}]).map(item=>'<span class="production-own-ready external"><span class="handoff-owner other">相手待ち · '+esc(w.owner)+(item.work?' · '+esc(item.work):'')+'</span><span>'+esc(item.label)+'</span></span>')).join('');
 }
+
 function productionSourceFactsHTML(x,compact=false){
  const facts=x.overview.sourceFacts||[];
  if(!facts.length||compact&&!x.overview.unconfirmed)return '';
