@@ -1,11 +1,9 @@
 'use strict';
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const read=p=>fs.readFileSync(require('node:path').join(__dirname,'..',p),'utf8');
-test('retired GAS handlers never touch calendar, properties, data or locks',()=>{
- const c={};vm.createContext(c);vm.runInContext(read('gas/calendar-sync.gs'),c);
- for(const name of ['syncShinkouCal','exportCalendar_'])assert.equal(c[name]().disabled,true);
- assert.equal(c.expCal_(),null);assert.equal(typeof c.sync,'function');
- assert.doesNotMatch(read('gas/calendar-sync.gs'),/CalendarApp\.createCalendar|createAllDayEvent|ev\.deleteEvent/);
+test('legacy GAS source and manual invocation controls are removed',()=>{
+ assert.equal(fs.existsSync(require('node:path').join(__dirname,'../gas/calendar-sync.gs')),false);
+ assert.doesNotMatch(read('app.js'),/calRun|calDry|calGo|id="calU"|script\.google\.com/);
 });
 test('legacy workflow entry points are harmless and original state is preserved',()=>{
  const state={songs:[{id:'s',workflow:{calendarEvents:[{id:'old'}]}}],settings:{connections:{eventCalendar:'existing'}}};

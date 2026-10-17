@@ -239,7 +239,7 @@ const BLANK=()=>({v:8,projects:[],songs:[],trash:[],log:[],assistantRules:[],tem
   masters:{artist:[],solo:[],lyricist:[],composer:[],arranger:[],engineer:[],masEng:[],studio:[],director:[],
     musician:[],instrument:["Programming","Guitar","Bass","Drums","Keyboards","Piano","Strings","Brass","Chorus"]},
   settings:{gh:{owner:"",repo:"",path:"shinkou-data.json",branch:"main",token:""},keepToken:false,lastExport:0}});
-const APP_VER="2026-10-16-preparation-1";
+const APP_VER="2026-10-17-gas-retired-1";
 const VIEW_ONLY=true;
 let S=BLANK(), RO=false, mem=false, CK=null, CKsalt=null, CKiterations=600000, encOn=false, securityChanging=false;
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():"id"+Date.now()+Math.random().toString(36).slice(2));
@@ -1529,7 +1529,6 @@ function masterSheet(){
 
 /* ===================== 端末間の同期（GitHub のプライベートリポジトリ） ===================== */
 let SY={st:"off",msg:"",busy:false,timer:null,poll:null,last:0};
-const calUrl=()=>S.settings.calUrl||"";
 const syCfg=()=>{if(!S.settings.sync)S.settings.sync={owner:"",repo:"",path:"data.json",branch:"main",token:"",on:false};
   return S.settings.sync};
 function syOk(){const c=syCfg();return c.on&&c.owner&&c.repo&&c.path&&c.token}
@@ -1794,14 +1793,6 @@ function openSettings(){
       '<div class="row fg"><button class="btn" id="syNow">最新の内容を読み込む</button>'+
         '<button class="btn" id="syPull">同期先から端末を復旧</button></div>'+
       '<div class="fg"><button class="btn w" id="syHistory">同期の確認履歴を見る</button></div>'},
-     {id:"cal",t:"カレンダーから取り込む",h:()=>
-      ''+
-      '<div class="fg"><span class="lbl">取り込み用のURL</span>'+
-        '<input class="inp" id="calU" placeholder="https://script.google.com/macros/s/.../exec" value="'+esc(calUrl())+'"></div>'+
-      '<div class="row fg"><button class="btn" id="calDry">下見（書き込まない）</button>'+
-        '<button class="btn pri" id="calGo">いま取り込む</button></div>'+
-      ''+
-      '<pre class="callog" id="calLog"></pre>'},
     {id:"save",t:"保存とバックアップ",h:()=>
       (S.settings.lastExport&&Date.now()-S.settings.lastExport<14*864e5
         ? ''
@@ -1848,26 +1839,6 @@ function wireSettings(B){
   B.querySelectorAll("[data-ep]").forEach(b=>b.onclick=()=>editProject(b.dataset.ep));
   on("#mMaster",masterSheet);on("#mInv",invSheet);on("#mTrash",trashSheet);
   on("#mLog",logSheet);
-  {const u=q("#calU");if(u)u.onblur=()=>{S.settings.calUrl=u.value.trim();mark()};}
-  const calRun=async dry=>{
-    const u=(q("#calU")?q("#calU").value:"").trim();
-    const box=q("#calLog");
-    if(!u){toast("取り込み用のURLを入れてください");return}
-    S.settings.calUrl=u;mark();
-    if(box)box.textContent="取り込み中…";
-    try{
-      const r=await fetch(u+(u.indexOf("?")<0?"?":"&")+"t="+Date.now()+(dry?"&dry=1":""),
-        {redirect:"follow"});
-      const t=await r.text();
-      let j=null;try{j=JSON.parse(t)}catch(_){}
-      if(box)box.textContent=j?(j.text||""):t.slice(0,1200);
-      if(!dry&&j&&j.ok){
-        if(syOk()){try{await syncNow("manual")}catch(_){}}
-        render();if(cur){cur=S.songs.find(x=>x.id===cur.id);if(cur){head();drawSong()}}
-        toast("取り込みました")}
-    }catch(e){if(box)box.textContent="つながりませんでした："+e.message}};
-  on("#calDry",()=>calRun(true));
-  on("#calGo",()=>calRun(false));
   {const cm2=q("#crMode2");
    if(cm2)cm2.onclick=e=>{const x=e.target.closest("[data-cw2]");if(!x)return;
      crWork=x.dataset.cw2==="1";wireSettings.redraw&&wireSettings.redraw()};}
