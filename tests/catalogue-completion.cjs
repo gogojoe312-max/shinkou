@@ -60,3 +60,20 @@ test('registered completed tracks remain visible when only common work is pendin
  assert.match(c.productionReleaseContents([]),/Done track 完了/);c.ShinkouProduction.releaseTask=()=>({state:'done'});assert.doesNotMatch(c.productionReleaseContents([]),/Done track/);
 });
 
+test('director filtering preserves the full Rosy album tracklist including catalogue recordings',()=>{
+ const titles=['OP','8bit片想い','恋愛エビデンス','Pi-Pi-Pit-a-pat！','バラ色アンソロジー','ダイスキだけど付き合えない New','女で地球は回ってる New','薔薇より美しい人生','マペットナイト〜深淵を覗く夜に〜','Cut & Fix','ロック曲','悴む針',"That That That's Life",'未来ハジマリ 合唱ver'];
+ const existing=new Set([1,3,4,7]),p={id:'album',artist:'ロージークロニクル',custom:'アルバム（仮）',director:'高崎',tracklist:titles.map((title,i)=>existing.has(i)?known(title):{title,kind:'new',songId:'song-'+i})};
+ const songs=p.tracklist.filter(t=>t.songId).map(t=>({id:t.songId,title:t.title,projectId:p.id,director:p.director}));
+ const before=JSON.stringify({p,songs}),c=ui([p],songs,{dir:'高崎'});
+ c.pool=()=>songs.filter(s=>c.V.dir==='__all'||s.director===c.V.dir);
+ for(const fin of ['show','hide']){
+  c.V.fin=fin;const html=c.productionReleaseContents(c.pool());
+  assert.equal((html.match(/class="polished-number"/g)||[]).length,4);
+  let previous=-1;for(const title of titles){const index=html.indexOf(title);assert(index>previous,'missing or out-of-order track: '+title);previous=index;}
+ }
+ c.V.fin='done';const done=c.productionReleaseContents([]);for(const i of existing)assert.match(done,new RegExp(titles[i]));assert.doesNotMatch(done,/>OP /);
+ c.V.fin='show';c.V.q='8bit';assert.match(c.productionReleaseContents([]),/8bit片想い/);assert.doesNotMatch(c.productionReleaseContents([]),/バラ色アンソロジー/);
+ c.V.q='';c.V.dir='別の担当';assert.doesNotMatch(c.productionReleaseContents([]),/8bit片想い/);
+ assert.equal(JSON.stringify({p,songs}),before);
+});
+

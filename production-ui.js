@@ -184,7 +184,7 @@ function productionReleaseComplete(p,items=[]){
  return !p||ShinkouProduction.RELEASE_TASKS.every(t=>['done','na'].includes(ShinkouProduction.releaseTask(p,t.id,S.songs).state));
 }
 function productionTrackMatches(t,p){
- if(V.who!=='all'||V.dir!=='__all'||(V.use&&!['master','all'].includes(V.use)))return false;
+ if(V.who!=='all'||(V.dir!=='__all'&&V.dir!==p?.director)||(V.use&&!['master','all'].includes(V.use)))return false;
  const q=(V.q||'').trim().toLowerCase();
  return !q||[t.title,p?.custom,p?.artist].join(' ').toLowerCase().includes(q);
 }
