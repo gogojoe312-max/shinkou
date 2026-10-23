@@ -10,7 +10,7 @@ Render 版は同じ画面を使い、Google ID トークンの検証と明示的
 
 ## Render 設定
 
-Node.js 22〜24。ビルド `npm ci --omit=dev --ignore-scripts`、起動 `npm start`。`PORT` を使用し、`0.0.0.0` で待ち受けます。ヘルスチェックは `/healthz`。Free では休止後の初回アクセスに待ち時間があります。
+Node.js 24.22.1以上・25未満。`.node-version` で24.22.1を指定しています。Renderの `NODE_VERSION` 環境変数はこのファイルより優先されるため、設定済みの場合も24.22.1以上の24系を指定してください。ビルド `npm ci --omit=dev --ignore-scripts`、起動 `npm start`。`PORT` を使用し、`0.0.0.0` で待ち受けます。ヘルスチェックは `/healthz`。Free では休止後の初回アクセスに待ち時間があります。
 
 環境変数は Render の Environment から設定します。秘密キーをソース、チャット、スクリーンショットに貼らないでください。
 
