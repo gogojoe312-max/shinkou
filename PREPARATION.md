@@ -39,3 +39,33 @@ node scripts/package-preparation.cjs PRIVATE_MANIFEST PRIVATE_KEY PRIVATE_SHA se
 更新されたことにはなりません。新しい準備を発行する際はパッケージ化と配備まで
 行うか、設定済みのサーバー接続から直接取得します。公開完了後は所有者として
 本番エンドポイントを読み、配備した sourceSha と実際の曲・進行表を確認します。
+
+## dotのREC更新と端末の適用結果
+
+歌チェック 16.41.58.73 以降の `recording-update` を従来の非公開準備一覧の
+まま配信します。セッションの連番・元操作・前版ハッシュ・元/変更後の
+スナップショットで、日付移動・メンバー順・開始終了・休憩・歌詞/歌割を
+扱います。適用・本人修正の保持・曖昧変更の保留は歌チェック側が実施します。
+入力・保留の訂正手順は utacheck の `docs/dot-rec-updates.md` と
+`docs/private-preparation.md` を参照。旧操作を上書きしません。
+
+`POST /utacheck/results` は既存PagesオリジンとGitHubの所有者だけを受け付け、
+厳格なメタデータ形式の適用結果を、固定の非公開
+`shinkou-data/utacheck/results/device-<32桁hex>.json` に保存・再読取します。
+歌詞・指摘本文・録音・認証情報・メンバー向け共有設定は本文に含めません。
+端末のスコープが限定された接続は本人確認だけに使い、保存は設定済みの
+既存 `GITHUB_TOKEN` 接続で行います。書込設定や権限がない場合は
+`RESULT_WRITER_UNAVAILABLE` / `HTTP_403` 等で未確認を返します。
+ワークスペースのGH_TOKENや配信用Gistトークンを新たに保存しません。
+
+`/healthz` の `preparationRepositoryConfigured` は設定有無のみ、`revision` は
+Renderの配備コミットです。実際の読書権限や携帯での適用を保証する値では
+ありません。dotは結果ファイルの `source.sha`、操作ID/ハッシュ、現在の
+セッション版、保留理由、残された本人修正のフィールドを比較してください。
+同じ端末の古い結果を上書きしないよう、Contents SHAと単調なsequenceを検証します。
+メンバー向けの公開配信・共有はこの経路を使わず、変更していません。
+
+今回のサーバー検証対象は `node --test tests/preparation-*.cjs`。
+全体の旧テストは基準コミット e6a3dba 時点でも304件中41件が失敗
+（旧フロント関数を参照するテスト等）したため、全体成功とは扱わず、
+今回の変更範囲の検証結果と区別して記録します。

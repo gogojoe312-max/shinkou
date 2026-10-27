@@ -217,7 +217,7 @@ test('deployment health checks the configured bundle once and exposes only readi
   let loads=0;const f=await fixture(t,{env,readBundle:async()=>{loads++;return bundleBytes(bundle);}});
   for(let i=0;i<2;i++){
    const response=await f.request({headers:{Authorization:''}},'/healthz');assert.equal(response.status,200);
-   const body=await response.json();assert.deepEqual(body,{ok:true,preparationBundleReady:expected});
+   const body=await response.json();assert.deepEqual(body,{ok:true,preparationBundleReady:expected,preparationRepositoryConfigured:false,revision:null});
    for(const secret of [BUNDLE_KEY,valid.ciphertext,valid.sourceSha,'operations',CALLER,SERVER])assert.equal(JSON.stringify(body).includes(secret),false);
   }
   assert.equal(loads,env.PREPARATION_BUNDLE_KEY?1:0);assert.equal(f.calls.length,0);
@@ -228,4 +228,9 @@ test('deployment health reports false for a missing or stalled bundle without pr
   const delivery=createPreparationDelivery({env:bundledEnv,readBundle,timeoutMs:15,fetch:async()=>{throw Error('No network allowed');}});
   assert.equal(await delivery.bundleReady(),false);assert.equal(await delivery.bundleReady(),false);
  }
+});
+
+test('versioned recording-update passes through direct private and encrypted preparation without replacing prior queue operations',async t=>{
+ const m=manifest();m.operations.push({...structuredClone(m.operations[0]),id:'qa-dot-next-update',type:'recording-update'});
+ const f=await fixture(t,{manifest:m});assert.deepEqual((await(await f.request()).json()).manifest,m);
 });

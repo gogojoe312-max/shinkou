@@ -1,3 +1,4 @@
+const {createPreparationResultsDelivery}=require('./preparation-results-delivery.cjs');
 'use strict';
 const express=require('express'),helmet=require('helmet'),cookieParser=require('cookie-parser');
 const {rateLimit}=require('express-rate-limit');
@@ -32,9 +33,11 @@ function createApp(env=process.env,dependencies={}){
  const delivery=createPreparationDelivery({env,fetch:http,...dependencies.preparationDelivery});
  app.all('/utacheck/prepared',delivery.cors,rateLimit({windowMs:60000,limit:12,standardHeaders:'draft-8',legacyHeaders:false,
   message:{status:'unavailable',code:'RATE_LIMITED',stage:'relay'}}),delivery.handle);
+ const resultDelivery=createPreparationResultsDelivery({env,fetch:http});
+ app.all('/utacheck/results',resultDelivery.cors,rateLimit({windowMs:60000,limit:12,standardHeaders:'draft-8',legacyHeaders:false,message:{status:'pending',code:'RATE_LIMITED'}}),express.json({limit:'256kb',strict:true}),resultDelivery.handle);
  app.use(cookieParser());app.use(express.json({limit:'20mb',strict:true}));
  const limit=(max,windowMs=60000)=>rateLimit({windowMs,limit:max,standardHeaders:'draft-8',legacyHeaders:false,message:{error:'操作が集中しています。少し待ってからお試しください。'}});
- app.get('/healthz',async(req,res)=>res.json({ok:true,preparationBundleReady:await delivery.bundleReady()}));
+ app.get('/healthz',async(req,res)=>res.json({ok:true,preparationBundleReady:await delivery.bundleReady(),preparationRepositoryConfigured:resultDelivery.configured(),revision:env.RENDER_GIT_COMMIT||null}));
  app.get('/server-config.js',(req,res)=>res.type('js').send('window.ShinkouServerConfig=Object.freeze('+JSON.stringify({enabled:true,ready,clientId:ready?env.GOOGLE_CLIENT_ID:''})+');'));
  function csrf(req,res,next){if(req.get('origin')!==origin||req.get('sec-fetch-site')==='cross-site')return next(err(403,'別サイトからの操作は受け付けません'));next()}
  function authenticate(req,res,next){if(!ready)return next(err(503,'認証設定が完了していません。制作データは公開されていません。'));prune();const session=unpack(req.cookies[COOKIE]);
