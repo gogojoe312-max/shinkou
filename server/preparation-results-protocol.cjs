@@ -25,7 +25,7 @@
   try{while(true){if(!active())fail('INACTIVE');const {value,done}=await reader.read();if(done)break;size+=value.byteLength;if(size>512*1024)fail('RESULTS_TOO_LARGE');parts.push(value);}}catch(e){try{await reader.cancel();}catch(_){}throw e;}finally{reader.releaseLock();}
   const bytes=new Uint8Array(size);let at=0;for(const p of parts){bytes.set(p,at);at+=p.length;}try{return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}catch(_){fail('INVALID_RESPONSE');}
  }
- async function write({report,token,fetch:http=root.fetch,isActive=()=>true,signal}={}){
+ async function write({report,token,fetch:http=root.fetch,isActive=()=>true,signal,beforeWrite=async()=>true}={}){
   let timer;const controller=new AbortController(),abort=()=>controller.abort();signal?.addEventListener('abort',abort,{once:true});if(signal?.aborted)abort();timer=setTimeout(abort,30000);
   const active=()=>!controller.signal.aborted&&isActive()===true;
   try{
@@ -38,6 +38,7 @@
    const old=await request(url+'?ref=main','GET',undefined,true),oldReport=old?decode(old):null;
    if(oldReport&&oldReport.sequence>=report.sequence){if(JSON.stringify(oldReport)!==JSON.stringify(report))fail('RESULT_SEQUENCE_CONFLICT');return {status:'confirmed',path,sequence:report.sequence};}
    const bytes=new TextEncoder().encode(JSON.stringify(report)),content=btoa(Array.from(bytes,b=>String.fromCharCode(b)).join(''));
+   if(!await beforeWrite()||!active())fail('INACTIVE');
    await request(url,'PUT',{message:'Record private REC application result',branch:'main',content,...(old?{sha:old.sha}:{})});
    const verified=decode(await request(url+'?ref=main'));if(JSON.stringify(verified)!==JSON.stringify(report))fail('RESULT_SAVE_UNVERIFIED');
    return {status:'confirmed',path,sequence:report.sequence};
