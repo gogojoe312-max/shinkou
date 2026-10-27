@@ -1,4 +1,5 @@
 'use strict';
+const {preparationConnection}=require('./preparation-connection.cjs');
 const {validateManifest,OWNER,REPO,PATH,MAX_MANIFEST_BYTES}=require('./preparation-service.cjs');
 const {createDecipheriv,createHash}=require('node:crypto');
 const {open}=require('node:fs/promises'),{constants}=require('node:fs'),path=require('node:path');
@@ -84,7 +85,7 @@ function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=T
  }
  async function read(callerToken){
   if(!validToken(callerToken))return unavailable('HTTP_401',401);
-  const direct=validToken(env.GITHUB_TOKEN)&&(env.DATA_OWNER||OWNER)===OWNER&&(env.DATA_REPO||REPO)===REPO&&(env.DATA_BRANCH||'main')==='main';
+  const connection=preparationConnection(env),direct=connection.ready,sourceToken=connection.token;
   if(!direct){try{canonicalBase64(env.PREPARATION_BUNDLE_KEY,32).fill(0);}catch{return unavailable('RELAY_NOT_CONFIGURED',503);}}
   if(active>=MAX_ACTIVE)return unavailable('RATE_LIMITED',429);
   active++;
@@ -112,17 +113,17 @@ function createPreparationDelivery({env=process.env,fetch:http=fetch,timeoutMs=T
      const raw=await readBundle(controller.signal);controller.signal.throwIfAborted();
      return decryptBundle(raw,env.PREPARATION_BUNDLE_KEY);
     }
-    const prefix='/repos/'+OWNER+'/'+REPO,repository=await request(prefix,env.GITHUB_TOKEN,META_BYTES);
+    const prefix='/repos/'+OWNER+'/'+REPO,repository=await request(prefix,sourceToken,META_BYTES);
     if(repository.private!==true)throw failure('REPOSITORY_NOT_PRIVATE');
     if(repository.full_name!==OWNER+'/'+REPO||repository.owner?.login!==OWNER)throw failure('REPOSITORY_MISMATCH');
-    const file=await request(prefix+'/contents/'+PATH+'?ref=main',env.GITHUB_TOKEN,ENCODED_BYTES);
+    const file=await request(prefix+'/contents/'+PATH+'?ref=main',sourceToken,ENCODED_BYTES);
     if(file.type!=='file'||file.path!==PATH||file.name!=='prepared.json'||!['base64','none'].includes(file.encoding)
       ||file.truncated===true||own(file,'target')||own(file,'submodule_git_url')||!Number.isSafeInteger(file.size)||file.size<1||file.size>MAX_MANIFEST_BYTES
       ||typeof file.sha!=='string'||!/^[a-f0-9]{40}$/.test(file.sha))throw failure('INVALID_FILE');
     let blob=file;
     if(file.encoding==='none'){
      if(file.content!=='')throw failure('INVALID_FILE');
-     blob=await request(prefix+'/git/blobs/'+file.sha,env.GITHUB_TOKEN,ENCODED_BYTES);
+     blob=await request(prefix+'/git/blobs/'+file.sha,sourceToken,ENCODED_BYTES);
      if(blob.sha!==file.sha||blob.size!==file.size||blob.encoding!=='base64'||blob.truncated===true)throw failure('INVALID_FILE');
     }
     if(typeof blob.content!=='string'||blob.content.length>ENCODED_BYTES)throw failure('INVALID_FILE');

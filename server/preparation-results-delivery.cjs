@@ -2,7 +2,8 @@
 const Results=require('./preparation-results-protocol.cjs');
 const {OWNER,REPO}=require('./preparation-service.cjs');
 const {ORIGIN}=require('./preparation-delivery.cjs');
-const configured=env=>typeof env.GITHUB_TOKEN==='string'&&!!env.GITHUB_TOKEN&&(!env.DATA_OWNER||env.DATA_OWNER===OWNER)&&(!env.DATA_REPO||env.DATA_REPO===REPO)&&(!env.DATA_BRANCH||env.DATA_BRANCH==='main');
+const {preparationConnection}=require('./preparation-connection.cjs');
+const configured=env=>preparationConnection(env).ready;
 function createPreparationResultsDelivery({env=process.env,fetch:http=fetch}={}){
  function cors(req,res,next){
   res.set({'Cache-Control':'no-store',Vary:'Origin'});
@@ -26,7 +27,7 @@ function createPreparationResultsDelivery({env=process.env,fetch:http=fetch}={})
    const text=await r.text();if(text.length>32768)return res.status(401).json({status:'pending',code:'IDENTITY_UNAVAILABLE'});
    if(JSON.parse(text).login!==OWNER)return res.status(403).json({status:'pending',code:'OWNER_MISMATCH'});
    if(!configured(env))return res.status(503).json({status:'pending',code:'RESULT_WRITER_UNAVAILABLE'});
-   const result=await Results.write({report:req.body,token:env.GITHUB_TOKEN,fetch:http});
+   const result=await Results.write({report:req.body,token:preparationConnection(env).token,fetch:http});
    return res.status(result.status==='confirmed'?200:503).json(result);
   }catch{return res.status(400).json({status:'pending',code:'INVALID_RESULTS'});}
  }

@@ -234,3 +234,8 @@ test('versioned recording-update passes through direct private and encrypted pre
  const m=manifest();m.operations.push({...structuredClone(m.operations[0]),id:'qa-dot-next-update',type:'recording-update'});
  const f=await fixture(t,{manifest:m});assert.deepEqual((await(await f.request()).json()).manifest,m);
 });
+
+test('dedicated preparation credential reads only the fixed private source without altering unrelated sync configuration',async t=>{
+ const f=await fixture(t,{env:{GITHUB_TOKEN:'unrelated-sync-credential',PREPARATION_GITHUB_TOKEN:SERVER,DATA_OWNER:'another-sync-owner'}});
+ const result=await(await f.request()).json();assert.equal(result.status,'ready');assert(f.calls.filter(c=>c.url!=='https://api.github.com/user').every(c=>c.options.headers.Authorization==='Bearer '+SERVER));
+});
